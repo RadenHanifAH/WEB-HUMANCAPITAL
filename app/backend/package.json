@@ -1,0 +1,30 @@
+{
+  "name": "hr-backend",
+  "version": "1.0.0",
+  "description": "HR Management Express Backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "keywords": [
+    "express",
+    "node",
+    "hr"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.17.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "prisma": "^6.17.1",
+    "web-humancapital": "file:.."
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

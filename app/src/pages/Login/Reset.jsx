@@ -1,75 +1,69 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import Logo from "../../assets/logo.png";
 
 function Reset() {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setMessage(`Link reset password telah dikirim ke: ${email}`);
-    setEmail("");
+    console.log("Email reset:", email);
+    alert("Link reset password telah dikirim ke email Anda!");
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Logo */}
-      <div className="p-6 ml-10">
-        <img src={Logo} alt="Logo" className="h-13 w-auto" />
-      </div>
+    <div
+      className="relative w-full overflow-hidden"
+      style={{
+        height: "calc(100vh - 80px)", // sesuaikan jika tinggi navbar berbeda
+      }}
+    >
+      {/* Background gradasi blur */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
 
-      {/* Content */}
-      <div className="flex flex-1 items-center justify-center px-4 md:px-16">
+      {/* Form container */}
+      <div className="relative h-full flex items-center justify-center px-4 sm:px-6">
+        <div className="w-full max-w-md sm:max-w-xl bg-white rounded-xl shadow-lg p-6 sm:p-8 transform -translate-y-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 text-center sm:text-left">
+            Lupa Password
+          </h2>
+          <p className="text-sm text-gray-600 mb-6 text-center sm:text-left">
+            Masukkan email anda yang terdaftar untuk me-reset password.
+          </p>
 
-        {/* Right Form */}
-        <div className="w-full max-w-xl bg-white shadow-lg rounded-xl p-10">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full border rounded-lg px-4 py-3 text-base focus:ring focus:ring-blue-300"
-              />
-            </div>
-
-            {message && (
-              <p className="text-sm text-blue-600 text-center">{message}</p>
-            )}
+          <form onSubmit={handleSubmit}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. akun@gmail.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-600 focus:outline-none mb-4 text-sm sm:text-base"
+            />
 
             <button
               type="submit"
-              className="w-full bg-blue-700 text-white py-3 rounded-lg text-base hover:bg-blue-800 transition"
+              className="w-full px-5 py-2.5 md:px-6 md:py-3 
+             bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
+             text-white rounded-lg text-sm md:text-base font-semibold 
+             flex items-center justify-center transition shadow-lg transform active:scale-95"
             >
-              Kirim Link Reset
+              Kirim
             </button>
-
-            <div className="text-center">
-                <p className="mt-6 text-center text-sm text-gray-600">
-            Apakah Anda ingat kata sandi Anda?{" "}
-              <Link
-                to="/login"
-                className="text-sm text-blue-600 hover:underline"
-              >
-                Masuk
-              </Link>
-            </p>
-            
-            </div>
           </form>
+
+          <p className="text-sm text-gray-600 mt-4 text-center">
+            Ingat Password?{" "}
+            <a
+              href="/login"
+              className="text-sm font-medium text-sky-800 hover:underline"
+            >
+              Masuk
+            </a>
+          </p>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="py-4 text-center text-xs text-gray-500 border-t mt-10">
-        © 2025 Perusahaan Anda. All rights reserved.
-      </footer>
     </div>
   );
 }

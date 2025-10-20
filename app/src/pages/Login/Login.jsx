@@ -1,8 +1,54 @@
 import React, { useState } from "react";
-import { Eye, EyeOff } from "lucide-react"; // icon mata
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
-import Logo from "../../assets/logo.png"; // ganti sesuai lokasi logo kamu
+import Logo from "../../assets/perusahaan1.png";
 
+// --- Komponen Input dengan Ikon ---
+const IconInputField = (props) => {
+  const {
+    icon: Icon,
+    type,
+    placeholder,
+    value,
+    onChange,
+    isPassword = false,
+    onToggleVisibility,
+    isVisible = false,
+  } = props;
+
+  return (
+    <div className="mb-4">
+      <div className="relative">
+        <Icon
+          size={20}
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+        />
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          required
+          className="w-full pl-12 pr-10 py-3 border border-gray-300 rounded-lg text-base 
+                     focus:border-sky-600 focus:ring-1 focus:ring-sky-600 
+                     transition duration-150 placeholder:text-gray-400"
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={onToggleVisibility}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+            aria-label={isVisible ? "Sembunyikan password" : "Lihat password"}
+          >
+            {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- Komponen Utama Login ---
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -11,118 +57,116 @@ function Login() {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Login attempt:", { email, password });
+    alert("Simulasi Login Berhasil!");
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Logo */}
-      <div className="p-6 ml-10">
-        <img src={Logo} alt="Logo" className="h-13 w-auto" />
-      </div>
+    <div
+      className="relative w-full overflow-hidden"
+      style={{
+        height: "calc(100vh - 80px)", // sesuaikan tinggi navbar
+      }}
+    >
+      {/* Background gradasi blur */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
+      <div className="absolute inset-0 backdrop-blur-md bg-white/30 pointer-events-none" />
 
-      {/* Content */}
-      <div className="flex flex-1 items-center justify-center px-4 md:px-16">
-        {/* Left Text */}
-        <div className="hidden md:flex flex-1 items-center justify-center">
-          <h1
-            className="text-3xl font-semibold leading-snug max-w-md 
-                 bg-gradient-to-r from-blue-900 to-sky-400 
-                 bg-clip-text text-transparent"
-          >
-            Wujudkan Karier Impian Bersama Syaamil Group
-          </h1>
-        </div>
+      {/* Card utama */}
+      <div className="relative h-full flex items-center justify-center p-4 sm:p-6">
+        <div className="flex flex-col lg:flex-row w-full max-w-5xl bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
+          {/* --- Panel Kiri (Logo) --- */}
+          <div className="hidden lg:flex lg:w-1/2 relative p-8 bg-white/40 backdrop-blur-sm items-center justify-center">
+            <img
+              src={Logo}
+              alt="Logo Perusahaan"
+              className="w-full h-auto max-h-[80%] object-contain rounded-lg shadow-xl"
+            />
+          </div>
 
-        {/* Right Form */}
-        <div className="w-full max-w-xl bg-white shadow-lg rounded-xl p-10">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full border rounded-lg px-4 py-3 text-base focus:ring focus:ring-blue-300"
-              />
-            </div>
+          {/* --- Panel Kanan (Form Login) --- */}
+          <div className="w-full lg:w-1/2 p-6 sm:p-8 md:p-10 flex items-center justify-center">
+            <div className="w-full max-w-sm">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center sm:text-left">
+                Hai, Selamat Datang!
+              </h1>
+              <p className="text-gray-700 mb-8 text-center sm:text-left text-sm sm:text-base">
+                Silakan masuk dengan akun anda.
+              </p>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium mb-1"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-4 py-3 text-base focus:ring focus:ring-blue-300 pr-10"
-                />
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Email Field */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-semibold text-gray-700 mb-1"
+                  >
+                    Email <span className="text-red-600">*</span>
+                  </label>
+                  <IconInputField
+                    icon={Mail}
+                    type="email"
+                    placeholder="nama@gmail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+
+                {/* Password Field */}
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-semibold text-gray-700 mb-1"
+                  >
+                    Password <span className="text-red-600">*</span>
+                  </label>
+                  <IconInputField
+                    icon={Lock}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Masukkan password anda"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    isPassword={true}
+                    isVisible={showPassword}
+                    onToggleVisibility={() => setShowPassword((prev) => !prev)}
+                  />
+                </div>
+
+                {/* Lupa Password */}
+                <div className="-mt-3 text-right">
+                  <Link
+                    to="/reset-password"
+                    className="text-sm font-medium text-sky-800 hover:underline"
+                  >
+                    Lupa Password?
+                  </Link>
+                </div>
+
+                {/* Tombol Login */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  type="submit"
+                  className="w-full px-5 py-2.5 md:px-6 md:py-3 
+             bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
+             text-white rounded-lg text-sm md:text-base font-semibold 
+             flex items-center justify-center transition shadow-lg transform active:scale-95"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  Masuk
                 </button>
-              </div>
-              <div className="text-right mt-2">
+              </form>
+
+              {/* Tautan Daftar */}
+              <p className="mt-6 text-center text-sm text-gray-700">
+                Belum memiliki akun?{" "}
                 <Link
-                  to="/reset-password"
-                  className="text-sm text-blue-600 hover:underline"
+                  to="/daftar"
+                  className="text-sky-800 font-semibold hover:underline"
                 >
-                  Lupa password?
+                  Daftar disini
                 </Link>
-              </div>
+              </p>
             </div>
-
-            <button
-              type="submit"
-              className="w-full bg-blue-700 text-white py-3 rounded-lg text-base hover:bg-blue-800 transition"
-            >
-              Masuk
-            </button>
-
-            <div className="flex items-center gap-2">
-              <hr className="flex-1 border-gray-300" />
-              <span className="text-sm text-gray-500">Atau</span>
-              <hr className="flex-1 border-gray-300" />
-            </div>
-
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-3 border py-3 rounded-lg text-base hover:bg-gray-50 transition"
-            >
-              <img
-                src="https://www.svgrepo.com/show/355037/google.svg"
-                alt="Google"
-                className="h-6 w-6"
-              />
-              Masuk dengan Google
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-gray-600">
-            Belum Punya Akun?{" "}
-            <Link to="/daftar" className="text-blue-600 hover:underline">
-              Daftar disini
-            </Link>
-          </p>
+          </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="py-4 text-center text-xs text-gray-500 border-t mt-10">
-        © 2025 Perusahaan Anda. All rights reserved.
-      </footer>
     </div>
   );
 }

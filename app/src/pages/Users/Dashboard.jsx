@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Users,
   Briefcase,
@@ -10,61 +10,122 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+// URL BACKEND YANG BARU DIBUAT (Endpoint Tunggal)
+const API_URL = "http://localhost:4000/api/dashboard/data";
+
 function Dashboard() {
-  // 📌 Data dummy
-  const stats = [
-    {
-      title: "Total Pelamar",
-      value: "1,234",
-      change: "+12% dari bulan lalu",
-      icon: Users,
-      color: "text-green-600",
-    },
-    {
-      title: "Lowongan Aktif",
-      value: "23",
-      change: "+3 lowongan baru",
-      icon: Briefcase,
-      color: "text-blue-600",
-    },
-    {
-      title: "Lamaran Hari Ini",
-      value: "89",
-      change: "+5% dari kemarin",
-      icon: FileText,
-      color: "text-orange-600",
-    },
-    {
-      title: "Diterima Bulan Ini",
-      value: "45",
-      change: "+8% dari target",
-      icon: CheckCircle,
-      color: "text-green-600",
-    },
-  ];
+  const [stats, setStats] = useState([]);
+  const [latestApplications, setLatestApplications] = useState([]);
+  const [pipeline, setPipeline] = useState([]);
 
-  const latestApplications = [
-    { name: "Ahmad Rizki", position: "Frontend Developer", time: "2 jam lalu", status: "Under Review" },
-    { name: "Sari Indah", position: "UI/UX Designer", time: "4 jam lalu", status: "Interview HC" },
-    { name: "Budi Santoso", position: "Backend Developer", time: "6 jam lalu", status: "Under Review" },
-    { name: "Maya Putri", position: "Product Manager", time: "8 jam lalu", status: "Psikotes" },
-  ];
-
-  const pipeline = [
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Data Pipeline yang statis (fallback visual)
+  const pipelineInitial = [
     { title: "Under Review", icon: Clock, color: "text-orange-500", value: 65, count: 156 },
     { title: "Interview HC", icon: UserCheck, color: "text-blue-500", value: 45, count: 89 },
     { title: "Psikotes", icon: AlertCircle, color: "text-purple-500", value: 25, count: 34 },
     { title: "Final Interview", icon: TrendingUp, color: "text-green-500", value: 15, count: 12 },
   ];
+  
+  // Placeholder awal
+  const initialStatsTemplate = [
+    { title: "Total Pelamar", value: "—", change: "Memuat...", icon: Users, color: "text-green-600" },
+    { title: "Lowongan Aktif", value: "—", change: "Memuat...", icon: Briefcase, color: "text-blue-600" },
+    { title: "Lamaran Hari Ini", value: "—", change: "Memuat...", icon: FileText, color: "text-orange-600" },
+    { title: "Diterima Bulan Ini", value: "—", change: "Memuat...", icon: CheckCircle, color: "text-green-600" },
+  ];
+  
+  useEffect(() => {
+    setStats(initialStatsTemplate);
+
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch(API_URL);
+        
+        if (!response.ok) throw new Error(`Gagal memuat data: ${response.statusText}`);
+        
+        const data = await response.json();
+        
+        const newStats = [
+          {
+            title: "Total Pelamar",
+            value: data.stats.totalApplications.toLocaleString(),
+            change: "+11% dari bulan lalu",
+            icon: Users,
+            color: "text-green-600",
+          },
+          {
+            title: "Lowongan Aktif",
+            value: data.activePositionsCount.toString(),
+            change: `Total ${data.totalPositionsCount} lowongan`,
+            icon: Briefcase,
+            color: data.activePositionsCount > 0 ? "text-blue-600" : "text-gray-500",
+          },
+          {
+            title: "Lamaran Hari Ini",
+            value: data.stats.applicationsToday.toString(),
+            change: "+5% dari kemarin",
+            icon: FileText,
+            color: "text-orange-600",
+          },
+          {
+            title: "Diterima Bulan Ini",
+            value: data.stats.acceptedThisMonth.toString(),
+            change: "+8% dari target",
+            icon: CheckCircle,
+            color: "text-green-600",
+          },
+        ];
+
+        setLatestApplications(data.latestApplications);
+        setPipeline(data.pipeline);
+        
+        setStats(newStats);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Gagal terhubung ke backend (Port 4000). Pastikan server berjalan.");
+        
+        setStats(prevStats =>
+          prevStats.map(stat => ({
+            ...stat,
+            value: "ERR",
+            change: "Koneksi backend gagal",
+            color: "text-red-500",
+          }))
+        );
+        setPipeline(pipelineInitial);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // Helper badge status
+  const getStatusClasses = (status) => {
+    switch (status) {
+      case "Under Review": return "bg-gray-200 text-gray-700";
+      case "Interview HC": return "bg-blue-100 text-blue-800";
+      case "Psikotes": return "bg-purple-100 text-purple-800";
+      default: return "bg-gray-200 text-gray-700";
+    }
+  };
 
   return (
-    <div>
+    <div className="p-6">
       {/* 🟢 Judul Dashboard */}
-      {/* <h1 className="text-3xl font-bold text-gray-700 mb-3">Dashboard Admin</h1>
-      <p className="text-sm font-semibold text-gray-400 mb-7">
-        Ringkasan proses rekrutmen terbaru
-      </p> */}
-
+      <h1 className="text-2xl font-semibold text-sky-900 mb-3">Dashboard Rekrutmen</h1>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+          {error} 
+        </div>
+      )}
+      
       {/* 🟢 Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {stats.map((item, i) => {
@@ -85,65 +146,65 @@ function Dashboard() {
         })}
       </div>
 
+      {/* 🟢 Dual Panel: Latest Apps & Pipeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        {/* 🟢 Lamaran Terbaru */}
+        {/* Lamaran Terbaru */}
         <div className="border border-gray-200 rounded-lg p-5 bg-white shadow-sm">
           <h3 className="text-lg font-semibold mb-1">Lamaran Terbaru</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Pelamar yang baru mendaftar hari ini
-          </p>
-          <div className="space-y-3">
-            {latestApplications.map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between border border-gray-100 rounded-md p-3 hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
-                    {a.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
+          <p className="text-sm text-gray-500 mb-4">Pelamar yang baru mendaftar hari ini</p>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Memuat data lamaran...</div>
+          ) : (
+            <div className="space-y-3">
+              {latestApplications.map((a, i) => (
+                <div
+                  key={`app-${a.id || i}`} 
+                  className="flex items-center justify-between border border-gray-100 rounded-md p-3 hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                      {a.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </div>
+                    <div>
+                      <p className="font-medium">{a.name}</p>
+                      <p className="text-sm text-gray-500">{a.position}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{a.name}</p>
-                    <p className="text-sm text-gray-500">{a.position}</p>
+                  <div className="text-right">
+                    <span className={`px-2 py-1 text-xs rounded ${getStatusClasses(a.status)}`}>
+                      {a.status}
+                    </span>
+                    <p className="text-xs text-gray-400 mt-1">{a.time}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={`px-2 py-1 text-xs rounded ${
-                      a.status === "Under Review"
-                        ? "bg-gray-200 text-gray-700"
-                        : a.status === "Interview HC"
-                        ? "bg-blue-100 text-blue-800"
-                        : a.status === "Psikotes"
-                        ? "bg-purple-100 text-purple-800"
-                        : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {a.status}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-1">{a.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* 🟢 Pipeline Rekrutmen */}
+        {/* Pipeline Rekrutmen */}
         <div className="border border-gray-200 rounded-lg p-5 bg-white shadow-sm">
           <h3 className="text-lg font-semibold mb-1">Pipeline Rekrutmen</h3>
           <p className="text-sm text-gray-500 mb-4">
             Status pelamar dalam proses seleksi
           </p>
-          <div className="space-y-4">
-            {pipeline.map((stage, i) => {
-              const Icon = stage.icon;
-              return (
-                <div key={i} className="flex items-center justify-between">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Memuat data pipeline...</div>
+          ) : (
+            <div className="space-y-4">
+              {pipeline.map((stage, i) => (
+                <div 
+                  key={`pipe-${stage.title || i}`} 
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-2">
-                    <Icon className={`h-4 w-4 ${stage.color}`} />
+                    {stage.title === "Under Review" && <Clock className={`h-4 w-4 ${stage.color}`} />}
+                    {stage.title === "Interview HC" && <UserCheck className={`h-4 w-4 ${stage.color}`} />}
+                    {stage.title === "Psikotes" && <AlertCircle className={`h-4 w-4 ${stage.color}`} />}
+                    {stage.title === "Final Interview" && <TrendingUp className={`h-4 w-4 ${stage.color}`} />}
                     <span className="text-sm font-medium">{stage.title}</span>
                   </div>
                   <div className="flex items-center gap-2 w-40">
@@ -156,54 +217,9 @@ function Dashboard() {
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* 🟢 Aksi Cepat */}
-      <div className="border border-gray-200 rounded-lg p-5 bg-white shadow-sm">
-        <h3 className="text-lg font-semibold mb-1">Aksi Cepat</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Tugas yang perlu segera ditindaklanjuti
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Clock className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="font-medium">Review CV Baru</p>
-                <p className="text-sm text-gray-500">23 CV menunggu review</p>
-              </div>
+              ))}
             </div>
-          </div>
-
-          <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <UserCheck className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium">Jadwalkan Interview</p>
-                <p className="text-sm text-gray-500">12 kandidat siap interview</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="font-medium">Finalisasi Penerimaan</p>
-                <p className="text-sm text-gray-500">5 kandidat siap diterima</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

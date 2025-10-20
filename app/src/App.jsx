@@ -7,18 +7,22 @@ import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
 import Admin from "./pages/Users/Admin";
+import User from "./pages/Users/User";
 import ScrollToTop from "./components/ScrollToTop";
 
 function Layout() {
   const location = useLocation();
 
-  // route yang tidak butuh navbar/footer
-  const hideLayout = ["/login", "/daftar", "/reset-password", "/admin"];
+  // Halaman yang tidak menampilkan Navbar
+  const hideNavbar = ["/admin"];
+
+  // Halaman yang tidak menampilkan Footer
+  const hideFooter = ["/login", "/daftar", "/reset-password", "/admin"];
 
   return (
     <>
-      {/* Navbar hanya muncul kalau bukan di login/daftar/reset/admin */}
-      {!hideLayout.includes(location.pathname) && <Navbar />}
+      {/* Navbar hanya disembunyikan pada halaman admin */}
+      {!hideNavbar.includes(location.pathname) && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -26,11 +30,12 @@ function Layout() {
         <Route path="/login" element={<Login />} />
         <Route path="/daftar" element={<Daftar />} />
         <Route path="/reset-password" element={<Reset />} />
-        <Route path="/admin" element={<Admin />} /> {/* ⬅️ Tambahkan ini */}
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/user" element={<User />} />
       </Routes>
 
-      {/* Footer hanya muncul kalau bukan di login/daftar/reset/admin */}
-      {!hideLayout.includes(location.pathname) && <Footer />}
+      {/* Footer disembunyikan pada login, daftar, reset, dan admin */}
+      {!hideFooter.includes(location.pathname) && <Footer />}
     </>
   );
 }

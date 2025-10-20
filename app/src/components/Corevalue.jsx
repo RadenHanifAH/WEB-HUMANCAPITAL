@@ -40,28 +40,42 @@ function Corevalue() {
   ];
 
   return (
-    <section className="py-8">
-      <div className="w-full text-left pl-6 md:pl-10">
+    <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <div className="max-w-4xl mx-auto">
         {/* Judul */}
-        <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
-          CORE VALUE
-        </h2>
-        <p className="text-3xl md:text-4xl font-bold tracking-widest text-orange-600 mb-12">
-          MIRACLE
-        </p>
+        <div className="text-center mb-12 sm:mb-16">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 mb-3 tracking-tight">
+            Core Value
+          </h2>
+          <p className="text-4xl sm:text-5xl md:text-6xl font-black tracking-widest text-sky-600">
+            M I R A C L E
+          </p>
+        </div>
 
-        {/* Grid 2 Kolom */}
-        <div className="grid md:grid-cols-2 gap-10">
+        {/* Card Container */}
+        <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 md:p-10 shadow-lg border border-gray-100">
           {values.map((item, index) => (
-            <div key={index} className="flex items-start gap-3">
-              <span className="font-extrabold text-orange-600 text-3xl min-w-[32px]">
-                {item.letter}
-              </span>
-              <div>
-                <p className="font-semibold text-lg text-gray-900">
+            <div
+              key={index}
+              className={`flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6 py-4 sm:py-6 transition duration-300 ${
+                index < values.length - 1 ? "border-b border-gray-200" : ""
+              } hover:bg-white/60`}
+            >
+              {/* Huruf Lingkaran */}
+              <div className="flex-shrink-0 flex items-center justify-center sm:justify-start">
+                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-blue-500/10 flex items-center justify-center border-2 border-blue-500/50">
+                  <span className="font-extrabold text-lg sm:text-xl md:text-2xl text-sky-600">
+                    {item.letter}
+                  </span>
+                </div>
+              </div>
+
+              {/* Teks */}
+              <div className="text-center sm:text-left">
+                <p className="font-extrabold text-lg sm:text-xl md:text-2xl text-gray-900">
                   {item.word}
                 </p>
-                <p className="text-gray-700 text-sm md:text-base">
+                <p className="text-gray-700 text-sm sm:text-base mt-1 leading-relaxed">
                   {item.desc}
                 </p>
               </div>

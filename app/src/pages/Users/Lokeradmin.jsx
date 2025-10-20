@@ -1,5 +1,5 @@
 // src/components/Lokeradmin.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   MoreHorizontal,
@@ -18,74 +18,53 @@ import { Listbox } from "@headlessui/react";
 import Create from "./Create";
 import ViewJob from "./ViewJob";
 
-const jobsData = [
-  {
-    id: 1,
-    title: "Frontend Developer",
-    department: "Engineering",
-    location: "Jakarta",
-    type: "Full-time",
-    status: "active",
-    applicants: 45,
-    posted: "2024-01-15",
-    deadline: "2024-02-15",
-    description: "Mengembangkan tampilan frontend aplikasi web.",
-    requirements: "Menguasai React, Tailwind, Git.",
-  },
-  {
-    id: 2,
-    title: "UI/UX Designer",
-    department: "Design",
-    location: "Bandung",
-    type: "Full-time",
-    status: "active",
-    applicants: 32,
-    posted: "2024-01-10",
-    deadline: "2024-02-10",
-    description: "Membuat desain antarmuka yang intuitif.",
-    requirements: "Figma, Adobe XD, riset pengguna.",
-  },
-  {
-    id: 3,
-    title: "Backend Developer",
-    department: "Engineering",
-    location: "Surabaya",
-    type: "Full-time",
-    status: "draft",
-    applicants: 0,
-    posted: "2024-01-20",
-    deadline: "2024-02-20",
-    description: "Membangun API dan layanan backend.",
-    requirements: "Node.js, Express, Database.",
-  },
-  {
-    id: 4,
-    title: "Product Manager",
-    department: "Product",
-    location: "Jakarta",
-    type: "Full-time",
-    status: "closed",
-    applicants: 78,
-    posted: "2023-12-01",
-    deadline: "2024-01-01",
-    description: "Mengelola roadmap produk perusahaan.",
-    requirements: "Leadership, komunikasi, analisis pasar.",
-  },
-];
+// URL API Lowongan Kerja
+const API_URL = "http://localhost:4000/api/jobs";
 
 function Lokeradmin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [openMenu, setOpenMenu] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [jobs, setJobs] = useState(jobsData);
+
+  // State untuk data lowongan dan loading
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [selectedJob, setSelectedJob] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
+  // --- FUNGSI UTAMA: FETCH DATA ---
+  const fetchJobs = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) {
+        throw new Error("Gagal mengambil data dari backend.");
+      }
+      const data = await response.json();
+      setJobs(data);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+      setError("Gagal terhubung ke backend. Pastikan server berjalan di port 4000.");
+      setJobs([]); // Kosongkan data jika gagal
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+  // --- AKHIR FUNGSI FETCH DATA ---
+
+
   const totalJobs = jobs.length;
   const activeJobs = jobs.filter((job) => job.status === "active").length;
-  const totalApplicants = jobs.reduce((sum, job) => sum + job.applicants, 0);
+  const totalApplicants = jobs.reduce((sum, job) => sum + (job.applicants || 0), 0);
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch =
@@ -129,56 +108,96 @@ function Lokeradmin() {
     setOpenMenu(null);
   };
 
-  const handleDelete = (id) => {
+  // --- FUNGSI DELETE DENGAN API ---
+  const handleDelete = async (id) => {
     if (window.confirm("Yakin ingin menghapus lowongan ini?")) {
-      setJobs((prev) => prev.filter((job) => job.id !== id));
-      setOpenMenu(null);
-    }
-  };
+      try {
+        const response = await fetch(`${API_URL}/${id}`, {
+          method: 'DELETE',
+        });
 
-  const handleSaveJob = (newJob) => {
-    if (isEditMode && selectedJob) {
-      setJobs((prev) =>
-        prev.map((job) =>
-          job.id === selectedJob.id
-            ? {
-                ...job,
-                title: newJob.judulPosisi,
-                department: newJob.departemen,
-                location: newJob.lokasi,
-                type: newJob.tipePekerjaan,
-                status: newJob.status,
-                deadline: newJob.deadline,
-                description: newJob.description ?? job.description,
-                requirements: newJob.requirements ?? job.requirements,
-              }
-            : job
-        )
-      );
-      setIsEditMode(false);
-      setSelectedJob(null);
-      setIsCreateOpen(false);
-    } else {
-      const jobWithId = {
-        id: jobs.length + 1,
-        title: newJob.judulPosisi,
-        department: newJob.departemen,
-        location: newJob.lokasi,
-        type: newJob.tipePekerjaan,
-        status: newJob.status,
-        applicants: 0,
-        posted: new Date().toISOString().split("T")[0],
-        deadline: newJob.deadline,
-        description: newJob.description ?? "",
-        requirements: newJob.requirements ?? "",
-      };
-      setJobs((prev) => [...prev, jobWithId]);
-      setIsCreateOpen(false);
+        if (!response.ok) {
+          throw new Error("Gagal menghapus lowongan.");
+        }
+
+        // Perbarui state setelah sukses delete
+        setJobs((prev) => prev.filter((job) => job.id !== id));
+        setOpenMenu(null);
+        setError(null);
+      } catch (err) {
+        console.error("Delete Error:", err);
+        setError("Gagal menghapus lowongan. Coba lagi.");
+      }
     }
   };
+  // --- AKHIR FUNGSI DELETE DENGAN API ---
+
+
+  // --- FUNGSI CREATE/UPDATE DENGAN API ---
+  const handleSaveJob = async (formData) => {
+    const jobData = {
+        title: formData.judulPosisi,
+        department: formData.departemen,
+        location: formData.lokasi,
+        type: formData.tipePekerjaan,
+        status: formData.status,
+        deadline: formData.deadline,
+        description: formData.deskripsi,
+        requirements: formData.persyaratan,
+        // applicants and posted_at dihandle di backend/dummy data
+    };
+
+    try {
+        let response;
+        if (isEditMode && selectedJob) {
+            // Logika EDIT (PUT)
+            response = await fetch(`${API_URL}/${selectedJob.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jobData),
+            });
+        } else {
+            // Logika BUAT BARU (POST)
+            response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jobData),
+            });
+        }
+
+        if (!response.ok) {
+            throw new Error('Gagal menyimpan data ke backend.');
+        }
+
+        // Fetch ulang data untuk mendapatkan ID dan timestamp yang diperbarui
+        fetchJobs(); 
+
+        // Tutup modal dan reset state
+        setIsEditMode(false);
+        setSelectedJob(null);
+        setIsCreateOpen(false);
+        setError(null);
+    } catch (err) {
+        console.error("Save Error:", err);
+        setError(`Gagal menyimpan: ${err.message}.`);
+    }
+  };
+  // --- AKHIR FUNGSI CREATE/UPDATE DENGAN API ---
+
 
   return (
     <div className="space-y-8">
+      <h1 className="text-2xl font-semibold text-sky-900 mb-3">
+        Lowongan Kerja
+      </h1>
+
+      {/* Error Message Bar */}
+      {error && (
+        <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
+
       {/* Statistik */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Total Lowongan */}
@@ -220,7 +239,7 @@ function Lokeradmin() {
 
       {/* Header + Filter + Button */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-xl font-semibold text-gray-800">Daftar Lowongan</h1>
+        {/* Kontainer KIRI: Search dan Status Filter */}
         <div className="flex gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
@@ -229,7 +248,7 @@ function Lokeradmin() {
               placeholder="Cari lowongan..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500/30 focus:outline-none"
             />
           </div>
 
@@ -240,9 +259,9 @@ function Lokeradmin() {
           >
             {({ open }) => (
               <div className="relative w-44">
-                <Listbox.Button className="w-full flex justify-between items-center px-3 py-2 border border-gray-200 rounded-lg bg-white shadow-sm text-left text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <Listbox.Button className="w-full flex justify-between items-center px-3 py-2 border border-gray-200 rounded-lg bg-white shadow-sm text-left text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/30">
                   <span>
-                    {statusFilter === "all" ? "Semua Status" : statusFilter}
+                    {statusFilter === "all" ? "Status" : statusFilter}
                   </span>
                   <ChevronDown
                     className={`w-4 h-4 text-gray-500 ml-1 transition-transform duration-200 ${
@@ -260,7 +279,7 @@ function Lokeradmin() {
                             active ? "bg-sky-100 text-sky-700" : "text-gray-700"
                           }`}
                         >
-                          <span>{st === "all" ? "Semua Status" : st}</span>
+                          <span>{st === "all" ? "Status" : st}</span>
                           {selected && (
                             <Check className="w-4 h-4 text-sky-600" />
                           )}
@@ -272,14 +291,17 @@ function Lokeradmin() {
               </div>
             )}
           </Listbox>
+        </div>
 
+        {/* Kontainer KANAN: Tombol Buat Lowongan Baru */}
+        <div>
           <button
             onClick={() => {
               setIsEditMode(false);
               setSelectedJob(null);
               setIsCreateOpen(true);
             }}
-            className="bg-sky-700 text-white px-4 py-2 rounded-lg hover:bg-sky-800"
+            className="px-4 py-2 rounded-lg text-center text-white font-semibold transition shadow-lg shadow-gray-400/50 transform bg-gradient-to-tr from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600"
           >
             + Buat Lowongan Baru
           </button>
@@ -288,93 +310,106 @@ function Lokeradmin() {
 
       {/* Tabel Lowongan */}
       <div className="overflow-x-auto rounded-lg shadow bg-white">
-        <table className="w-full text-left text-md">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3">Posisi</th>
-              <th className="px-4 py-3">Departemen</th>
-              <th className="px-4 py-3">Lokasi</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Pelamar</th>
-              <th className="px-4 py-3">Deadline</th>
-              <th className="px-4 py-3 text-right"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredJobs.map((job) => (
-              <tr
-                key={job.id}
-                className="border-b hover:bg-gray-50 transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <div className="font-medium">{job.title}</div>
-                  <div className="text-xs text-gray-500">{job.type}</div>
-                </td>
-                <td className="px-4 py-3">{job.department}</td>
-                <td className="px-4 py-3 flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-gray-400" />
-                  {job.location}
-                </td>
-                <td className="px-4 py-3">{getStatusBadge(job.status)}</td>
-                <td className="px-4 py-3 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-gray-400" />
-                  {job.applicants}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1 text-gray-500 text-xs">
-                      <Calendar className="w-3 h-3" />
-                      <span>Deadline</span>
-                    </div>
-                    <span className="text-sm">
-                      {new Date(job.deadline).toLocaleDateString("id-ID")}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right absolute overflow-visible">
-                  <button
-                    className="p-1 hover:bg-gray-100 rounded"
-                    onClick={() =>
-                      setOpenMenu(openMenu === job.id ? null : job.id)
-                    }
-                  >
-                    <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                  </button>
+        {loading ? (
+            <div className="text-center py-10 text-gray-500">Memuat data lowongan...</div>
+        ) : (
+            <table className="w-full text-left text-md">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-3">Posisi</th>
+                  <th className="px-4 py-3">Departemen</th>
+                  <th className="px-4 py-3">Lokasi</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Pelamar</th>
+                  <th className="px-4 py-3">Deadline</th>
+                  <th className="px-4 py-3 text-right"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredJobs.length > 0 ? (
+                    filteredJobs.map((job, index) => {
+                        // LOGIKA POSISI DROPDOWN: Dihitung dari dua baris terakhir
+                        const isLastTwoRows = index >= filteredJobs.length - 2; 
+                        
+                        // top-full/bottom-full tanpa margin untuk jarak minimal (langsung di bawah/atas tombol)
+                        const menuPositionClass = isLastTwoRows ? "bottom-full" : "top-full"; 
+                        
+                        return (
+                        <tr key={job.id} className=" hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                            <div className="font-medium">{job.title}</div>
+                            <div className="text-xs text-gray-500">{job.type}</div>
+                            </td>
+                            <td className="px-4 py-3">{job.department}</td>
+                            <td className="px-4 py-3 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-gray-400" />
+                            {job.location}
+                            </td>
+                            <td className="px-4 py-3">{getStatusBadge(job.status)}</td>
+                            <td className="px-4 py-3 flex items-center gap-1">
+                            <Users className="w-3 h-3 text-gray-400" />
+                            {job.applicants}
+                            </td>
+                            <td className="px-4 py-3">
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-1 text-gray-500 text-xs">
+                                <Calendar className="w-3 h-3" />
+                                <span>Deadline</span>
+                                </div>
+                                <span className="text-sm">
+                                {new Date(job.deadline).toLocaleDateString("id-ID")}
+                                </span>
+                            </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                            {/* Tambahkan div relative di sekitar tombol untuk penempatan menu yang akurat */}
+                            <div className="relative inline-block"> 
+                                <button
+                                    className="p-1 hover:bg-gray-100 rounded"
+                                    onClick={() =>
+                                    setOpenMenu(openMenu === job.id ? null : job.id)
+                                    }
+                                >
+                                    <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                                </button>
 
-                  {openMenu === job.id && (
-                    <div className="absolute right-0 top-full w-40 bg-white border border-gray-400 rounded-lg shadow-lg z-50">
-                      <button
-                        onClick={() => handleView(job)}
-                        className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100"
-                      >
-                        <Eye className="w-4 h-4 mr-2 text-gray-500" /> Lihat
-                      </button>
-                      <button
-                        onClick={() => handleEdit(job)}
-                        className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100"
-                      >
-                        <Edit className="w-4 h-4 mr-2 text-gray-500" /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(job.id)}
-                        className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100 text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" /> Hapus
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {filteredJobs.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
-                  Tidak ada lowongan yang cocok
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                                {openMenu === job.id && (
+                                    <div className={`absolute right-0 ${menuPositionClass} w-40 bg-white border border-gray-400 rounded-lg shadow-lg z-50`}>
+                                        <button
+                                            onClick={() => handleView(job)}
+                                            className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100 text-left"
+                                        >
+                                            <Eye className="w-4 h-4 mr-2 text-gray-500" /> Lihat
+                                        </button>
+                                        <button
+                                            onClick={() => handleEdit(job)}
+                                            className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100 text-left"
+                                        >
+                                            <Edit className="w-4 h-4 mr-2 text-gray-500" /> Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(job.id)}
+                                            className="flex items-center w-full px-3 py-2 text-sm rounded-lg hover:bg-sky-100 text-red-600 text-left"
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" /> Hapus
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            </td>
+                        </tr>
+                        );
+                    })
+                ) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                        Tidak ada lowongan yang cocok
+                      </td>
+                    </tr>
+                )}
+              </tbody>
+            </table>
+        )}
       </div>
 
       {/* Modal Buat/Edit */}
