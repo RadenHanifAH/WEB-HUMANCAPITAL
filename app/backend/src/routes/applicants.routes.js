@@ -1,10 +1,8 @@
-// backend/src/routes/applicants.routes.js
-import express from "express";
-import { applicants, getNextId } from "../data/applicants.js";
+const express = require("express");
+const { applicants, getNextId } = require("../data/applicants");
 
 const router = express.Router();
 
-// GET /api/applicants  -> list semua (opsional query ?status=&position=&search=)
 router.get("/", (req, res) => {
   const { status, position, search } = req.query;
   let result = applicants;
@@ -34,7 +32,6 @@ router.get("/", (req, res) => {
   res.json(result);
 });
 
-// GET /api/applicants/:id -> detail pelamar
 router.get("/:id", (req, res) => {
   const id = Number(req.params.id);
   const applicant = applicants.find((a) => a.id === id);
@@ -42,7 +39,6 @@ router.get("/:id", (req, res) => {
   res.json(applicant);
 });
 
-// POST /api/applicants -> tambah pelamar
 router.post("/", (req, res) => {
   const payload = req.body;
   if (!payload.name || !payload.email) {
@@ -67,18 +63,15 @@ router.post("/", (req, res) => {
   res.status(201).json(newApplicant);
 });
 
-// PUT /api/applicants/:id -> update (status, score, other fields)
 router.put("/:id", (req, res) => {
   const id = Number(req.params.id);
   const idx = applicants.findIndex((a) => a.id === id);
   if (idx === -1) return res.status(404).json({ message: "Applicant not found" });
 
-  const updates = req.body;
-  applicants[idx] = { ...applicants[idx], ...updates };
+  applicants[idx] = { ...applicants[idx], ...req.body };
   res.json(applicants[idx]);
 });
 
-// DELETE /api/applicants/:id
 router.delete("/:id", (req, res) => {
   const id = Number(req.params.id);
   const idx = applicants.findIndex((a) => a.id === id);
@@ -87,7 +80,6 @@ router.delete("/:id", (req, res) => {
   res.json({ removed: removed[0] });
 });
 
-// GET /api/applicants/:id/cv -> unduh CV mock (plain text)
 router.get("/:id/cv", (req, res) => {
   const id = Number(req.params.id);
   const applicant = applicants.find((a) => a.id === id);
@@ -99,7 +91,6 @@ router.get("/:id/cv", (req, res) => {
   res.send(cvText);
 });
 
-// GET /api/applicants/:id/portfolio -> unduh Portofolio mock
 router.get("/:id/portfolio", (req, res) => {
   const id = Number(req.params.id);
   const applicant = applicants.find((a) => a.id === id);
@@ -111,4 +102,4 @@ router.get("/:id/portfolio", (req, res) => {
   res.send(portfolioText);
 });
 
-export default router;
+module.exports = router;

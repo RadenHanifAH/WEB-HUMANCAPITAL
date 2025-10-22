@@ -67,8 +67,8 @@ const statusOptions = [
   { value: "interview-hc", label: "Interview HC" },
   { value: "psikotes", label: "Psikotes" },
   { value: "final-interview", label: "Final Interview" },
-  { value: "accepted", label: "Diterima" },
-  { value: "rejected", label: "Ditolak" },
+  { value: "accepted", label: "Accepted" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 const posisiOptions = [
@@ -373,10 +373,10 @@ function Pelamar() {
       }
     } else if (modalAction === "accept") {
       newStatus = "accepted";
-      newStage = "Diterima";
+      newStage = "Accepted";
     } else if (modalAction === "reject") {
       newStatus = `rejected-at-${selectedApplicant.status}`;
-      newStage = "Ditolak";
+      newStage = "Rejected";
     }
 
     if (!newStatus) {
@@ -757,7 +757,7 @@ function Pelamar() {
                             <Listbox.Options
                               className={`absolute right-0 w-40 bg-white border border-gray-300 rounded-lg shadow-lg z-50 ${
                                 // Logika untuk menampilkan dropdown ke atas jika di baris terakhir
-                                idx >= filteredApplicants.length - 2
+                                idx >= filteredApplicants.length - 1
                                   ? "bottom-full mb-1"
                                   : "mt-1"
                               }`}

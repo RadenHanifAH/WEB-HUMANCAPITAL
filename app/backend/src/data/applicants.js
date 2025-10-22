@@ -1,73 +1,42 @@
-// Menggunakan data dummy in-memory
-let { applicants } = require('../data/applicants'); // Import data
-const { getNextId } = require('../data/applicants'); // Import helper ID
+// app/backend/src/data/applicants.js
 
-// Helper untuk format data (misalnya mengubah score null ke 0)
-const formatApplicant = (applicant) => ({
-    ...applicant,
-    // Pastikan score yang tersimpan 'null' dikirim sebagai 0 untuk tampilan di frontend
-    score: applicant.score === null ? 0 : applicant.score,
-    // appliedDate di format agar konsisten
-    appliedDate: applicant.appliedDate ? applicant.appliedDate.substring(0, 10) : null,
-});
+// Data dummy untuk pelamar
+let applicants = [
+  {
+    id: 1,
+    name: "Budi Santoso",
+    email: "budi.santoso@example.com",
+    avatar: "https://i.pravatar.cc/100?img=3",
+    position: "Frontend Developer",
+    location: "Jakarta",
+    experience: "3 Tahun",
+    status: "under-review",
+    stage: "Under Review",
+    score: 80,
+    appliedDate: "2025-10-20",
+  },
+  {
+    id: 2,
+    name: "Siti Rahmawati",
+    email: "siti.rahmawati@example.com",
+    avatar: "https://i.pravatar.cc/100?img=5",
+    position: "UI/UX Designer",
+    location: "Bandung",
+    experience: "2 Tahun",
+    status: "accepted",
+    stage: "Accepted",
+    score: 90,
+    appliedDate: "2025-10-19",
+  },
+];
 
-
-// [GET] Mengambil semua data pelamar
-const getAllPelamar = (req, res) => {
-    // Simulasi penundaan jaringan
-    setTimeout(() => {
-        const formattedApplicants = applicants.map(formatApplicant);
-        res.json(formattedApplicants); 
-    }, 500); 
+// Helper: auto-increment ID
+const getNextId = () => {
+  return applicants.length > 0 ? Math.max(...applicants.map((a) => a.id)) + 1 : 1;
 };
 
-// [PUT] Mengupdate status pelamar
-const updateStatus = (req, res) => {
-    const { id } = req.params;
-    const { status, stage } = req.body; 
-
-    const applicantId = parseInt(id);
-    const applicantIndex = applicants.findIndex(a => a.id === applicantId);
-
-    if (applicantIndex === -1) {
-        return res.status(404).json({ error: "Pelamar tidak ditemukan." });
-    }
-
-    // Update data di memory
-    applicants[applicantIndex] = {
-        ...applicants[applicantIndex],
-        status: status,
-        stage: stage
-    };
-
-    res.json(formatApplicant(applicants[applicantIndex]));
-};
-
-// [PUT] Mengupdate score pelamar
-const updateScore = (req, res) => {
-    const { id } = req.params;
-    const { score } = req.body; 
-    
-    const applicantId = parseInt(id);
-    const scoreValue = score === null || score === "" ? null : parseInt(score, 10);
-    const applicantIndex = applicants.findIndex(a => a.id === applicantId);
-
-    if (applicantIndex === -1) {
-        return res.status(404).json({ error: "Pelamar tidak ditemukan." });
-    }
-
-    // Update data di memory
-    applicants[applicantIndex] = {
-        ...applicants[applicantIndex],
-        score: scoreValue
-    };
-
-    res.json(formatApplicant(applicants[applicantIndex]));
-};
-
-
+// ✅ Gunakan CommonJS export (sesuai require di controller)
 module.exports = {
-    getAllPelamar,
-    updateStatus,
-    updateScore
+  applicants,
+  getNextId,
 };
