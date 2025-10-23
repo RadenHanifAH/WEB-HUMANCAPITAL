@@ -6,6 +6,7 @@ const cors = require('cors');
 const dashboardRoutes = require('./routes/dashboard.routes'); // Dashboard
 const jobsRoutes = require('./routes/jobs.routes');           // Lowongan kerja
 const applicantsRoutes = require('./routes/applicants.routes'); // Pelamar kerja
+const reportsRoutes = require("./routes/reports.routes");
 
 const app = express();
 
@@ -17,11 +18,12 @@ app.use(express.json());
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/applicants', applicantsRoutes); 
+app.use("/api/reports", reportsRoutes);
 // Endpoint Pelamar: http://localhost:4000/api/applicants
 
 // ===== Default Route =====
 app.get('/', (req, res) => {
-  res.status(200).send('✅ HR Backend Service Running. Akses /api/dashboard, /api/jobs, atau /api/applicants');
+  res.status(200).send('✅ HR Backend Service Running. Akses /api/dashboard, /api/jobs, /api/applicants, atau /api/reports');
 });
 
 // ===== Export App =====

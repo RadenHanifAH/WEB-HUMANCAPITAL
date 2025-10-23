@@ -16,8 +16,8 @@ let applicants = [
     appliedDate: "2025-10-20",
   },
   {
-    id: 2,
-    name: "Siti Rahmawati",
+    id: 3,
+    name: "Siti",
     email: "siti.rahmawati@example.com",
     avatar: "https://i.pravatar.cc/100?img=5",
     position: "UI/UX Designer",

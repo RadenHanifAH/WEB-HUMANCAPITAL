@@ -1,3 +1,4 @@
+// src/components/Pelamar.jsx
 import React, { useState, useEffect, Fragment, useCallback } from "react";
 import {
   Search,
@@ -20,47 +21,14 @@ import {
 } from "lucide-react";
 import { Listbox, Transition } from "@headlessui/react";
 
-// URL API Pelamar (Pastikan ini sesuai dengan server.js Anda)
-const API_URL = "http://localhost:4000/api/applicants";
+// Import DetailModal dari file terpisah
+import DetailModal from "./DetailModal";
 
-// Komponen Modal Detail (Simulasi)
-const DetailModal = ({ applicant, onClose }) => (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[9999]">
-    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl transform transition-all">
-      <h2 className="text-xl font-bold text-sky-800 mb-4 border-b pb-2">
-        Detail Pelamar
-      </h2>
-      <div className="space-y-3 text-gray-700">
-        <p>
-          <strong>Nama:</strong> {applicant.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {applicant.email}
-        </p>
-        <p>
-          <strong>Posisi Dilamar:</strong> {applicant.position || "N/A"}
-        </p>
-        <p>
-          <strong>Status:</strong> {applicant.stage || applicant.status}
-        </p>
-        <p>
-          <strong>Tanggal Melamar:</strong>{" "}
-          {new Date(applicant.appliedDate).toLocaleDateString("id-ID")}
-        </p>
-      </div>
-      <div className="flex justify-end mt-6">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition shadow"
-        >
-          Tutup
-        </button>
-      </div>
-    </div>
-  </div>
-);
+// 🔑 PERUBAHAN 1: Definisikan kedua URL API
+const API_URL_APPLICANTS = "http://localhost:4000/api/applicants";
+const API_URL_JOBS = "http://localhost:4000/api/jobs"; // URL untuk mengambil data Lowongan Kerja
 
-// Dropdown options for status and position (TETAP)
+// Dropdown options for status (TETAP)
 const statusOptions = [
   { value: "", label: "Status" },
   { value: "under-review", label: "Under Review" },
@@ -69,14 +37,6 @@ const statusOptions = [
   { value: "final-interview", label: "Final Interview" },
   { value: "accepted", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
-];
-
-const posisiOptions = [
-  { value: "", label: "Posisi" },
-  { value: "Frontend Developer", label: "Frontend Developer" },
-  { value: "Backend Developer", label: "Backend Developer" },
-  { value: "UI/UX Designer", label: "UI/UX Designer" },
-  { value: "Product Manager", label: "Product Manager" },
 ];
 
 // Stage flow for progress calculation (TETAP)
@@ -93,7 +53,10 @@ const blockedScoreStages = ["under-review", "interview-hc"];
 function Pelamar() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState(statusOptions[0]);
-  const [filterPosisi, setFilterPosisi] = useState(posisiOptions[0]);
+  
+  // 🔑 PERUBAHAN 2: State baru untuk menyimpan posisi dari API Jobs
+  const [jobPositions, setJobPositions] = useState([{ value: "", label: "Posisi" }]);
+  const [filterPosisi, setFilterPosisi] = useState(jobPositions[0]); // Inisialisasi menggunakan opsi default
 
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,12 +72,42 @@ function Pelamar() {
   const [isDetailModalOpen, setIsDetailModal] = useState(false);
   const [detailApplicant, setDetailApplicant] = useState(null);
 
+  // 🔑 PERUBAHAN 3: Fungsi baru untuk mengambil daftar posisi unik
+  const fetchJobPositions = async () => {
+    try {
+      const response = await fetch(API_URL_JOBS);
+      if (!response.ok) {
+        throw new Error("Gagal mengambil data posisi lowongan.");
+      }
+      const data = await response.json();
+      
+      // Ekstrak judul (title) lowongan kerja yang unik
+      const uniqueTitles = [...new Set(data.map(job => job.title))];
+      
+      // Map ke format Listbox, tambahkan opsi default "Posisi"
+      const newPosisiOptions = [
+        { value: "", label: "Posisi" },
+        ...uniqueTitles.map(title => ({ value: title, label: title }))
+      ];
+      
+      setJobPositions(newPosisiOptions);
+      // Jika filterPosisi.value saat ini tidak ada di daftar baru, reset ke opsi default
+      if (!newPosisiOptions.some(opt => opt.value === filterPosisi.value)) {
+        setFilterPosisi(newPosisiOptions[0]);
+      }
+    } catch (err) {
+      console.error("Fetch Job Positions Error:", err);
+      // Kita tidak mengatur error global karena hanya mempengaruhi dropdown posisi
+    }
+  };
+
+
   // --- FUNGSI UTAMA: FETCH DATA DARI BACKEND (Menggunakan useCallback) ---
   const fetchApplicants = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(API_URL);
+      const response = await fetch(API_URL_APPLICANTS); // Menggunakan API_URL_APPLICANTS
       if (!response.ok) {
         throw new Error("Gagal mengambil data dari backend.");
       }
@@ -133,7 +126,9 @@ function Pelamar() {
 
   useEffect(() => {
     fetchApplicants();
-  }, [fetchApplicants]); // Dependensi fetchApplicants adalah fungsi itu sendiri (dari useCallback)
+    // 🔑 PERUBAHAN 4: Panggil fetchJobPositions di useEffect
+    fetchJobPositions();
+  }, [fetchApplicants]);
   // --- AKHIR FUNGSI FETCH DATA ---
 
   const openDetailModal = (applicant) => {
@@ -189,7 +184,7 @@ function Pelamar() {
 
     // Kirim Update ke Backend
     try {
-      const response = await fetch(`${API_URL}/${id}/score`, {
+      const response = await fetch(`${API_URL_APPLICANTS}/${id}/score`, { // Menggunakan API_URL_APPLICANTS
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score: newScore === "" ? null : newScore }),
@@ -398,7 +393,7 @@ function Pelamar() {
 
     // 2. Kirim Update Status ke Backend
     try {
-      await fetch(`${API_URL}/${selectedApplicant.id}/status`, {
+      await fetch(`${API_URL_APPLICANTS}/${selectedApplicant.id}/status`, { // Menggunakan API_URL_APPLICANTS
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus, stage: newStage }),
@@ -444,7 +439,6 @@ function Pelamar() {
       )}
 
       {/* Header Stats */}
-      {/* Catatan: Karena kita fetch data live, stats ini hanya menghitung dari data yang ter-fetch */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Under Review */}
         <div className="p-4 bg-white border border-gray-300 rounded-xl shadow-sm">
@@ -503,7 +497,7 @@ function Pelamar() {
             <input
               type="text"
               placeholder="Cari pelamar..."
-              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg w-full text-sm 
+              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg w-full text-sm  
               focus:outline-none focus:ring-1 focus:ring-sky-500/30"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -549,7 +543,7 @@ function Pelamar() {
             </div>
           </Listbox>
 
-          {/* Posisi Listbox */}
+          {/* Posisi Listbox - 🔑 MENGGUNAKAN jobPositions */}
           <Listbox value={filterPosisi} onChange={setFilterPosisi}>
             <div className="relative w-44">
               <Listbox.Button className="flex justify-between items-center w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm truncate focus:outline-none focus:ring-1 focus:ring-sky-500/30">
@@ -562,8 +556,9 @@ function Pelamar() {
                 leaveFrom="opacity-100"
                 leaveTo="opacity-0"
               >
+                {/* 🔑 Menggunakan state jobPositions */}
                 <Listbox.Options className="absolute mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-50">
-                  {posisiOptions.map((posisi) => (
+                  {jobPositions.map((posisi) => (
                     <Listbox.Option
                       key={posisi.value}
                       value={posisi}
@@ -599,7 +594,7 @@ function Pelamar() {
       </div>
 
       {/* Table */}
-      <div className="border border-gray-300 rounded-xl overflow-hidden bg-white shadow-sm relative">
+      <div className="border border-gray-300 rounded-xl bg-white shadow-sm relative">
         {loading ? (
           <div className="text-center py-10 text-gray-500">
             Memuat data pelamar...
@@ -613,195 +608,203 @@ function Pelamar() {
             Tidak ada pelamar yang cocok dengan filter ini.
           </div>
         ) : (
-          <table className="w-full border-collapse">
-            {/* Header Tabel */}
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-3 text-left">Pelamar</th>
-                <th className="p-3 text-center">Posisi</th>
-                <th className="p-3 text-center">Tahap Seleksi</th>
-                <th className="p-3 text-center">Progress</th>
-                <th className="p-3 text-center">Score</th>
-                <th className="p-3 text-center">Tanggal Lamar</th>
-                <th className="p-3 text-center">Aksi</th>
-              </tr>
-            </thead>
+          <div>
+            {" "}
+            {/* overflow-x-auto Dihapus */}
+            <table className="w-full border-collapse">
+              {/* Header Tabel Disesuaikan untuk rounded corners */}
+              <thead className="bg-gray-100 sticky top-0 z-10">
+                <tr>
+                  {/* Sudut Kiri Atas */}
+                  <th className="p-3 text-left rounded-tl-xl">Pelamar</th>
+                  <th className="p-3 text-left">Posisi</th>
+                  <th className="p-3 text-center">Tahap Seleksi</th>
+                  <th className="p-3 text-center">Progress</th>
+                  <th className="p-3 text-center">Score</th>
+                  <th className="p-3 text-left">Tanggal Lamar</th>
+                  {/* Sudut Kanan Atas */}
+                  <th className="p-3 text-right rounded-tr-xl">Aksi</th>
+                </tr>
+              </thead>
 
-            {/* Konten Tabel */}
-            <tbody>
-              {filteredApplicants.map((a, idx) => (
-                <tr key={a.id} className="hover:bg-gray-50 transition relative">
-                  {/* 1. Pelamar (Rata Kiri) */}
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={a.avatar}
-                        alt={a.name}
-                        className="w-10 h-10 rounded-full"
-                      />
-                      <div>
-                        <p className="font-medium">{a.name}</p>
-                        <p className="text-sm text-gray-500">{a.email}</p>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* 2. Posisi (Rata Kiri) */}
-                  <td className="p-3">
-                    <p className="font-medium">{a.position}</p>
-                    <p className="text-sm text-gray-500">{a.experience}</p>
-                  </td>
-
-                  {/* 3. Tahap Seleksi (Rata Kiri) */}
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(a.status)}
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(
-                          a.status
-                        )}`}
-                      >
-                        {a.stage}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* 4. Progress (Rata Kiri) */}
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 bg-gray-200 rounded w-24">
-                        <div
-                          className="h-2 bg-blue-500 rounded"
-                          style={{ width: `${getProgress(a.status)}%` }}
+              {/* Konten Tabel */}
+              <tbody>
+                {filteredApplicants.map((a, idx) => (
+                  <tr key={a.id} className="hover:bg-gray-50 transition">
+                    {/* 1. Pelamar (Rata Kiri) */}
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={a.avatar}
+                          alt={a.name}
+                          className="w-10 h-10 rounded-full"
                         />
+                        <div>
+                          <p className="font-medium">{a.name}</p>
+                          <p className="text-sm text-gray-500">{a.email}</p>
+                        </div>
                       </div>
-                      <span className="text-xs text-gray-500">
-                        {getProgress(a.status)}%
-                      </span>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* 5. Score (EDITABLE INPUT dengan logika kondisional) */}
-                  <td className="p-3 text-center">
-                    {isScoreEditable(a.status) ? (
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={getDisplayScore(a)}
-                        onChange={(e) =>
-                          handleScoreChange(a.id, e.target.value)
-                        }
-                        className={`w-14 text-center border p-1 rounded-lg text-sm transition focus:outline-none focus:ring-1 focus:ring-sky-500/30 ${
-                          a.score >= 85
-                            ? "bg-green-100 text-green-700 border-green-300"
-                            : "bg-yellow-100 text-yellow-700 border-yellow-300"
-                        }`}
-                      />
-                    ) : (
-                      // Tampilkan 0 dan non-editable jika status di bawah Psikotes
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          blockedScoreStages.includes(a.status)
-                            ? "bg-gray-100 text-gray-500"
-                            : ""
-                        }`}
-                      >
-                        {getDisplayScore(a)}
-                      </span>
-                    )}
-                  </td>
+                    {/* 2. Posisi (Rata Kiri) */}
+                    <td className="p-3">
+                      <p className="font-medium">{a.position}</p>
+                      <p className="text-sm text-gray-500">{a.experience}</p>
+                    </td>
 
-                  {/* 6. Tanggal Lamar (Rata Kiri) */}
-                  <td className="p-3">
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(a.appliedDate)}
-                    </div>
-                  </td>
+                    {/* 3. Tahap Seleksi (Rata Kiri) */}
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {getStatusIcon(a.status)}
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(
+                            a.status
+                          )}`}
+                        >
+                          {a.stage}
+                        </span>
+                      </div>
+                    </td>
 
-                  {/* 7. Aksi (Rata Kanan) */}
-                  <td className="p-3 text-right relative overflow-visible">
-                    <div className="flex justify-end gap-2 items-center">
-                      <button
-                        onClick={() => openModal(a, "next")}
-                        className="p-1 rounded hover:bg-gray-100 transition"
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openModal(a, "accept")}
-                        className="p-1 rounded bg-green-500/80 text-white hover:bg-green-600 transition"
-                      >
-                        <ThumbsUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openModal(a, "reject")}
-                        className="p-1 rounded bg-red-500/80 text-white hover:bg-red-600 transition"
-                      >
-                        <ThumbsDown className="h-4 w-4" />
-                      </button>
+                    {/* 4. Progress (Rata Kiri) */}
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="h-2 bg-gray-200 rounded w-24">
+                          <div
+                            className="h-2 bg-blue-500 rounded"
+                            style={{ width: `${getProgress(a.status)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {getProgress(a.status)}%
+                        </span>
+                      </div>
+                    </td>
 
-                      {/* Menggunakan div relative inline-block untuk dropdown yang akurat */}
-                      <div className="relative inline-block">
+                    {/* 5. Score (EDITABLE INPUT dengan logika kondisional) */}
+                    <td className="p-3 text-center">
+                      {isScoreEditable(a.status) ? (
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={getDisplayScore(a)}
+                          onChange={(e) =>
+                            handleScoreChange(a.id, e.target.value)
+                          }
+                          className={`w-14 text-center border p-1 rounded-lg text-sm transition focus:outline-none focus:ring-1 focus:ring-sky-500/30 ${
+                            a.score >= 85
+                              ? "bg-green-100 text-green-700 border-green-300"
+                              : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                          }`}
+                        />
+                      ) : (
+                        // Tampilkan 0 dan non-editable jika status di bawah Psikotes
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            blockedScoreStages.includes(a.status)
+                              ? "bg-gray-100 text-gray-500"
+                              : ""
+                          }`}
+                        >
+                          {getDisplayScore(a)}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* 6. Tanggal Lamar (Rata Kiri) */}
+                    <td className="p-3 text-left">
+                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                        <Calendar className="h-4 w-4" />
+                        {formatDate(a.appliedDate)}
+                      </div>
+                    </td>
+
+                    {/* 7. Aksi (Rata Kanan) */}
+                    {/* 🔑 PERUBAHAN PENTING: Tambahkan 'relative' pada td untuk menjadi acuan 'absolute' dropdown */}
+                    <td className="p-3 text-right relative">
+                      <div className="flex justify-end gap-2 items-center">
+                        <button
+                          onClick={() => openModal(a, "next")}
+                          className="p-1 rounded hover:bg-gray-100 transition"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openModal(a, "accept")}
+                          className="p-1 rounded bg-green-500/80 text-white hover:bg-green-600 transition"
+                        >
+                          <ThumbsUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openModal(a, "reject")}
+                          className="p-1 rounded bg-red-500/80 text-white hover:bg-red-600 transition"
+                        >
+                          <ThumbsDown className="h-4 w-4" />
+                        </button>
+
+                        {/* Menggunakan div relative inline-block untuk dropdown yang akurat */}
                         <Listbox>
-                          <Listbox.Button className="p-1 rounded hover:bg-gray-100 transition">
-                            <MoreHorizontal className="h-4 w-4 text-gray-500" />
-                          </Listbox.Button>
-                          <Transition
-                            as={Fragment}
-                            leave="transition ease-in duration-100"
-                            leaveFrom="opacity-100"
-                            leaveTo="opacity-0"
-                          >
-                            <Listbox.Options
-                              className={`absolute right-0 w-40 bg-white border border-gray-300 rounded-lg shadow-lg z-50 ${
-                                // Logika untuk menampilkan dropdown ke atas jika di baris terakhir
-                                idx >= filteredApplicants.length - 1
-                                  ? "bottom-full mb-1"
-                                  : "mt-1"
-                              }`}
+                          <div className="relative inline-block">
+                            <Listbox.Button className="p-1 rounded hover:bg-gray-100 transition">
+                              <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                            </Listbox.Button>
+                            <Transition
+                              as={Fragment}
+                              leave="transition ease-in duration-100"
+                              leaveFrom="opacity-100"
+                              leaveTo="opacity-0"
                             >
-                              <Listbox.Option
-                                value="detail"
-                                onClick={() => openDetailModal(a)}
-                                className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
+                              {/* 🔑 PERUBAHAN PENTING: Logika 'bottom-full' untuk dua baris terakhir */}
+                              <Listbox.Options
+                                className={`absolute right-0 w-40 bg-white border border-gray-300 rounded-lg shadow-xl z-50 focus:outline-none ${
+                                  // Logika untuk menampilkan dropdown ke atas jika di 2 baris terakhir
+                                  idx >= filteredApplicants.length - 2
+                                    ? "bottom-full mb-1"
+                                    : "mt-1"
+                                }`}
                               >
-                                <Eye className="h-4 w-4" /> Lihat Detail
-                              </Listbox.Option>
-                              <Listbox.Option
-                                value="cv"
-                                onClick={() => handleDownloadCV(a)}
-                                className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                              >
-                                <Download className="h-4 w-4" /> Download CV
-                              </Listbox.Option>
+                                <Listbox.Option
+                                  value="detail"
+                                  onClick={() => openDetailModal(a)}
+                                  className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
+                                >
+                                  <Eye className="h-4 w-4" /> Lihat Detail
+                                </Listbox.Option>
+                                <Listbox.Option
+                                  value="cv"
+                                  onClick={() => handleDownloadCV(a)}
+                                  className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
+                                >
+                                  <Download className="h-4 w-4" /> Download CV
+                                </Listbox.Option>
 
-                              <Listbox.Option
-                                value="portofolio"
-                                onClick={() => handleDownloadPortofolio(a)}
-                                className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                              >
-                                <Download className="h-4 w-4" /> Portofolio
-                              </Listbox.Option>
+                                <Listbox.Option
+                                  value="portofolio"
+                                  onClick={() => handleDownloadPortofolio(a)}
+                                  className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
+                                >
+                                  <Download className="h-4 w-4" /> Portofolio
+                                </Listbox.Option>
 
-                              <Listbox.Option
-                                value="pesan"
-                                onClick={() => openModal(a, "pesan")}
-                                className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                              >
-                                <MessageSquare className="h-4 w-4" /> Pesan
-                              </Listbox.Option>
-                            </Listbox.Options>
-                          </Transition>
+                                <Listbox.Option
+                                  value="pesan"
+                                  onClick={() => openModal(a, "pesan")}
+                                  className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
+                                >
+                                  <MessageSquare className="h-4 w-4" /> Pesan
+                                </Listbox.Option>
+                              </Listbox.Options>
+                            </Transition>
+                          </div>
                         </Listbox>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
