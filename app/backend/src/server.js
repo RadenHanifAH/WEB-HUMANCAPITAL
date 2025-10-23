@@ -1,6 +1,8 @@
 // app/backend/src/server.js
 const app = require('./app');
+const dotenv = require('dotenv');
 
+dotenv.config();
 // Port standar untuk API: 4000
 const PORT = process.env.PORT || 4000; 
 
