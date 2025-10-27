@@ -44,7 +44,6 @@ model Application {
   positionId  Int
   status      String   @default("Under Review")
   appliedAt   DateTime @default(now())
-
   user        User     @relation(fields: [userId], references: [id])
   position    Position @relation(fields: [positionId], references: [id])
 }

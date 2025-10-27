@@ -19,9 +19,13 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.17.1",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "prisma": "^6.17.1",
+    "redis": "^5.9.0",
     "web-humancapital": "file:.."
   },
   "devDependencies": {
