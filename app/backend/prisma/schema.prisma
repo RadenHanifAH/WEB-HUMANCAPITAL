@@ -19,6 +19,30 @@ enum Role {
   pelamar
 }
 
+enum JobType {
+  FullTime
+  PartTime
+  Internship
+  Freelance
+  Contract
+}
+
+enum ExperienceLevel {
+  FreshGraduate
+  Junior
+  MidLevel
+  Senior
+}
+
+enum EducationLevel {
+  SMA 
+  D3
+  D4
+  S1
+  S2
+  S3
+}
+
 model User {
   id           Int           @id @default(autoincrement())
   name         String
@@ -29,21 +53,30 @@ model User {
   applications Application[]
 }
 
-model Position {
-  id           Int           @id @default(autoincrement())
-  title        String
-  description  String?
-  status       String        @default("open")
-  createdAt    DateTime      @default(now())
-  applications Application[]
+model Job {
+  id             Int             @id @default(autoincrement())
+  title          String
+  department     String?
+  location       String?
+  type           JobType?
+  experience     ExperienceLevel?
+  education      EducationLevel?
+  description    String?
+  requirements   String?
+  deadline       DateTime?
+  status         String          @default("open")
+  createdAt      DateTime        @default(now())
+  applications   Application[]
 }
 
 model Application {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  positionId  Int
-  status      String   @default("Under Review")
-  appliedAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
-  position    Position @relation(fields: [positionId], references: [id])
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  jobId         Int
+  cvUrl         String
+  portfolioUrl  String?
+  status        String    @default("Under Review")
+  appliedAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
+  job           Job       @relation(fields: [jobId], references: [id])
 }

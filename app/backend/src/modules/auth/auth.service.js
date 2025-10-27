@@ -1,11 +1,7 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const redisClient = require("../../config/redis");
-const {
-  findUserByEmail,
-  createUser,
-
-} = require("./auth.repository");
+const authRepository = require("./auth.repository");
 
 const generateTokens = (user) => {
   const payload = {
@@ -36,7 +32,7 @@ const storeRefreshToken = async (userId, refreshToken) => {
 };
 
 const register = async (name, email, password) => {
-  const existingUser = await findUserByEmail(email);
+  const existingUser = await authRepository.findUserByEmail(email);
   if (existingUser) throw new Error(" Email sudah digunakan");
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -58,7 +54,7 @@ const register = async (name, email, password) => {
 };
 
 const login = async (email, password) => {
-  const user = await findUserByEmail(email);
+  const user = await authRepository.findUserByEmail(email);
   if (!user) throw new Error(" Email tidak ditemukan");
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
