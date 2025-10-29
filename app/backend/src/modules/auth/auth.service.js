@@ -37,7 +37,7 @@ const register = async (name, email, password) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await createUser({ name, email, password: hashedPassword });
+  const user = await authRepository.createUser({ name, email, password: hashedPassword });
   const { accessToken, refreshToken } = generateTokens(user);
   await storeRefreshToken(user.id, refreshToken);
 
