@@ -1,14 +1,14 @@
 // app/backend/src/app.js
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 const dotenv = require("dotenv");
-const cookieParser = require("cookie-parser")
+const cookieParser = require("cookie-parser");
 
-dotenv.config()
+dotenv.config();
 
 // Import semua routes
-const authRoutes = require("./modules/auth/auth.routes")
-// const jobsRoutes = require('./routes/jobs.routes');           // Lowongan kerja
+const authRoutes = require("./modules/auth/auth.routes");
+const jobsRoutes = require("./modules/jobs/job.routes"); // Lowongan kerja
 // const applicantsRoutes = require('./routes/applicants.routes'); // Pelamar kerja
 // const reportsRoutes = require("./routes/reports.routes");
 
@@ -21,20 +21,23 @@ app.use(
     credentials: true, // ⬅ wajib biar cookie bisa dikirim
   })
 );
-app.use(express.json({ limit : "10mb"}));
-app.use(cookieParser())
+app.use(express.json({ limit: "10mb" }));
+app.use(cookieParser());
 
 // ===== Global Routing =====
-app.use("/api/auth", authRoutes)
-// app.use('/api/dashboard', dashboardRoutes);
-// app.use('/api/jobs', jobsRoutes);
-// app.use('/api/applicants', applicantsRoutes); 
+app.use("/api/auth", authRoutes);
+app.use("/api/jobs", jobsRoutes);
+// app.use('/api/applicants', applicantsRoutes);
 // app.use("/api/reports", reportsRoutes);
 // Endpoint Pelamar: http://localhost:4000/api/applicants
 
 // ===== Default Route =====
-app.get('/', (req, res) => {
-  res.status(200).send('✅ HR Backend Service Running. Akses /api/dashboard, /api/jobs, /api/applicants, atau /api/reports');
+app.get("/", (req, res) => {
+  res
+    .status(200)
+    .send(
+      "✅ HR Backend Service Running. Akses /api/dashboard, /api/jobs, /api/applicants, atau /api/reports"
+    );
 });
 
 // ===== Export App =====
