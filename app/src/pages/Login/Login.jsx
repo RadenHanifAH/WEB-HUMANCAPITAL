@@ -1,28 +1,33 @@
+// src/pages/Auth/Login.jsx
 import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import Logo from "../../assets/perusahaan1.png";
+import axiosInstance from "../../api/axiosInstance";
 
 // --- Komponen Input dengan Ikon ---
-const IconInputField = (props) => {
-  const {
-    icon: Icon,
-    type,
-    placeholder,
-    value,
-    onChange,
-    isPassword = false,
-    onToggleVisibility,
-    isVisible = false,
-  } = props;
-
+const IconInputField = ({
+  icon: Icon,
+  type,
+  placeholder,
+  value,
+  onChange,
+  isPassword = false,
+  onToggleVisibility,
+  isVisible = false,
+}) => {
   return (
     <div className="mb-4">
       <div className="relative">
-        <Icon
-          size={20}
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-        />
+        {/* Ikon di kiri */}
+        {Icon && (
+          <Icon
+            size={20}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+          />
+        )}
+
+        {/* Input field */}
         <input
           type={type}
           placeholder={placeholder}
@@ -33,6 +38,8 @@ const IconInputField = (props) => {
                      focus:border-sky-600 focus:ring-1 focus:ring-sky-600 
                      transition duration-150 placeholder:text-gray-400"
         />
+
+        {/* Tombol show/hide password */}
         {isPassword && (
           <button
             type="button"
@@ -53,19 +60,39 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  // --- Fungsi Submit dengan koneksi API ---
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login attempt:", { email, password });
-    alert("Simulasi Login Berhasil!");
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await axiosInstance.post(
+        "/auth/login",
+        { email, password },
+        { withCredentials: true }
+      );
+
+      alert("Login berhasil!");
+      console.log("User data:", response.data.user);
+      // TODO: redirect ke dashboard
+      // navigate("/dashboard");
+    } catch (err) {
+      const message = err.response?.data?.message || "Gagal login, coba lagi.";
+      setError(message);
+      console.error("Login error:", message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div
       className="relative w-full overflow-hidden"
-      style={{
-        height: "calc(100vh - 80px)", // sesuaikan tinggi navbar
-      }}
+      style={{ height: "calc(100vh - 80px)" }}
     >
       {/* Background gradasi blur */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
@@ -74,7 +101,7 @@ function Login() {
       {/* Card utama */}
       <div className="relative h-full flex items-center justify-center p-4 sm:p-6">
         <div className="flex flex-col lg:flex-row w-full max-w-5xl bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
-          {/* --- Panel Kiri (Logo) --- */}
+          {/* Panel Kiri (Logo) */}
           <div className="hidden lg:flex lg:w-1/2 relative p-8 bg-white/40 backdrop-blur-sm items-center justify-center">
             <img
               src={Logo}
@@ -83,7 +110,7 @@ function Login() {
             />
           </div>
 
-          {/* --- Panel Kanan (Form Login) --- */}
+          {/* Panel Kanan (Form Login) */}
           <div className="w-full lg:w-1/2 p-6 sm:p-8 md:p-10 flex items-center justify-center">
             <div className="w-full max-w-sm">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center sm:text-left">
@@ -96,10 +123,7 @@ function Login() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Email Field */}
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-semibold text-gray-700 mb-1"
-                  >
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Email <span className="text-red-600">*</span>
                   </label>
                   <IconInputField
@@ -113,10 +137,7 @@ function Login() {
 
                 {/* Password Field */}
                 <div>
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-semibold text-gray-700 mb-1"
-                  >
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Password <span className="text-red-600">*</span>
                   </label>
                   <IconInputField
@@ -131,6 +152,13 @@ function Login() {
                   />
                 </div>
 
+                {/* Error Message */}
+                {error && (
+                  <p className="text-sm text-red-600 font-medium -mt-2">
+                    {error}
+                  </p>
+                )}
+
                 {/* Lupa Password */}
                 <div className="-mt-3 text-right">
                   <Link
@@ -144,12 +172,15 @@ function Login() {
                 {/* Tombol Login */}
                 <button
                   type="submit"
-                  className="w-full px-5 py-2.5 md:px-6 md:py-3 
-             bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
-             text-white rounded-lg text-sm md:text-base font-semibold 
-             flex items-center justify-center transition shadow-lg transform active:scale-95"
+                  disabled={loading}
+                  className={`w-full px-5 py-2.5 md:px-6 md:py-3 
+                    bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
+                    text-white rounded-lg text-sm md:text-base font-semibold 
+                    flex items-center justify-center transition shadow-lg transform active:scale-95 ${
+                      loading ? "opacity-70 cursor-not-allowed" : ""
+                    }`}
                 >
-                  Masuk
+                  {loading ? "Memproses..." : "Masuk"}
                 </button>
               </form>
 
