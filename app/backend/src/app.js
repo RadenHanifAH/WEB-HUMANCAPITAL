@@ -8,10 +8,9 @@ dotenv.config()
 
 // Import semua routes
 const authRoutes = require("./modules/auth/auth.routes")
-const dashboardRoutes = require('./routes/dashboard.routes'); // Dashboard
-const jobsRoutes = require('./routes/jobs.routes');           // Lowongan kerja
-const applicantsRoutes = require('./routes/applicants.routes'); // Pelamar kerja
-const reportsRoutes = require("./routes/reports.routes");
+// const jobsRoutes = require('./routes/jobs.routes');           // Lowongan kerja
+// const applicantsRoutes = require('./routes/applicants.routes'); // Pelamar kerja
+// const reportsRoutes = require("./routes/reports.routes");
 
 const app = express();
 
@@ -27,10 +26,10 @@ app.use(cookieParser())
 
 // ===== Global Routing =====
 app.use("/api/auth", authRoutes)
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/jobs', jobsRoutes);
-app.use('/api/applicants', applicantsRoutes); 
-app.use("/api/reports", reportsRoutes);
+// app.use('/api/dashboard', dashboardRoutes);
+// app.use('/api/jobs', jobsRoutes);
+// app.use('/api/applicants', applicantsRoutes); 
+// app.use("/api/reports", reportsRoutes);
 // Endpoint Pelamar: http://localhost:4000/api/applicants
 
 // ===== Default Route =====
