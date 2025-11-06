@@ -30,17 +30,19 @@ const updateJob = async (id, data) => {
   return updatedJob;
 };
 
-const deleteJob = async () => {
-  const deletedJob = await jobRepository.deleteJob();
+const deleteJob = async (id) => {
+  const deletedJob = await jobRepository.deleteJob(id);
 
   if(!deletedJob){
     throw new Error("Lowongan gagal dihapus")
   }
 
+  return deletedJob
 }
 
 module.exports = {
   getAllJobs,
   getJobById,
   updateJob,
+  deleteJob,
 };
