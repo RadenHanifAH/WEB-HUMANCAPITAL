@@ -31,13 +31,24 @@ const storeRefreshToken = async (userId, refreshToken) => {
   });
 };
 
-const register = async (name, email, password) => {
+const register = async (name, email, password, NIK, nomorHp, ) => {
   const existingUser = await authRepository.findUserByEmail(email);
   if (existingUser) throw new Error(" Email sudah digunakan");
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await authRepository.createUser({ name, email, password: hashedPassword });
+  const user = await authRepository.createUser({ 
+    name, 
+    email, 
+    password: hashedPassword ,
+    profile:{
+      create: {
+        NIK,
+        nomorHp,
+      }
+    }
+
+  });
   const { accessToken, refreshToken } = generateTokens(user);
   await storeRefreshToken(user.id, refreshToken);
 
@@ -47,6 +58,8 @@ const register = async (name, email, password) => {
       email: user.email,
       name: user.name,
       role: user.role,
+      NIK: user.NIK,
+      nomorHp: user.nomorHp,
     },
     accessToken,
     refreshToken,

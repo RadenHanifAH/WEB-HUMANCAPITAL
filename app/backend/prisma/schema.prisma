@@ -50,8 +50,28 @@ model User {
   password     String
   role         Role          @default(pelamar)
   createdAt    DateTime      @default(now())
+
+  profile      Profile?
   applications Application[]
 }
+
+
+model Profile {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @unique
+  fullName      String?
+  NIK           String?
+  gender        String?
+  nomorHp       String?
+  tempatLahir   String?
+  tanggalLahir  DateTime?
+  alamat        String?
+  fotoProfile   String?
+  about         String?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 
 model Job {
   id             Int             @id @default(autoincrement())
