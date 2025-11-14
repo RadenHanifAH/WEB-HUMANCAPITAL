@@ -52,7 +52,7 @@ const login = async (req, res) => {
 
     setCookies(res, accessToken, refreshToken);
 
-    res.json({
+    res.status(200).json({
       message: "Login Success",
       user,
     });

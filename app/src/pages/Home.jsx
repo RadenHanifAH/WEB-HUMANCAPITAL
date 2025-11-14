@@ -33,7 +33,7 @@ function Home() {
                 <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold leading-tight">
                   <span className="text-gray-800">Bersama </span>{" "}
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-yellow-500">
-                    Syaamil Group 
+                    Syaamil Group
                   </span>{" "}
                   <span className="text-gray-800">Sahabat Sampai Surga</span>
                 </h1>

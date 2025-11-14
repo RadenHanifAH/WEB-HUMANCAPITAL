@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
@@ -9,19 +10,43 @@ import Reset from "./pages/Login/Reset";
 import Admin from "./pages/Users/Admin";
 import User from "./pages/Users/User";
 import ScrollToTop from "./components/ScrollToTop";
+import useAuthStore from "./store/useAuthStore";
+import axiosInstance from "./api/axiosInstance";
 
 function Layout() {
   const location = useLocation();
+  const setUser = useAuthStore((state) => state.setUser);
 
-  // Halaman yang tidak menampilkan Navbar
+  // ✅ Cek status login berdasarkan cookie
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await axiosInstance.get("/auth/profile", {
+          withCredentials: true,
+        });
+        if (res.data) {
+          setUser(res.data);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.warn("Gagal memuat profil user:", error.message);
+        setUser(null);
+      }
+    };
+
+    fetchProfile();
+  }, [setUser]);
+
+  // ✅ Halaman tanpa Navbar
   const hideNavbar = ["/admin"];
 
-  // Halaman yang tidak menampilkan Footer
+  // ✅ Halaman tanpa Footer
   const hideFooter = ["/login", "/daftar", "/reset-password", "/admin"];
 
   return (
     <>
-      {/* Navbar hanya disembunyikan pada halaman admin */}
+      {/* Navbar hanya disembunyikan di halaman admin */}
       {!hideNavbar.includes(location.pathname) && <Navbar />}
 
       <Routes>
@@ -31,16 +56,16 @@ function Layout() {
         <Route path="/daftar" element={<Daftar />} />
         <Route path="/reset-password" element={<Reset />} />
         <Route path="/admin" element={<Admin />} />
-        <Route path="/user" element={<User />} />
+        <Route path="/home" element={<Home />} />
       </Routes>
 
-      {/* Footer disembunyikan pada login, daftar, reset, dan admin */}
+      {/* Footer disembunyikan pada halaman tertentu */}
       {!hideFooter.includes(location.pathname) && <Footer />}
     </>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <Router>
       <ScrollToTop />
@@ -48,5 +73,3 @@ function App() {
     </Router>
   );
 }
-
-export default App;
