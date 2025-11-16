@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import Logo from "../../assets/perusahaan1.png";
-import axiosInstance from "../../api/axiosInstance";
+// Pastikan path ini benar di proyek Anda
+import Logo from "../../assets/perusahaan1.png"; 
+// Pastikan path ini benar
+import axiosInstance from "../../api/axiosInstance"; 
 import useAuthStore from "../../store/useAuthStore";
 
+// --- Komponen Pembantu: IconInputField ---
 const IconInputField = ({
   icon: Icon,
   type,
@@ -45,7 +48,11 @@ const IconInputField = ({
     </div>
   </div>
 );
+// --- Akhir Komponen Pembantu ---
 
+/**
+ * Komponen utama untuk halaman Login.
+ */
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,7 +60,9 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const setUser = useAuthStore((state) => state.setUser);
+  // Mengambil action login dari store Zustand
+  const loginAction = useAuthStore((state) => state.login); 
+  
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -63,19 +72,23 @@ function Login() {
 
     try {
       const response = await axiosInstance.post(
-        "/auth/login",
-        { email, password },
-        { withCredentials: true }
+        "/auth/login", // Ganti dengan endpoint login API Anda
+        { email, password }
       );
+      
+      // Menggunakan action login untuk menyimpan user dan token di Zustand & localStorage
+      // ASUMSI: response.data berisi { user: {...}, token: "..." }
+      loginAction(response.data); 
 
-      setUser(response.data.user);
-
-      // Delay sedikit agar animasi loading sempat muncul
+      // Delay sedikit agar user melihat animasi loading
       setTimeout(() => {
         setLoading(false);
-        navigate("/home");
+        // Arahkan ke halaman utama setelah login sukses
+        navigate("/"); 
       }, 1000);
+      
     } catch (err) {
+      // Menangani error dari API
       const message = err.response?.data?.message || "Gagal login, coba lagi.";
       setError(message);
       setTimeout(() => setLoading(false), 800);
@@ -85,9 +98,9 @@ function Login() {
   return (
     <div
       className="relative w-full overflow-hidden"
-      style={{ height: "calc(100vh - 80px)" }}
+      style={{ minHeight: "100vh" }}
     >
-      {/* === FULLSCREEN LOADING OVERLAY PUTIH MENUTUP NAVBAR === */}
+      {/* === FULLSCREEN LOADING OVERLAY === */}
       {loading && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-opacity duration-600">
           <Loader2 className="w-12 h-12 text-sky-600 animate-spin mb-3" />
@@ -98,9 +111,10 @@ function Login() {
       {/* Background gradasi */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 opacity-40 pointer-events-none" />
 
-      <div className="relative h-full flex items-center justify-center p-4 sm:p-6">
+      <div className="relative h-full flex items-center justify-center p-4 sm:p-6 min-h-screen">
         <div className="flex flex-col lg:flex-row w-full max-w-5xl bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
-          {/* Panel kiri (logo) */}
+          
+          {/* Panel kiri (logo/visual) */}
           <div className="hidden lg:flex lg:w-1/2 relative p-8 bg-white items-center justify-center">
             <img
               src={Logo}

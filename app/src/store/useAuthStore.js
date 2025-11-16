@@ -5,22 +5,35 @@ const useAuthStore = create(
   persist(
     (set) => ({
       user: null,
+      token: null,
+      hasHydrated: false, // State untuk melacak apakah rehidrasi sudah selesai
 
-      setUser: (userData) => set({ user: userData }),
+      setUser: (data) => set({ user: data }),
 
-      login: (userData) => {
-        set({ user: userData });
-        localStorage.setItem("token", userData.token || "");
+      login: ({ user, token }) => {
+        set({ user, token });
       },
 
       logout: () => {
-        localStorage.removeItem("token");
-        set({ user: null });
+        set({ user: null, token: null });
       },
+
+      setHydrated: () => set({ hasHydrated: true }),
     }),
     {
-      name: "auth-storage", // simpan di localStorage
+      name: "auth-storage", // Nama kunci di localStorage
       getStorage: () => localStorage,
+
+      onRehydrateStorage: () => (state) => {
+        // Callback yang dipanggil setelah rehidrasi selesai
+        state.setHydrated();
+      },
+
+      partialize: (state) => ({
+        // Hanya user dan token yang disimpan secara persisten
+        user: state.user,
+        token: state.token,
+      }),
     }
   )
 );

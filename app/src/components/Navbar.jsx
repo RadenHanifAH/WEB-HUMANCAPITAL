@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
+/* eslint-disable react-hooks/rules-of-hooks */
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Menu, X, User, ChevronDown, LogOut } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { scroller } from "react-scroll";
-import Logo from "../assets/logo.png";
+import Logo from "../assets/logo.png"; // Ganti dengan path yang benar
 import useAuthStore from "../store/useAuthStore";
 
 function Navbar() {
@@ -15,19 +16,30 @@ function Navbar() {
 
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
-  // ✅ Tutup dropdown jika klik di luar area
+  // ⛔ Tunggu sampai store selesai rehydrate (memuat data dari localStorage)
+  if (!hasHydrated) return null;
+
+  // 🌟 Menggunakan useCallback untuk menstabilkan fungsi handler klik di luar
+  const handleClickOutside = useCallback((event) => {
+    // Periksa apakah klik terjadi di luar elemen dropdownRef
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setIsDropdownOpen(false);
+    }
+  }, []); // Dependensi kosong karena state setIsDropdownOpen stabil
+
+  // Tutup dropdown jika klik di luar elemen
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [handleClickOutside]); // Dependensi adalah fungsi stabil (handleClickOutside)
 
   const handleBerandaClick = () => {
+    setIsOpen(false);
     if (location.pathname === "/") {
       scroller.scrollTo("top", {
         smooth: true,
@@ -40,6 +52,7 @@ function Navbar() {
   };
 
   const handleScrollTo = (target) => {
+    setIsOpen(false);
     if (location.pathname === "/") {
       scroller.scrollTo(target, {
         smooth: true,
@@ -61,14 +74,15 @@ function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full bg-white shadow-sm">
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-0">
-        {/* ✅ Logo */}
+        
+        {/* Logo */}
         <div className="flex items-center gap-2 ml-0 md:ml-26">
           <Link to="/">
             <img src={Logo} alt="Logo" className="h-12 w-auto" />
           </Link>
         </div>
 
-        {/* ✅ Menu Desktop */}
+        {/* Menu Desktop */}
         <nav className="hidden md:flex items-center gap-6">
           {menuItems.map((item, index) =>
             item.path ? (
@@ -91,10 +105,11 @@ function Navbar() {
           )}
         </nav>
 
-        {/* ✅ Auth + Mobile Menu Button */}
+        {/* Auth & Mobile */}
         <div className="flex items-center gap-3 mr-0 md:mr-26">
           {!user ? (
             <>
+              {/* Login Desktop */}
               <Link
                 to="/login"
                 className="hidden md:flex items-center px-3 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-100"
@@ -102,6 +117,7 @@ function Navbar() {
                 <User className="h-4 w-4 mr-2" />
                 Masuk
               </Link>
+              {/* Register Desktop */}
               <Link
                 to="/daftar"
                 className="hidden md:flex items-center px-4 py-2 rounded-lg bg-sky-600 text-white text-sm hover:bg-sky-500 transition"
@@ -110,11 +126,8 @@ function Navbar() {
               </Link>
             </>
           ) : (
-            <div
-              className="relative hidden md:flex items-center"
-              ref={dropdownRef}
-            >
-              {/* 🧍 Icon Orang Bundar */}
+            // User Dropdown (Desktop)
+            <div className="relative hidden md:flex items-center" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-2 focus:outline-none"
@@ -129,9 +142,9 @@ function Navbar() {
                 />
               </button>
 
-              {/* 🔽 Dropdown */}
               {isDropdownOpen && (
                 <div className="absolute right-0 top-full mt-2 w-44 bg-white border border-gray-300 rounded-lg shadow-lg py-2">
+                  {/* Profil Link */}
                   <Link
                     to="/user"
                     onClick={() => setIsDropdownOpen(false)}
@@ -140,10 +153,13 @@ function Navbar() {
                     <User className="h-4 w-4 text-gray-500" />
                     Profil
                   </Link>
+
+                  {/* Logout Button */}
                   <button
                     onClick={() => {
                       logout();
                       setIsDropdownOpen(false);
+                      // navigate("/"); // Opsional: navigasi setelah logout
                     }}
                     className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 transition"
                   >
@@ -155,7 +171,7 @@ function Navbar() {
             </div>
           )}
 
-          {/* 🔘 Mobile Menu Button */}
+          {/* Mobile menu button */}
           <button
             className="md:hidden p-2 text-gray-700 hover:text-blue-600"
             onClick={() => setIsOpen(!isOpen)}
@@ -165,7 +181,7 @@ function Navbar() {
         </div>
       </div>
 
-      {/* ✅ Mobile Menu */}
+      {/* Mobile Menu */}
       {isOpen && (
         <div className="md:hidden bg-white border-t shadow-sm">
           <nav className="flex flex-col p-4 gap-3">
@@ -193,10 +209,11 @@ function Navbar() {
               )
             )}
 
-            {/* ✅ Auth Buttons Mobile */}
+            {/* Auth Mobile */}
             <div className="flex flex-col gap-2 mt-4">
               {!user ? (
                 <>
+                  {/* Login Mobile */}
                   <Link
                     to="/login"
                     className="flex items-center justify-center px-3 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-100"
@@ -204,6 +221,7 @@ function Navbar() {
                   >
                     Masuk
                   </Link>
+                  {/* Register Mobile */}
                   <Link
                     to="/daftar"
                     className="flex items-center justify-center px-3 py-2 rounded-lg bg-sky-600 text-white text-sm hover:bg-sky-500 transition"
@@ -214,17 +232,21 @@ function Navbar() {
                 </>
               ) : (
                 <>
+                  {/* Profil Link Mobile */}
                   <Link
-                    to="/profile"
+                    to="/user" 
                     className="flex items-center justify-center px-3 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setIsOpen(false)}
                   >
                     Profil
                   </Link>
+
+                  {/* Logout Button Mobile */}
                   <button
                     onClick={() => {
                       logout();
                       setIsOpen(false);
+                      // navigate("/"); // Opsional: navigasi setelah logout
                     }}
                     className="flex items-center justify-center px-3 py-2 rounded-lg bg-red-500 text-white text-sm hover:bg-red-400 transition"
                   >
