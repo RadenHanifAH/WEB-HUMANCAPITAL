@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Menu, X, User, ChevronDown, LogOut } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -7,6 +6,8 @@ import Logo from "../assets/logo.png"; // Ganti dengan path yang benar
 import useAuthStore from "../store/useAuthStore";
 
 function Navbar() {
+  const {user, logout } = useAuthStore()
+  
   const [isOpen, setIsOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -14,12 +15,7 @@ function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
-  // ⛔ Tunggu sampai store selesai rehydrate (memuat data dari localStorage)
-  if (!hasHydrated) return null;
 
   // 🌟 Menggunakan useCallback untuk menstabilkan fungsi handler klik di luar
   const handleClickOutside = useCallback((event) => {
@@ -146,7 +142,7 @@ function Navbar() {
                 <div className="absolute right-0 top-full mt-2 w-44 bg-white border border-gray-300 rounded-lg shadow-lg py-2">
                   {/* Profil Link */}
                   <Link
-                    to="/user"
+                    to="/profile"
                     onClick={() => setIsDropdownOpen(false)}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
                   >

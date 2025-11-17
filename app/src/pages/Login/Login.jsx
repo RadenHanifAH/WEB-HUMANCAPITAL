@@ -2,9 +2,8 @@ import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 // Pastikan path ini benar di proyek Anda
-import Logo from "../../assets/perusahaan1.png"; 
+import Logo from "../../assets/perusahaan1.png";
 // Pastikan path ini benar
-import axiosInstance from "../../api/axiosInstance"; 
 import useAuthStore from "../../store/useAuthStore";
 
 // --- Komponen Pembantu: IconInputField ---
@@ -58,42 +57,26 @@ function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+
 
   // Mengambil action login dari store Zustand
-  const loginAction = useAuthStore((state) => state.login); 
-  
+  const {login, loading}=useAuthStore()
+
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
 
-    try {
-      const response = await axiosInstance.post(
-        "/auth/login", // Ganti dengan endpoint login API Anda
-        { email, password }
-      );
-      
-      // Menggunakan action login untuk menyimpan user dan token di Zustand & localStorage
-      // ASUMSI: response.data berisi { user: {...}, token: "..." }
-      loginAction(response.data); 
-
-      // Delay sedikit agar user melihat animasi loading
-      setTimeout(() => {
-        setLoading(false);
-        // Arahkan ke halaman utama setelah login sukses
-        navigate("/"); 
-      }, 1000);
-      
-    } catch (err) {
-      // Menangani error dari API
-      const message = err.response?.data?.message || "Gagal login, coba lagi.";
-      setError(message);
-      setTimeout(() => setLoading(false), 800);
+  try {
+    const response = await login(email, password);
+    if (response?.success) {
+      navigate("/");
     }
-  };
+  } catch (err) {
+    setError(err?.response?.data?.message || "Gagal login");
+  }
+};
 
   return (
     <div
@@ -113,7 +96,6 @@ function Login() {
 
       <div className="relative h-full flex items-center justify-center p-4 sm:p-6 min-h-screen">
         <div className="flex flex-col lg:flex-row w-full max-w-5xl bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
-          
           {/* Panel kiri (logo/visual) */}
           <div className="hidden lg:flex lg:w-1/2 relative p-8 bg-white items-center justify-center">
             <img
@@ -159,9 +141,7 @@ function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     isPassword={true}
                     isVisible={showPassword}
-                    onToggleVisibility={() =>
-                      setShowPassword((prev) => !prev)
-                    }
+                    onToggleVisibility={() => setShowPassword((prev) => !prev)}
                   />
                 </div>
 

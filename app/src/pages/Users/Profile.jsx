@@ -1,32 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, Edit, Save, X } from "lucide-react";
 import useAuthStore from "../../store/useAuthStore";
-import axios from "axios";
+import axios from "../../api/axiosInstance";
 
-const api = axios.create({
-  baseURL: "http://localhost:4000", // ✅ ganti sesuai backend kamu
-  withCredentials: true,
-});
-
-function User() {
-  const { user, loading, fetchUser, setUser } = useAuthStore();
+function Profile() {
+  const { user, checkAuth, loading: storeLoading, set } = useAuthStore();
   const [editedData, setEditedData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // --- Ambil data user dari backend saat pertama kali ---
+  // --- Ambil data user saat mount ---
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    if (!user) checkAuth();
+  }, [user, checkAuth]);
 
-  // --- Sinkronisasi store user ke state lokal untuk edit form ---
+  // --- Sinkronisasi store user ke state lokal ---
   useEffect(() => {
     if (user) setEditedData(user);
   }, [user]);
 
-  // --- Saat loading data user ---
-  if (loading || !editedData) {
+  if (storeLoading || !editedData) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-white z-[9999]">
         <Loader2 className="w-12 h-12 text-sky-600 animate-spin mb-3" />
@@ -35,23 +29,19 @@ function User() {
     );
   }
 
-  // --- Handler ubah data input ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setEditedData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setEditedData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // --- Simpan perubahan ke backend ---
   const handleSave = async () => {
     try {
       setSaving(true);
       setError("");
 
-      const res = await api.put(`/auth/update-profile/${editedData.id}`, editedData);
-      setUser(res.data.user); // ✅ update store juga
+      const res = await axios.put(`/auth/update-profile/${editedData.id}`, editedData);
+      // update store user langsung
+      set({ user: res.data.user });
       setIsEditing(false);
     } catch (err) {
       console.error(err);
@@ -63,7 +53,6 @@ function User() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-10 px-6">
-      {/* --- Loading overlay putih saat menyimpan --- */}
       {saving && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white">
           <Loader2 className="w-12 h-12 text-sky-600 animate-spin mb-3" />
@@ -76,18 +65,15 @@ function User() {
           Profil Pengguna
         </h1>
 
-        {error && (
-          <p className="text-red-600 text-center font-semibold mb-3">{error}</p>
-        )}
+        {error && <p className="text-red-600 text-center font-semibold mb-3">{error}</p>}
 
-        {/* --- Data Pribadi --- */}
         <div className="space-y-4">
           <div>
             <label className="font-semibold text-gray-700 block mb-1">Nama Lengkap</label>
             <input
               type="text"
-              name="fullName"
-              value={editedData.fullName || ""}
+              name="name"
+              value={editedData.name || ""}
               onChange={handleChange}
               disabled={!isEditing}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-gray-100"
@@ -100,7 +86,6 @@ function User() {
               type="email"
               name="email"
               value={editedData.email || ""}
-              onChange={handleChange}
               disabled
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-500 bg-gray-100"
             />
@@ -110,8 +95,8 @@ function User() {
             <label className="font-semibold text-gray-700 block mb-1">Nomor Telepon</label>
             <input
               type="text"
-              name="phone"
-              value={editedData.phone || ""}
+              name="noHp"
+              value={editedData.noHp || ""}
               onChange={handleChange}
               disabled={!isEditing}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-gray-100"
@@ -119,11 +104,11 @@ function User() {
           </div>
 
           <div>
-            <label className="font-semibold text-gray-700 block mb-1">Alamat</label>
-            <textarea
-              name="address"
-              rows="2"
-              value={editedData.address || ""}
+            <label className="font-semibold text-gray-700 block mb-1">NIK</label>
+            <input
+              type="text"
+              name="nik"
+              value={editedData.nik || ""}
               onChange={handleChange}
               disabled={!isEditing}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-gray-100"
@@ -131,7 +116,6 @@ function User() {
           </div>
         </div>
 
-        {/* --- Tombol aksi --- */}
         <div className="flex justify-center mt-8 space-x-4">
           {!isEditing ? (
             <button
@@ -165,4 +149,4 @@ function User() {
   );
 }
 
-export default User;
+export default Profile;

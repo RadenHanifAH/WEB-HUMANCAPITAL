@@ -1,4 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
 import { useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -8,64 +14,61 @@ import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
 import Admin from "./pages/Users/Admin";
-import User from "./pages/Users/User"; // Pastikan User di-import
+import Profile from "./pages/Users/Profile";
 import ScrollToTop from "./components/ScrollToTop";
 import useAuthStore from "./store/useAuthStore";
-import axiosInstance from "./api/axiosInstance";
+import { Loader2 } from "lucide-react";
 
 function Layout() {
   const location = useLocation();
-  // Ambil setUser dari store, karena digunakan sebagai dependency di useEffect
-  const setUser = useAuthStore((state) => state.setUser); 
+  const { user, checkAuth, checkingAuth } = useAuthStore();
 
-  // ✅ Cek status login berdasarkan cookie
   useEffect(() => {
-    // Fungsi ini hanya dijalankan sekali saat komponen mounting
-    const fetchProfile = async () => {
-      try {
-        const res = await axiosInstance.get("/auth/profile", {
-          withCredentials: true,
-        });
-        // Pastikan Anda hanya memanggil setUser jika data berhasil dimuat
-        setUser(res.data || null); 
-      } catch (error) {
-        console.warn("Gagal memuat profil user (mungkin belum login):", error.message);
-        setUser(null);
-      }
-    };
+    checkAuth();
+  }, [checkAuth]);
 
-    fetchProfile();
-    // Di sini kita menggunakan setUser sebagai dependency, 
-    // meskipun itu adalah fungsi stabil dari Zustand, ini adalah praktik terbaik React.
-  }, [setUser]); 
+  if (checkingAuth) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin w-10 h-10" />
+      </div>
+    );
+  }
 
-  // ✅ Halaman tanpa Navbar
   const hideNavbar = ["/admin"];
-  // Perhatikan: path harus sesuai persis dengan path router!
-  
-  // ✅ Halaman tanpa Footer
   const hideFooter = ["/login", "/daftar", "/reset-password", "/admin"];
 
   return (
     <>
-      {/* Navbar hanya disembunyikan di halaman admin */}
-      {!hideNavbar.includes(location.pathname) && <Navbar />}
+      {!checkingAuth && !hideNavbar.includes(location.pathname) && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/lowongan" element={<Lowongan />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/daftar" element={<Daftar />} />
+        <Route
+          path="/login"
+          element={!user ? <Login /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/daftar"
+          element={!user ? <Daftar /> : <Navigate to="/" />}
+        />
         <Route path="/reset-password" element={<Reset />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/user" element={<User />} /> {/* ⬅️ ROUTE YANG HILANG DITAMBAHKAN */}
+        <Route
+          path="/admin"
+          element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/profile"
+          element={user ? <Profile /> : <Navigate to="/login" />}
+        />
       </Routes>
 
-      {/* Footer disembunyikan pada halaman tertentu */}
-      {!hideFooter.includes(location.pathname) && <Footer />}
+      {!checkingAuth && !hideFooter.includes(location.pathname) && <Footer />}
     </>
   );
 }
+
 
 export default function App() {
   return (
