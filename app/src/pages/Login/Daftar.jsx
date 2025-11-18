@@ -2,10 +2,12 @@
 import React, { useState } from "react";
 import { Mail, Lock, User, Phone, IdCard, Eye, EyeOff } from "lucide-react";
 import Logo from "../../assets/perusahaan1.png";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
 
 function Daftar() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     nama: "",
     nik: "",
@@ -37,12 +39,11 @@ function Daftar() {
     if (error) setError("");
   };
 
-  // --- Handle submit form dengan API call ---
+  // --- Handle submit form ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // Validasi password
     if (!validatePassword(formData.password)) {
       setError(
         "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol."
@@ -50,13 +51,11 @@ function Daftar() {
       return;
     }
 
-    // Cek konfirmasi password
     if (formData.password !== formData.konfirmasiPassword) {
       setError("Konfirmasi password tidak cocok.");
       return;
     }
 
-    // Cek persetujuan
     if (!formData.setuju) {
       setError("Anda harus menyetujui pernyataan kebenaran data.");
       return;
@@ -67,14 +66,15 @@ function Daftar() {
         name: formData.nama,
         email: formData.email,
         password: formData.password,
-        nik: formData.nik,
-        no_hp: formData.noHp,
+        NIK: formData.nik,
+        nomorHp: formData.noHp,
       });
 
       alert("Pendaftaran berhasil! Silakan login.");
       console.log("Response:", response.data);
-      // opsional: redirect ke login
-      // navigate("/login");
+
+      // ✅ Redirect ke halaman login
+      navigate("/login");
     } catch (err) {
       setError(err.response?.data?.message || "Terjadi kesalahan pada server");
     }
@@ -87,8 +87,8 @@ function Daftar() {
       <div className="absolute inset-0 backdrop-blur-md bg-white/30 pointer-events-none" />
 
       {/* Container utama */}
-      <div className="relative flex items-center justify-center min-h-screen">
-        <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden m-4">
+      <div className="relative flex items-center justify-center min-h-screen py-10">
+        <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden m-6 lg:m-8 min-h-[130vh]">
           {/* Gambar kiri */}
           <div className="hidden lg:flex lg:w-1/2 items-center justify-center bg-white/40 p-10">
             <img
@@ -103,7 +103,7 @@ function Daftar() {
             <div
               className="w-full max-w-md h-full overflow-y-auto lg:overflow-visible"
               style={{
-                maxHeight: "calc(100vh - 80px)",
+                maxHeight: "calc(120vh - 80px)",
               }}
             >
               <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
