@@ -18,6 +18,7 @@ import Profile from "./pages/Users/Profile";
 import ScrollToTop from "./components/ScrollToTop";
 import useAuthStore from "./store/useAuthStore";
 import { Loader2 } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 
 function Layout() {
   const location = useLocation();
@@ -40,6 +41,7 @@ function Layout() {
 
   return (
     <>
+      <Toaster position="top-right" />
       {!checkingAuth && !hideNavbar.includes(location.pathname) && <Navbar />}
 
       <Routes>
