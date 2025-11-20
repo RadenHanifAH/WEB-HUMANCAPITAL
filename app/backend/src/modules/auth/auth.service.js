@@ -119,7 +119,7 @@ const getProfile = async (userId) => {
   return safeUser;
 };
 
-const updateProfile = async (userId) => {
+const updateProfile = async (userId, data) => {
   const existingProfile = await authRepository.findUserById(userId)
 
   if(!existingProfile) throw new Error("Profile not found")
