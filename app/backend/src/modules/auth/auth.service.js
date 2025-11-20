@@ -68,23 +68,32 @@ const register = async (name, email, password, NIK, nomorHp, ) => {
 
 const login = async (email, password) => {
   const user = await authRepository.findUserByEmail(email);
-  if (!user) throw new Error(" Email tidak ditemukan");
+  if (!user) throw new Error("Email tidak ditemukan");
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw new Error("Password Salah");
+
   const { accessToken, refreshToken } = generateTokens(user);
+
   await storeRefreshToken(user.id, refreshToken);
 
+  // Buat user object tanpa password
+  const safeUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    profile: user.profile || null,
+    createdAt: user.createdAt,
+  };
+
   return {
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
+    user: safeUser,
     accessToken,
     refreshToken,
   };
 };
+
 
 const logout = async (refreshToken) => {
   if (!refreshToken) return;

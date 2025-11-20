@@ -6,11 +6,11 @@ const getAllUser = async (filter = {}) => {
 
 const findUserByEmail = async (email) => {
   return await prisma.user.findUnique({
-    where: {
-      email,
-    },
+    where: { email },
+    include: { profile: true }, 
   });
 };
+
 
 const createUser = async (data) => {
   return await prisma.user.create({ data });
