@@ -135,6 +135,7 @@ const updateProfile = async (req, res) => {
 
     const data = req.body;
 
+
     if (data.tanggalLahir) {
       data.tanggalLahir = new Date(data.tanggalLahir); 
     }

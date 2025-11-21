@@ -77,14 +77,12 @@ const login = async (email, password) => {
 
   await storeRefreshToken(user.id, refreshToken);
 
-  // Buat user object tanpa password
   const safeUser = {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
     profile: user.profile || null,
-    createdAt: user.createdAt,
   };
 
   return {
@@ -120,12 +118,12 @@ const refreshAccessToken = async (refreshToken) => {
 };
 
 const getProfile = async (userId) => {
-  const user = await authRepository.findUserById(userId);
 
-  if (!user) throw new Error("User not found");
+  const user = await authRepository.findUserById(userId)
+  
+  
 
-  const { password, ...safeUser } = user;
-  return safeUser;
+  return user
 };
 
 const updateProfile = async (userId, data) => {

@@ -39,7 +39,7 @@ export const useAuthStore = create((set) => ({
       set({ user: res.data.user, loading: false });
     } catch (error) {
       set({ loading: false });
-      throw error; // lempar error ke component
+      throw error;
     }
   },
 
