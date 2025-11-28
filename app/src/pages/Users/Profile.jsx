@@ -394,142 +394,146 @@ const Profile = () => {
     setConfirmPassword("");
   };
 
-const handleSaveDataPribadi = async () => {
-  try {
-    setSaving(true);
-    setError(null);
+  const handleSaveDataPribadi = async () => {
+    try {
+      setSaving(true);
+      setError(null);
 
-    const payload = {
-      fullName: editedData.profile.fullName,
-      NIK: editedData.profile.NIK,
-      gender: editedData.profile.gender,
-      nomorHp: editedData.profile.nomorHp,
-      tempatLahir: editedData.profile.tempatLahir,
-      tanggalLahir: editedData.profile.tanggalLahir
-        ? new Date(editedData.profile.tanggalLahir).toISOString()
-        : null,
-      alamat: editedData.profile.alamat,
-      fotoProfile: editedData.profile.fotoProfile,
-      about: editedData.profile.about,
-    };
+      const payload = {
+        fullName: editedData.profile.fullName,
+        NIK: editedData.profile.NIK,
+        gender: editedData.profile.gender,
+        nomorHp: editedData.profile.nomorHp,
+        tempatLahir: editedData.profile.tempatLahir,
+        tanggalLahir: editedData.profile.tanggalLahir
+          ? new Date(editedData.profile.tanggalLahir).toISOString()
+          : null,
+        alamat: editedData.profile.alamat,
+        fotoProfile: editedData.profile.fotoProfile,
+        about: editedData.profile.about,
+      };
 
-    // ✅ DEBUG: Cek ukuran payload
-    console.log("Payload size:", JSON.stringify(payload).length, "bytes");
-    console.log("FotoProfile length:", payload.fotoProfile?.length || 0);
-    console.log("Payload:", payload);
+      // ✅ DEBUG: Cek ukuran payload
+      console.log("Payload size:", JSON.stringify(payload).length, "bytes");
+      console.log("FotoProfile length:", payload.fotoProfile?.length || 0);
+      console.log("Payload:", payload);
 
-    const res = await axios.put("/auth/profile", payload);
+      const res = await axios.put("/auth/profile", payload);
 
-    setUser({ ...editedData, profile: res.data.data });
-    setUploadedPhoto(null);
-    setIsDataPribadiEditable(false);
-    showToast("Data Pribadi berhasil diperbarui!", "success");
-  } catch (err) {
-    console.error("Save Data Pribadi error:", err);
-    console.error("Error response:", err.response?.data); // ✅ Lihat detail error dari backend
-    showToast(
-      err.response?.data?.message || "Gagal menyimpan Data Pribadi.",
-      "error"
-    );
-  } finally {
-    setSaving(false);
-  }
-};
+      setUser({ ...editedData, profile: res.data.data });
+      setUploadedPhoto(null);
+      setIsDataPribadiEditable(false);
+      showToast("Data Pribadi berhasil diperbarui!", "success");
+    } catch (err) {
+      console.error("Save Data Pribadi error:", err);
+      console.error("Error response:", err.response?.data); // ✅ Lihat detail error dari backend
+      showToast(
+        err.response?.data?.message || "Gagal menyimpan Data Pribadi.",
+        "error"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /* ---------------------------
      Handlers: Photo Upload
      --------------------------- */
-// Tambahkan fungsi ini di bagian atas komponen Profile
-const compressImage = (file, maxWidth = 800, quality = 0.7) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+  // Tambahkan fungsi ini di bagian atas komponen Profile
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
 
-        // Resize jika terlalu besar
-        if (width > maxWidth) {
-          height = (height * maxWidth) / width;
-          width = maxWidth;
-        }
+          // Resize jika terlalu besar
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
 
-        canvas.width = width;
-        canvas.height = height;
+          canvas.width = width;
+          canvas.height = height;
 
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
 
-        // Kompres ke JPEG dengan quality
-        canvas.toBlob(
-          (blob) => {
-            const compressedReader = new FileReader();
-            compressedReader.onloadend = () => resolve(compressedReader.result);
-            compressedReader.onerror = reject;
-            compressedReader.readAsDataURL(blob);
-          },
-          'image/jpeg',
-          quality
-        );
+          // Kompres ke JPEG dengan quality
+          canvas.toBlob(
+            (blob) => {
+              const compressedReader = new FileReader();
+              compressedReader.onloadend = () =>
+                resolve(compressedReader.result);
+              compressedReader.onerror = reject;
+              compressedReader.readAsDataURL(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
       };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
-// Update handlePhotoUploadClientPreview
-const handlePhotoUploadClientPreview = async (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
+  // Update handlePhotoUploadClientPreview
+  const handlePhotoUploadClientPreview = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const MAX_FILE_SIZE = 2 * 1024 * 1024;
-  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
+    const MAX_FILE_SIZE = 2 * 1024 * 1024;
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    showToast("Jenis file tidak didukung.", "error");
-    fileInputRef.current.value = "";
-    return;
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    showToast("Ukuran file terlalu besar. Maksimal 2MB.", "error");
-    fileInputRef.current.value = "";
-    return;
-  }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Jenis file tidak didukung.", "error");
+      fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      showToast("Ukuran file terlalu besar. Maksimal 2MB.", "error");
+      fileInputRef.current.value = "";
+      return;
+    }
 
-  try {
-    // ✅ Kompres gambar
-    const compressedBase64 = await compressImage(file, 800, 0.7);
-    
-    console.log("Original size:", file.size, "bytes");
-    console.log("Compressed base64 length:", compressedBase64.length);
-    
-    // Preview
-    setUploadedPhoto(compressedBase64);
-    
-    // Update editedData
-    setEditedData((prev) => ({
-      ...prev,
-      profile: {
-        ...prev.profile,
-        fotoProfile: compressedBase64,
-      },
-    }));
-    
-    // Aktifkan mode edit
-    setIsDataPribadiEditable(true);
-    setActiveMenu("Data Pribadi");
-    
-    showToast("Foto dipilih! Klik 'Simpan' untuk menyimpan perubahan.", "success");
-  } catch (err) {
-    console.error("Compress image error:", err);
-    showToast("Gagal memproses gambar.", "error");
-  }
-};
+    try {
+      // ✅ Kompres gambar
+      const compressedBase64 = await compressImage(file, 800, 0.7);
+
+      console.log("Original size:", file.size, "bytes");
+      console.log("Compressed base64 length:", compressedBase64.length);
+
+      // Preview
+      setUploadedPhoto(compressedBase64);
+
+      // Update editedData
+      setEditedData((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          fotoProfile: compressedBase64,
+        },
+      }));
+
+      // Aktifkan mode edit
+      setIsDataPribadiEditable(true);
+      setActiveMenu("Data Pribadi");
+
+      showToast(
+        "Foto dipilih! Klik 'Simpan' untuk menyimpan perubahan.",
+        "success"
+      );
+    } catch (err) {
+      console.error("Compress image error:", err);
+      showToast("Gagal memproses gambar.", "error");
+    }
+  };
 
   /* ---------------------------
      Handlers: Pengaturan Akun
@@ -955,12 +959,17 @@ const handlePhotoUploadClientPreview = async (event) => {
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
-              <img
-                className="w-24 h-24 rounded-full object-cover shadow-md transition-all duration-300 group-hover:opacity-70"
-                src={currentPhotoUrl}
-                alt={`Foto ${name || editedData.name}`}
-              />
-
+              {currentPhotoUrl ? (
+                <img
+                  className="w-24 h-24 rounded-full object-cover shadow-md transition-all duration-300 group-hover:opacity-70"
+                  src={currentPhotoUrl}
+                  alt={`Foto ${name || editedData.name}`}
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center shadow-md transition-all duration-300 group-hover:opacity-70">
+                  <UserIcon size={40} className="text-gray-500" />
+                </div>
+              )}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -970,7 +979,6 @@ const handlePhotoUploadClientPreview = async (event) => {
                 accept="image/jpeg,image/png,image/gif"
                 className="hidden"
               />
-
               <button
                 onClick={() =>
                   fileInputRef.current && fileInputRef.current.click()
