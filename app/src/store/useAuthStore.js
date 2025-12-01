@@ -7,6 +7,8 @@ export const useAuthStore = create((set) => ({
   loading: false,
   checkingAuth: true,
 
+  setUser: (user) => set({ user }),
+
   signup: async ({ name, email, nik, noHp, password, confirmPassword }) => {
     set({ loading: true });
 
@@ -37,7 +39,7 @@ export const useAuthStore = create((set) => ({
       set({ user: res.data.user, loading: false });
     } catch (error) {
       set({ loading: false });
-      throw error; // lempar error ke component
+      throw error;
     }
   },
 

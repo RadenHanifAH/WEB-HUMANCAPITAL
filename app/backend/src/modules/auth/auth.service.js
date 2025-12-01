@@ -68,23 +68,30 @@ const register = async (name, email, password, NIK, nomorHp, ) => {
 
 const login = async (email, password) => {
   const user = await authRepository.findUserByEmail(email);
-  if (!user) throw new Error(" Email tidak ditemukan");
+  if (!user) throw new Error("Email tidak ditemukan");
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw new Error("Password Salah");
+
   const { accessToken, refreshToken } = generateTokens(user);
+
   await storeRefreshToken(user.id, refreshToken);
 
+  const safeUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    profile: user.profile || null,
+  };
+
   return {
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
+    user: safeUser,
     accessToken,
     refreshToken,
   };
 };
+
 
 const logout = async (refreshToken) => {
   if (!refreshToken) return;
@@ -111,15 +118,15 @@ const refreshAccessToken = async (refreshToken) => {
 };
 
 const getProfile = async (userId) => {
-  const user = await authRepository.findUserById(userId);
 
-  if (!user) throw new Error("User not found");
+  const user = await authRepository.findUserById(userId)
+  
+  
 
-  const { password, ...safeUser } = user;
-  return safeUser;
+  return user
 };
 
-const updateProfile = async (userId) => {
+const updateProfile = async (userId, data) => {
   const existingProfile = await authRepository.findUserById(userId)
 
   if(!existingProfile) throw new Error("Profile not found")
