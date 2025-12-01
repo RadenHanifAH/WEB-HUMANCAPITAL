@@ -105,10 +105,18 @@ const refreshAccessToken = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    res.json(req.user);
+    const userId = req.user.id;
+
+    const profile = await authService.getProfile(userId);
+    return res.status(200).json({
+      status: "success",
+      message: "Profile fetched successfully",
+      data: profile,
+    });
   } catch (error) {
-    res.status(500).json({
-      message: "Server Error",
+    res.status(400).json({
+      status: "error",
+      message: "Failed to fetched profile",
       error: error.message,
     });
   }
