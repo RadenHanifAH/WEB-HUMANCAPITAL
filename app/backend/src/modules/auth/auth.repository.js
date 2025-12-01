@@ -21,6 +21,9 @@ const findUserById = async (id) => {
     where: {
       id,
     },
+    include: {
+      profile: true,
+    },
   });
 };
 
