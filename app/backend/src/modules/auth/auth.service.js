@@ -97,9 +97,28 @@ const refreshAccessToken = async (refreshToken) => {
   return accessToken;
 };
 
+
+const getProfile = async (userId) => {
+  const user = await authRepository.findUserById(userId);
+
+  return user;
+};
+
+const updateProfile = async (userId, data) => {
+  const existingProfile = await authRepository.findUserById(userId);
+
+  if (!existingProfile) throw new Error("Profile not found");
+
+  const updatedProfile = await authRepository.updateProfile(userId, data);
+
+  return updatedProfile;
+};
+
 module.exports = {
   register,
   login,
   refreshAccessToken,
   logout,
+  getProfile,
+  updateProfile,
 };

@@ -114,10 +114,41 @@ const getProfile = async (req, res) => {
   }
 };
 
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const data = req.body;
+
+    if (data.tanggalLahir) {
+      data.tanggalLahir = new Date(data.tanggalLahir);
+    }
+
+    const updatedProfile = await authService.updateProfile(userId, data);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Profile updated successfully",
+      data: updatedProfile,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to update profile",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   refreshAccessToken,
   logout,
   getProfile,
+  updateProfile,
 };
