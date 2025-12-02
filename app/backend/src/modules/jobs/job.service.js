@@ -13,7 +13,7 @@ const getAllJobs = async (
 
   if (isPublic) {
 
-    whereClause.status = "open";
+    whereClause.status = "active";
 
     whereClause.OR = [{ deadline: null }, { deadline: { gte: new Date() } }];
   }

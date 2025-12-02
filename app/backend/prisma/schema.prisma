@@ -53,6 +53,27 @@ model User {
   applications Application[]
 }
 
+<<<<<<< Updated upstream
+=======
+
+model Profile {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @unique
+  fullName      String?
+  NIK           String?
+  gender        String?
+  nomorHp       String?
+  tempatLahir   String?
+  tanggalLahir  DateTime?
+  alamat        String?
+  fotoProfile   String? @db.LongText
+  about         String?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+>>>>>>> Stashed changes
 model Job {
   id             Int             @id @default(autoincrement())
   title          String
@@ -64,7 +85,7 @@ model Job {
   description    String?
   requirements   String?
   deadline       DateTime?
-  status         String          @default("open")
+  status         String          @default("active")
   createdAt      DateTime        @default(now())
   applications   Application[]
 }

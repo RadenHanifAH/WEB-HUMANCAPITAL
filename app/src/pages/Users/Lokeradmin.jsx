@@ -31,31 +31,45 @@ function Lokeradmin() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
-  const fetchJobs = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(API_URL);
-      if (!response.ok) {
-        throw new Error("Gagal mengambil data dari backend.");
-      }
-      const data = await response.json();
-      const dataWithDefaults = data.map((job) => ({
-        ...job,
-        applicants: job.applicants ?? 0,
-      }));
-      setJobs(dataWithDefaults);
-    } catch (err) {
-      console.error("Fetch Error:", err);
-      setError(
-        "Gagal terhubung ke backend. Pastikan server berjalan di port 4000."
-      );
-      setJobs([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const fetchJobs = async () => {
+   setLoading(true);
+   setError(null);
+   try {
+     const response = await fetch(API_URL);
 
+     if (!response.ok) {
+       throw new Error("Gagal mengambil data dari backend.");
+     }
+
+     const result = await response.json();
+
+     // 🔥 PERBAIKAN: Cek struktur response
+     // Jika response berbentuk { data: [...] }
+     const jobsData = result.data || result;
+
+     // Validasi apakah jobsData adalah array
+     if (!Array.isArray(jobsData)) {
+       console.error("Response tidak valid:", result);
+       throw new Error("Format data dari backend tidak valid");
+     }
+
+     const dataWithDefaults = jobsData.map((job) => ({
+       ...job,
+       applicants: job.applicants ?? 0,
+     }));
+
+     setJobs(dataWithDefaults);
+   } catch (err) {
+     console.error("Fetch Error:", err);
+     setError(
+       err.message ||
+         "Gagal terhubung ke backend. Pastikan server berjalan di port 4000."
+     );
+     setJobs([]);
+   } finally {
+     setLoading(false);
+   }
+ };
   useEffect(() => {
     fetchJobs();
   }, []);
