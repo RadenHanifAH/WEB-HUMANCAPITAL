@@ -51,10 +51,10 @@ model User {
   role         Role          @default(pelamar)
   createdAt    DateTime      @default(now())
   applications Application[]
+
+  profile      Profile?
 }
 
-<<<<<<< Updated upstream
-=======
 
 model Profile {
   id            Int       @id @default(autoincrement())
@@ -73,7 +73,6 @@ model Profile {
 }
 
 
->>>>>>> Stashed changes
 model Job {
   id             Int             @id @default(autoincrement())
   title          String
