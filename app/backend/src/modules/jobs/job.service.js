@@ -4,7 +4,7 @@ const getAllJobs = async (
   filter = {},
   page = 1,
   limit = 5,
-  isPublic = true
+  isPublic = false
 ) => {
   const skip = (page - 1) * limit;
 
@@ -13,7 +13,7 @@ const getAllJobs = async (
 
   if (isPublic) {
 
-    whereClause.status = "open";
+    whereClause.status = "active";
 
     whereClause.OR = [{ deadline: null }, { deadline: { gte: new Date() } }];
   }
