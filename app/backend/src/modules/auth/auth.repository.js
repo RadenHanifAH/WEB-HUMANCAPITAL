@@ -6,11 +6,11 @@ const getAllUser = async (filter = {}) => {
 
 const findUserByEmail = async (email) => {
   return await prisma.user.findUnique({
-    where: {
-      email,
-    },
+    where: { email },
+    include: { profile: true }, 
   });
 };
+
 
 const createUser = async (data) => {
   return await prisma.user.create({ data });
@@ -22,9 +22,20 @@ const findUserById = async (id) => {
       id,
     },
     include: {
-      profile: true,
+      profile: true, 
     },
   });
+};
+
+const updateProfile = async (
+  userId ,
+  data,
+) => {
+  return await prisma.profile.update({
+    where: { userId: userId },
+    data: data, // langsung pakai object dari request
+  });
+
 };
 
 module.exports = {
@@ -32,4 +43,5 @@ module.exports = {
   createUser,
   findUserById,
   getAllUser,
+  updateProfile
 };

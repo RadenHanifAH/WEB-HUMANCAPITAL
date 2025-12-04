@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Settings as SettingsIcon,
   Download,
@@ -8,6 +8,8 @@ import {
   XCircle,
   Loader,
 } from "lucide-react";
+import useAuthStore from "../../store/useAuthStore"; // Pastikan path sesuai dengan struktur proyek Anda
+import axios from "../../api/axiosInstance"; // Pastikan path sesuai dengan struktur proyek Anda
 
 /**
  * Komponen Toast untuk Notifikasi Umpan Balik
@@ -40,6 +42,7 @@ const Toast = ({ message, type, onClose }) => {
  * Komponen GeneralSettings: Menampilkan formulir pengaturan umum.
  */
 const GeneralSettings = ({ showToast }) => {
+  // Kode tetap sama, tidak diubah
   const [settings, setSettings] = useState({
     companyName: "Syaamil Group",
     website: "https://www.syaamilquran.com/",
@@ -148,14 +151,16 @@ const GeneralSettings = ({ showToast }) => {
 
 /**
  * Komponen ProfileSettings: Mengelola informasi dan password profil admin.
+ * Diintegrasikan dengan useAuthStore dan axios untuk mengambil/simpan data dari database.
  */
 const ProfileSettings = ({ showToast }) => {
+  // Auth store
+  const { user, checkAuth, setUser } = useAuthStore();
+
+  // State lokal untuk profile dan password
   const [profile, setProfile] = useState({
-    firstName: "Admin",
-    lastName: "HR",
-    email: "admin@company.com",
-    phone: "+62 812-3456-7890",
-    role: "Super Admin",
+    firstName: "",
+    email: "",
   });
   const [password, setPassword] = useState({
     current: "",
@@ -163,10 +168,75 @@ const ProfileSettings = ({ showToast }) => {
     confirm: "",
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(
-    "https://placehold.co/150x150/505050/FFFFFF?text=A"
-  );
+  const [avatarUrl, setAvatarUrl] = useState("");
   const fileInputRef = useRef(null);
+
+  // Loading state untuk inisialisasi data
+  const [loadingInitial, setLoadingInitial] = useState(true);
+
+  // Fungsi kompresi gambar (dari contoh)
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              const compressedReader = new FileReader();
+              compressedReader.onloadend = () =>
+                resolve(compressedReader.result);
+              compressedReader.onerror = reject;
+              compressedReader.readAsDataURL(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Sinkronisasi data dari store ke state lokal
+  useEffect(() => {
+    if (!user) checkAuth();
+  }, [user, checkAuth]);
+
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        firstName: user.profile?.fullName || user.name || "",
+        email: user.email || "",
+      });
+      setAvatarUrl(user.profile?.fotoProfile || "");
+    } else {
+      setProfile({
+        firstName: "",
+        email: "",
+      });
+      setAvatarUrl("");
+    }
+    setLoadingInitial(false);
+  }, [user]);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -178,7 +248,7 @@ const ProfileSettings = ({ showToast }) => {
     setPassword((prevPassword) => ({ ...prevPassword, [name]: value }));
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     setIsSaving(true);
     // Validasi Password Sederhana
     if (password.new && password.new !== password.confirm) {
@@ -187,35 +257,110 @@ const ProfileSettings = ({ showToast }) => {
       return;
     }
 
-    // Simulasikan panggilan API
-    setTimeout(() => {
-      setIsSaving(false);
-      console.log("Menyimpan profil:", profile);
-      console.log(
-        "Menyimpan password baru:",
-        password.new ? "Baru Disimpan" : "Tidak Berubah"
-      );
+    try {
+      // Payload untuk profile (sesuai contoh, tambahkan field jika diperlukan)
+      const payload = {
+        fullName: profile.firstName,
+        fotoProfile: avatarUrl,
+        // Tambahkan field lain jika backend memerlukannya, misalnya:
+        // NIK: profile.NIK || "",
+        // gender: profile.gender || "",
+        // tempatLahir: profile.tempatLahir || "",
+        // tanggalLahir: profile.tanggalLahir ? new Date(profile.tanggalLahir).toISOString() : null,
+        // alamat: profile.alamat || "",
+        // about: profile.about || "",
+      };
 
-      showToast("Profil dan/atau password berhasil diperbarui!");
+      // Logging untuk debug
+      console.log("Payload yang dikirim:", payload);
+      console.log("Payload size:", JSON.stringify(payload).length, "bytes");
+
+      // Ambil token dari store atau localStorage (sesuaikan dengan implementasi Anda)
+      const token = user?.token || localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await axios.put("/auth/profile", payload, { headers });
+
+      console.log("Response dari backend:", res.data);
+
+      // Update store dengan data baru
+      setUser({ ...user, profile: res.data.data });
+
+      // Untuk password, jika ada endpoint terpisah, gunakan ini. Jika tidak, hapus atau simulasikan.
+      if (password.new) {
+        // Asumsikan endpoint /auth/change-password
+        try {
+          await axios.put(
+            "/auth/change-password",
+            {
+              currentPassword: password.current,
+              newPassword: password.new,
+            },
+            { headers }
+          );
+          console.log("Password berhasil diubah");
+        } catch (pwdErr) {
+          console.error("Error changing password:", pwdErr);
+          showToast("Profil diperbarui, tapi gagal ubah password.", "error");
+          return; // Jangan lanjut jika password gagal
+        }
+      }
+
+      showToast("Profil dan password berhasil diperbarui!");
       // Bersihkan field password setelah berhasil
       setPassword({ current: "", new: "", confirm: "" });
-    }, 1500);
+    } catch (err) {
+      console.error("Save profile error:", err);
+      console.error("Error response:", err.response?.data);
+      console.error("Error status:", err.response?.status);
+      showToast(
+        err.response?.data?.message || "Gagal menyimpan profil.",
+        "error"
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (file && file.size <= 2 * 1024 * 1024) {
-      // 2MB limit check
-      setAvatarUrl(URL.createObjectURL(file));
-      showToast("Foto berhasil diunggah (simulasi).");
-    } else if (file) {
+    if (!file) return;
+
+    const MAX_FILE_SIZE = 2 * 1024 * 1024;
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Jenis file tidak didukung.", "error");
+      fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
       showToast("Ukuran file melebihi 2MB.", "error");
+      fileInputRef.current.value = "";
+      return;
+    }
+
+    try {
+      const compressedBase64 = await compressImage(file, 800, 0.7);
+      setAvatarUrl(compressedBase64);
+      showToast("Foto berhasil diunggah.");
+    } catch (err) {
+      console.error("Compress image error:", err);
+      showToast("Gagal memproses gambar.", "error");
     }
   };
 
   const handleUploadClick = () => {
     fileInputRef.current.click();
   };
+
+  if (loadingInitial) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader size={24} className="animate-spin" />
+        <span className="ml-2">Memuat data profil...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -227,7 +372,7 @@ const ProfileSettings = ({ showToast }) => {
       </p>
       <div className="flex items-center gap-6 mb-6">
         <img
-          src={avatarUrl}
+          src={avatarUrl || "https://placehold.co/150x150/505050/FFFFFF?text=A"}
           alt="Avatar"
           className="w-20 h-20 rounded-full object-cover"
         />
@@ -254,25 +399,12 @@ const ProfileSettings = ({ showToast }) => {
         {/* Nama Depan */}
         <div>
           <label className="block text-sm font-medium text-gray-600">
-            Nama Depan
+            Nama Lengkap
           </label>
           <input
             type="text"
             name="firstName"
             value={profile.firstName}
-            onChange={handleProfileChange}
-            className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-          />
-        </div>
-        {/* Nama Belakang */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600">
-            Nama Belakang
-          </label>
-          <input
-            type="text"
-            name="lastName"
-            value={profile.lastName}
             onChange={handleProfileChange}
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
           />
@@ -289,34 +421,6 @@ const ProfileSettings = ({ showToast }) => {
             onChange={handleProfileChange}
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
           />
-        </div>
-        {/* Nomor Telepon */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600">
-            Nomor Telepon
-          </label>
-          <input
-            type="text"
-            name="phone"
-            value={profile.phone}
-            onChange={handleProfileChange}
-            className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-          />
-        </div>
-        {/* Role */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600">
-            Role
-          </label>
-          <select
-            name="role"
-            value={profile.role}
-            onChange={handleProfileChange}
-            className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-          >
-            <option>Super Admin</option>
-            <option>Viewer</option>
-          </select>
         </div>
       </div>
 
@@ -619,9 +723,7 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 font-sans">
-      <h1 className="text-2xl font-semibold text-sky-900 mb-6">
-        Pengaturan
-      </h1>
+      <h1 className="text-2xl font-semibold text-sky-900 mb-6">Pengaturan</h1>
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
         {/* Navigasi tab */}
         <div className="border-b border-gray-200">

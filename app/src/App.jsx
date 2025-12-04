@@ -1,46 +1,106 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
+import { useEffect } from "react";
+
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import ScrollToTop from "./components/ScrollToTop";
+
 import Home from "./pages/Home";
 import Lowongan from "./pages/Lowongan";
+
 import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
-import Admin from "./pages/Users/Admin";
-import User from "./pages/Users/User";
-import ScrollToTop from "./components/ScrollToTop";
+import Admin from "./pages/Admin/Sidebar/Admin.jsx";
+
+import Profile from "./pages/Users/Profile.jsx"; // ✔ FIXED
+
+import useAuthStore from "./store/useAuthStore";
+import { Loader2 } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 
 function Layout() {
   const location = useLocation();
+  const { user, checkAuth, checkingAuth } = useAuthStore();
 
-  // Halaman yang tidak menampilkan Navbar
-  const hideNavbar = ["/admin"];
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
-  // Halaman yang tidak menampilkan Footer
-  const hideFooter = ["/login", "/daftar", "/reset-password", "/admin"];
+  if (checkingAuth) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin w-10 h-10" />
+      </div>
+    );
+  }
+
+  const hideNavbar = [
+    "/login",
+    "/daftar",
+    "/reset-password",
+    "/admin/dashboard",
+  ];
+
+  const hideFooter = [
+    "/login",
+    "/daftar",
+    "/reset-password",
+    "/admin/dashboard",
+  ];
 
   return (
     <>
-      {/* Navbar hanya disembunyikan pada halaman admin */}
-      {!hideNavbar.includes(location.pathname) && <Navbar />}
+      <Toaster position="top-right" />
+
+      {!checkingAuth && !hideNavbar.includes(location.pathname) && <Navbar />}
 
       <Routes>
+        {/* PUBLIC */}
         <Route path="/" element={<Home />} />
         <Route path="/lowongan" element={<Lowongan />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/daftar" element={<Daftar />} />
+
+        {/* AUTH */}
+        <Route
+          path="/login"
+          element={!user ? <Login /> : <Navigate to="/" />}
+        />
+
+        <Route
+          path="/daftar"
+          element={!user ? <Daftar /> : <Navigate to="/" />}
+        />
+
         <Route path="/reset-password" element={<Reset />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/user" element={<User />} />
+
+        {/* ADMIN */}
+        <Route
+          path="/admin/dashboard"
+          element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
+        />
+
+        {/* USER */}
+        <Route
+          path="/profile"
+          element={user ? <Profile /> : <Navigate to="/login" />}
+        />
+
+        {/* FALLBACK */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 
-      {/* Footer disembunyikan pada login, daftar, reset, dan admin */}
-      {!hideFooter.includes(location.pathname) && <Footer />}
+      {!checkingAuth && !hideFooter.includes(location.pathname) && <Footer />}
     </>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <Router>
       <ScrollToTop />
@@ -48,5 +108,3 @@ function App() {
     </Router>
   );
 }
-
-export default App;

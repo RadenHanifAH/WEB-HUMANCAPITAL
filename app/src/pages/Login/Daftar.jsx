@@ -1,9 +1,13 @@
+// src/pages/auth/Daftar.jsx
 import React, { useState } from "react";
 import { Mail, Lock, User, Phone, IdCard, Eye, EyeOff } from "lucide-react";
 import Logo from "../../assets/perusahaan1.png";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import axiosInstance from "../../api/axiosInstance";
 
 function Daftar() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     nama: "",
     nik: "",
@@ -18,13 +22,14 @@ function Daftar() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
 
-  // Validasi password (minimal 8 karakter, huruf besar, angka, dan simbol)
+  // --- Validasi password ---
   const validatePassword = (password) => {
     const regex =
       /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[{\]};:'",.<>/?\\|`~]).{8,}$/;
     return regex.test(password);
   };
 
+  // --- Handle perubahan input ---
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
     setFormData((prev) => ({
@@ -34,7 +39,8 @@ function Daftar() {
     if (error) setError("");
   };
 
-  const handleSubmit = (e) => {
+  // --- Handle submit form ---
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -55,8 +61,23 @@ function Daftar() {
       return;
     }
 
-    console.log("Data pendaftaran:", formData);
-    alert("Pendaftaran berhasil (simulasi)!");
+    try {
+      const response = await axiosInstance.post("/auth/register", {
+        name: formData.nama,
+        email: formData.email,
+        password: formData.password,
+        NIK: formData.nik,
+        nomorHp: formData.noHp,
+      });
+
+      alert("Pendaftaran berhasil! Silakan login.");
+      console.log("Response:", response.data);
+
+      // ✅ Redirect ke halaman login
+      navigate("/login");
+    } catch (err) {
+      setError(err.response?.data?.message || "Terjadi kesalahan pada server");
+    }
   };
 
   return (
@@ -66,9 +87,9 @@ function Daftar() {
       <div className="absolute inset-0 backdrop-blur-md bg-white/30 pointer-events-none" />
 
       {/* Container utama */}
-      <div className="relative flex items-center justify-center min-h-screen">
-        <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden m-4">
-          {/* Gambar kiri (hanya tampil di desktop, hidden di mobile/tablet) */}
+      <div className="relative flex items-center justify-center min-h-screen py-10">
+        <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden m-6 lg:m-8 min-h-[130vh]">
+          {/* Gambar kiri */}
           <div className="hidden lg:flex lg:w-1/2 items-center justify-center bg-white/40 p-10">
             <img
               src={Logo}
@@ -82,14 +103,9 @@ function Daftar() {
             <div
               className="w-full max-w-md h-full overflow-y-auto lg:overflow-visible"
               style={{
-                maxHeight: "calc(100vh - 80px)",
+                maxHeight: "calc(120vh - 80px)",
               }}
             >
-              {/* Logo kecil hanya di mobile */}
-              <div className="flex justify-center mb-4 lg:hidden">
-                {/* Logo dihilangkan saat mobile */}
-              </div>
-
               <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
                 Hai, Selamat Datang!
               </h2>
