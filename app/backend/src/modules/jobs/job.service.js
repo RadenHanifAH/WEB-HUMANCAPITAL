@@ -4,7 +4,7 @@ const getAllJobs = async (
   filter = {},
   page = 1,
   limit = 5,
-  isPublic = false
+  isPublic = true
 ) => {
   const skip = (page - 1) * limit;
 
