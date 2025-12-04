@@ -26,7 +26,7 @@ const getAllJobs = async (req, res) => {
       filter,
       parseInt(page),
       parseInt(limit),
-      isPublic === "true"
+      isPublic === "false"
     );
 
     res.status(200).json({
