@@ -1,4 +1,3 @@
-const { parseAstAsync } = require("vite");
 const authService = require("./auth.service");
 
 const setCookies = (res, accessToken, refreshToken) => {
@@ -19,14 +18,12 @@ const setCookies = (res, accessToken, refreshToken) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, NIK, nomorHp } = req.body;
+    const { name, email, password } = req.body;
 
     const { user, accessToken, refreshToken } = await authService.register(
       name,
       email,
-      password,
-      NIK,
-      nomorHp,
+      password
     );
 
     setCookies(res, accessToken, refreshToken);
@@ -53,7 +50,7 @@ const login = async (req, res) => {
 
     setCookies(res, accessToken, refreshToken);
 
-    res.status(200).json({
+    res.json({
       message: "Login Success",
       user,
     });
@@ -108,7 +105,7 @@ const refreshAccessToken = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const userId = (req).user.id;
+    const userId = req.user.id;
 
     const profile = await authService.getProfile(userId);
     return res.status(200).json({
@@ -127,7 +124,7 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -135,9 +132,8 @@ const updateProfile = async (req, res) => {
 
     const data = req.body;
 
-
     if (data.tanggalLahir) {
-      data.tanggalLahir = new Date(data.tanggalLahir); 
+      data.tanggalLahir = new Date(data.tanggalLahir);
     }
 
     const updatedProfile = await authService.updateProfile(userId, data);
@@ -162,5 +158,5 @@ module.exports = {
   refreshAccessToken,
   logout,
   getProfile,
-  updateProfile
+  updateProfile,
 };
