@@ -125,7 +125,9 @@ function Lokeradmin() {
     if (window.confirm("Yakin ingin menghapus lowongan ini?")) {
       try {
         const response = await fetch(`${API_URL}/${id}`, {
+          credentials: "include",
           method: "DELETE",
+          headers: { "Content-Type": "application/json" },
         });
 
         if (!response.ok) {
@@ -158,12 +160,14 @@ function Lokeradmin() {
       if (isEditMode && selectedJob) {
         response = await fetch(`${API_URL}/${selectedJob.id}`, {
           method: "PUT",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(jobData),
         });
       } else {
         response = await fetch(API_URL, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(jobData),
         });
