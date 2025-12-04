@@ -5,7 +5,7 @@ import { Listbox } from "@headlessui/react";
 
 function Create({ isOpen, onClose, onSave, initialData }) {
   const departemenOptions = ["IT", "HRD", "Finance"];
-  const tipeOptions = ["Freelance", "Intership", "PKWT/Kontrak", "Karyawan Tetap"];
+  const tipeOptions = ["FullTime", "PartTime", "Internship", "Freelance", "Contract"];
   const statusOptions = ["active", "draft", "closed"];
 
   const [formData, setFormData] = useState({
