@@ -51,6 +51,12 @@ function Navbar() {
     { name: "Core Value", onClick: () => handleScrollTo("culture") },
   ];
 
+  // LOGIKA PENGAMBILAN FOTO:
+  // Cek user.profile.fotoProfile (sesuai Profile.jsx)
+  // Jika tidak ada, cek user.profile_picture (fallback)
+  // Jika tidak ada, null.
+  const userPhoto = user?.profile?.fotoProfile || user?.profile_picture || null;
+
   return (
     <header className="sticky top-0 z-50 w-full bg-white shadow-sm">
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-0">
@@ -109,9 +115,19 @@ function Navbar() {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-2 focus:outline-none"
               >
-                <div className="h-11 w-11 flex items-center justify-center rounded-full bg-gray-200">
-                  <User className="h-6 w-6 text-gray-600" />
+                {/* FOTO PROFILE */}
+                <div className="h-11 w-11 flex items-center justify-center rounded-full bg-gray-200 border border-gray-300 overflow-hidden">
+                  {userPhoto ? (
+                    <img 
+                      src={userPhoto} 
+                      alt="Profile" 
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-6 w-6 text-gray-600" />
+                  )}
                 </div>
+
                 <ChevronDown
                   className={`h-4 w-4 text-gray-600 transition-transform duration-200 ${
                     isDropdownOpen ? "rotate-180" : ""

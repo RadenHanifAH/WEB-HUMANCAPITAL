@@ -1,8 +1,8 @@
 import React, { forwardRef } from "react";
 import Dashboard from "./Dashboard/Dashboard";
-import Lokeradmin from "../Users/Lokeradmin";
+import Lokeradmin from "./Lokeradmin/Lokeradmin";
 import Pelamar from "../Users/Pelamar";
-import Arsip from "../Users/ArsipPelamar";
+import Arsip from "./Lokeradmin/components/ArsipPelamar";
 import Acceptance from "../Users/Acceptance";
 import Repots from "../Users/Repots";
 import Messages from "../Users/Messages";
