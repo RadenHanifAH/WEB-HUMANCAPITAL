@@ -47,20 +47,25 @@ const register = async (name, email, password, NIK, nomorHp, ) => {
         nomorHp,
       }
     }
-
   });
   const { accessToken, refreshToken } = generateTokens(user);
   await storeRefreshToken(user.id, refreshToken);
 
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      NIK: user.NIK,
-      nomorHp: user.nomorHp,
+  const safeUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    profile: {
+      id: user.profile.id,
+      NIK: user.profile.NIK,
+      nomorHp: user.profile.nomorHp,
     },
+  };
+
+  return {
+    user:safeUser,
     accessToken,
     refreshToken,
   };

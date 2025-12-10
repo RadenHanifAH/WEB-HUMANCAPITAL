@@ -18,12 +18,14 @@ const setCookies = (res, accessToken, refreshToken) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, NIK, nomorHp } = req.body;
 
     const { user, accessToken, refreshToken } = await authService.register(
       name,
       email,
-      password
+      password,
+      NIK,
+      nomorHp,
     );
 
     setCookies(res, accessToken, refreshToken);
