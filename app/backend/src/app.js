@@ -3,42 +3,43 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 dotenv.config();
 
-// Import semua routes
 const authRoutes = require("./modules/auth/auth.routes");
-const jobsRoutes = require("./modules/jobs/job.routes"); // Lowongan kerja
-// const applicantsRoutes = require('./routes/applicants.routes'); // Pelamar kerja
-// const reportsRoutes = require("./routes/reports.routes");
+const jobsRoutes = require("./modules/jobs/job.routes");
+const applicationRoutes = require("./modules/application/application.routes");
 
 const app = express();
 
-// ===== Middleware =====
+// ===== Middleware Global =====
 app.use(
   cors({
-    origin: "http://localhost:5173", // asal frontend kamu
-    credentials: true, // ⬅ wajib biar cookie bisa dikirim
+    origin: "http://localhost:5173",
+    credentials: true,
   })
 );
+
+// ⛔ JSON hanya untuk non-upload
 app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ===== Global Routing =====
+// ✅ WAJIB: serve folder uploads
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+// ===== Routes =====
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobsRoutes);
-// app.use('/api/applicants', applicantsRoutes);
-// app.use("/api/reports", reportsRoutes);
-// Endpoint Pelamar: http://localhost:4000/api/applicants
+app.use("/api/applications", applicationRoutes);
 
-// ===== Default Route =====
+// ===== Default =====
 app.get("/", (req, res) => {
-  res
-    .status(200)
-    .send(
-      "✅ HR Backend Service Running. Akses /api/dashboard, /api/jobs, /api/applicants, atau /api/reports"
-    );
+  res.status(200).send("✅ HR Backend Service Running");
 });
 
-// ===== Export App =====
 module.exports = app;

@@ -13,7 +13,13 @@ import {
   Calendar,
   ArrowLeft,
 } from "lucide-react";
-// Pastikan path ini benar sesuai struktur folder project Anda
+import toast from "react-hot-toast";
+
+// =========================================================================
+// IMPORT INTEGRASI BACKEND (SESUAIKAN PATH BERDASARKAN PROJEK ANDA)
+// =========================================================================
+import useAuthStore from "../store/useAuthStore";
+import axiosInstance from "../api/axiosInstance";
 import { fetchJobs } from "./Admin/Lokeradmin/services/api";
 
 // =========================================================================
@@ -119,6 +125,8 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
 // =========================================================================
 function Lowongan() {
   const locationRouter = useLocation();
+  const { user } = useAuthStore(); // Mengambil status login dari Zustand
+
   const jobsPerPage = 4;
 
   const [department, setDepartment] = useState("all");
@@ -133,6 +141,7 @@ function Lowongan() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false); // State untuk loading submit
 
   // Fetch jobs
   useEffect(() => {
@@ -140,7 +149,6 @@ function Lowongan() {
       try {
         setLoading(true);
         const response = await fetchJobs();
-        console.log("Data API:", response);
 
         let data = [];
         if (Array.isArray(response)) {
@@ -151,7 +159,7 @@ function Lowongan() {
 
         // Sorting Descending (Terbaru Pertama)
         const sortedData = data.sort((a, b) => b.id - a.id);
-        
+
         setJobs(sortedData);
       } catch (err) {
         console.error(err);
@@ -199,20 +207,17 @@ function Lowongan() {
     return jobs.filter((job) => {
       const title = job.title ? job.title.toLowerCase() : "";
       const matchesSearch = title.includes(searchTerm.toLowerCase());
-      
+
       const matchesDepartment =
         department === "all" || job.department === department;
-      
+
       const matchesLocation =
         location === "all" || (job.location && job.location.includes(location));
-      
+
       const matchesJobType = matchJobType(jobType, job.type);
 
       return (
-        matchesSearch &&
-        matchesDepartment &&
-        matchesLocation &&
-        matchesJobType
+        matchesSearch && matchesDepartment && matchesLocation && matchesJobType
       );
     });
   }, [jobs, department, location, jobType, searchTerm]);
@@ -277,24 +282,63 @@ function Lowongan() {
     }
   };
 
-  const handleApply = () => {
+  // =========================================================================
+  // LOGIKA PENGIRIMAN LAMARAN KE BACKEND
+  // =========================================================================
+  const handleApply = async () => {
     if (!selectedJob) return;
+
+    // 1. Cek Login
+    if (!user) {
+      toast.error("Anda harus login untuk melamar pekerjaan ini.");
+      return;
+    }
+
+    // 2. Cek Status Lowongan
     if (selectedJob.status === "closed") {
-      alert("Maaf, lowongan ini sudah ditutup.");
+      toast.error("Maaf, lowongan ini sudah ditutup.");
       return;
     }
+
+    // 3. Cek File CV
     if (!cvFile) {
-      alert("Harap upload CV (PDF) terlebih dahulu.");
+      toast.error("Harap upload CV (PDF) terlebih dahulu.");
       return;
     }
-    const formData = new FormData();
-    formData.append("jobId", selectedJob.id);
-    formData.append("cv", cvFile);
-    if (portfolioFile) formData.append("portfolio", portfolioFile);
-    console.log("Mengirim lamaran...", Object.fromEntries(formData));
-    alert(`Lamaran untuk ${selectedJob.title} berhasil dikirim!`);
-    setCvFile(null);
-    setPortfolioFile(null);
+
+    setSubmitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("jobId", selectedJob.id);
+      formData.append("cv", cvFile);
+      if (portfolioFile) {
+        formData.append("portfolio", portfolioFile);
+      }
+
+      const response = await axiosInstance.post("/applications/job", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      console.log("Success:", response.data);
+      toast.success(`Lamaran untuk ${selectedJob.title} berhasil dikirim!`);
+
+      // Reset form
+      setCvFile(null);
+      setPortfolioFile(null);
+      // Reset input file elements secara visual
+      document
+        .querySelectorAll('input[type="file"]')
+        .forEach((input) => (input.value = ""));
+    } catch (err) {
+      console.error("Error submitting application:", err);
+      const message = err.response?.data?.message || "Gagal mengirim lamaran";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderRequirements = (reqs) => {
@@ -321,7 +365,7 @@ function Lowongan() {
       year: "numeric",
     }).format(date);
   };
- 
+
   const makeDropdown = (label, value, setValue, options) => (
     <Listbox value={value} onChange={setValue}>
       {({ open }) => (
@@ -403,7 +447,7 @@ function Lowongan() {
           <div className="w-full sm:w-1/2 lg:flex-1">
             {makeDropdown("Tipe Pekerjaan", jobType, setJobType, jobTypes)}
           </div>
-          
+
           <button className="flex-shrink-0 w-full sm:w-[42px] h-[42px] flex items-center justify-center rounded-lg bg-gradient-to-br from-sky-700 to-sky-600 text-white shadow-md hover:from-sky-800 hover:to-sky-600 transition lg:w-[42px]">
             <FaSearch className="w-5 h-5" />
           </button>
@@ -487,16 +531,26 @@ function Lowongan() {
                     <Briefcase size={16} /> {selectedJob.type}
                   </span>
                 </div>
-                
-                {/* STATUS DITUTUP / DEADLINE */}
-                <span className={`flex items-center gap-1 font-semibold text-base ${selectedJob.status === 'closed' ? 'text-gray-500' : 'text-red-600'}`}>
-                  <Calendar size={18} className={selectedJob.status === 'closed' ? 'text-gray-500' : 'text-red-600'} /> 
-                  {selectedJob.status === 'closed' 
-                    ? "Ditutup" 
-                    : `Deadline: ${formatDate(selectedJob.deadline)}`
-                  }
-                </span>
 
+                <span
+                  className={`flex items-center gap-1 font-semibold text-base ${
+                    selectedJob.status === "closed"
+                      ? "text-gray-500"
+                      : "text-red-600"
+                  }`}
+                >
+                  <Calendar
+                    size={18}
+                    className={
+                      selectedJob.status === "closed"
+                        ? "text-gray-500"
+                        : "text-red-600"
+                    }
+                  />
+                  {selectedJob.status === "closed"
+                    ? "Ditutup"
+                    : `Deadline: ${formatDate(selectedJob.deadline)}`}
+                </span>
               </div>
               <hr className="my-4" />
 
@@ -518,7 +572,7 @@ function Lowongan() {
                   <input
                     type="file"
                     accept=".pdf"
-                    disabled={selectedJob.status === 'closed'}
+                    disabled={selectedJob.status === "closed" || submitting}
                     onChange={(e) => setCvFile(e.target.files[0])}
                     className="block border border-gray-300 rounded-lg w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -531,7 +585,7 @@ function Lowongan() {
                   <input
                     type="file"
                     accept=".pdf"
-                    disabled={selectedJob.status === 'closed'}
+                    disabled={selectedJob.status === "closed" || submitting}
                     onChange={(e) => setPortfolioFile(e.target.files[0])}
                     className="block border border-gray-300 rounded-lg w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -541,16 +595,19 @@ function Lowongan() {
               {/* TOMBOL LAMAR */}
               <button
                 onClick={handleApply}
-                disabled={selectedJob.status === 'closed'}
+                disabled={selectedJob.status === "closed" || submitting}
                 className={`mt-6 px-6 py-2 rounded-lg text-white font-medium shadow transition ${
-                  selectedJob.status === 'closed'
-                    ? "bg-gray-400 cursor-not-allowed" 
+                  selectedJob.status === "closed" || submitting
+                    ? "bg-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600"
                 }`}
               >
-                {selectedJob.status === 'closed' ? "Lowongan Ditutup" : "Lamar Sekarang"}
+                {selectedJob.status === "closed"
+                  ? "Lowongan Ditutup"
+                  : submitting
+                  ? "Mengirim..."
+                  : "Lamar Sekarang"}
               </button>
-
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-gray-500">

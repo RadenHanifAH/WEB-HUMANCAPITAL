@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Check,
   Clock,
-  User,
+  User, // Digunakan sebagai fallback avatar
   AlertCircle,
   TrendingUp,
   XCircle,
@@ -24,8 +24,8 @@ import { Listbox, Transition } from "@headlessui/react";
 // Import DetailModal dari file terpisah
 import DetailModal from "./DetailModal";
 
-// 🔑 PERUBAHAN 1: Definisikan kedua URL API
-const API_URL_APPLICANTS = "http://localhost:4000/api/applicants";
+// Definisikan URL API
+const API_URL_APPLICANTS = "http://localhost:4000/api/applications"; // Endpoint API untuk Aplikasi/Pelamar
 const API_URL_JOBS = "http://localhost:4000/api/jobs"; // URL untuk mengambil data Lowongan Kerja
 
 // Dropdown options for status (TETAP)
@@ -50,83 +50,101 @@ const stageFlow = [
 // Tahapan yang TIDAK mengizinkan input score (sebelum Psikotes) (TETAP)
 const blockedScoreStages = ["under-review", "interview-hc"];
 
+// Helper untuk mengunduh file, terutama jika Base64
+const downloadFileFromUrl = (url, filename) => {
+    if (!url) return;
+
+    if (url.startsWith('data:')) {
+        // Jika ini adalah Base64 Data URL, gunakan teknik download link
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else {
+        // Jika ini adalah URL biasa (link eksternal), buka di tab baru
+        window.open(url, '_blank');
+    }
+};
+
+
 function Pelamar() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState(statusOptions[0]);
   
-  // 🔑 PERUBAHAN 2: State baru untuk menyimpan posisi dari API Jobs
   const [jobPositions, setJobPositions] = useState([{ value: "", label: "Posisi" }]);
-  const [filterPosisi, setFilterPosisi] = useState(jobPositions[0]); // Inisialisasi menggunakan opsi default
+  const [filterPosisi, setFilterPosisi] = useState(jobPositions[0]);
 
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Message modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState(null);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [message, setMessage] = useState("");
 
-  // Detail modal state
   const [isDetailModalOpen, setIsDetailModal] = useState(false);
   const [detailApplicant, setDetailApplicant] = useState(null);
 
-  // 🔑 PERUBAHAN 3: Fungsi baru untuk mengambil daftar posisi unik
   const fetchJobPositions = async () => {
     try {
-      const response = await fetch(API_URL_JOBS);
+      const response = await fetch(API_URL_JOBS, {
+        credentials: 'include', // Sertakan cookie untuk otentikasi
+      });
       if (!response.ok) {
-        throw new Error("Gagal mengambil data posisi lowongan.");
+        throw new Error(`Gagal mengambil data posisi lowongan. Status: ${response.status}`);
       }
       const data = await response.json();
       
-      // Ekstrak judul (title) lowongan kerja yang unik
-      const uniqueTitles = [...new Set(data.map(job => job.title))];
+      const jobData = data.data || data; 
+      const uniqueTitles = [...new Set(jobData.map(job => job.title))];
       
-      // Map ke format Listbox, tambahkan opsi default "Posisi"
       const newPosisiOptions = [
         { value: "", label: "Posisi" },
         ...uniqueTitles.map(title => ({ value: title, label: title }))
       ];
       
       setJobPositions(newPosisiOptions);
-      // Jika filterPosisi.value saat ini tidak ada di daftar baru, reset ke opsi default
       if (!newPosisiOptions.some(opt => opt.value === filterPosisi.value)) {
         setFilterPosisi(newPosisiOptions[0]);
       }
     } catch (err) {
       console.error("Fetch Job Positions Error:", err);
-      // Kita tidak mengatur error global karena hanya mempengaruhi dropdown posisi
     }
   };
 
 
-  // --- FUNGSI UTAMA: FETCH DATA DARI BACKEND (Menggunakan useCallback) ---
+  // --- FUNGSI UTAMA: FETCH DATA DARI BACKEND ---
   const fetchApplicants = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(API_URL_APPLICANTS); // Menggunakan API_URL_APPLICANTS
+      const response = await fetch(API_URL_APPLICANTS, {
+        credentials: 'include', 
+      });
       if (!response.ok) {
-        throw new Error("Gagal mengambil data dari backend.");
+        throw new Error(`Gagal mengambil data dari backend. Status: ${response.status}`);
       }
-      const data = await response.json();
-      setApplicants(data);
+      const result = await response.json();
+      
+      // Menggunakan result.data (sesuai format controller backend)
+      setApplicants(result.data || []); 
     } catch (err) {
       console.error("Fetch Error:", err);
+      // Pesan error diperbarui agar lebih jelas terkait otentikasi
       setError(
-        `Gagal terhubung ke backend. Pastikan server berjalan di port 4000. Error: ${err.message}`
+        `Gagal terhubung ke backend atau otentikasi gagal. Pastikan Anda sudah login sebagai Admin. Error: ${err.message}`
       );
       setApplicants([]);
     } finally {
       setLoading(false);
     }
-  }, []); // Dependency array kosong, fungsi tidak akan berubah setelah mount
+  }, []);
 
   useEffect(() => {
     fetchApplicants();
-    // 🔑 PERUBAHAN 4: Panggil fetchJobPositions di useEffect
     fetchJobPositions();
   }, [fetchApplicants]);
   // --- AKHIR FUNGSI FETCH DATA ---
@@ -141,12 +159,10 @@ function Pelamar() {
     setDetailApplicant(null);
   };
 
-  // ✅ FUNGSI FORMAT DATE YANG DIPERBAIKI
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
 
     let dateToParse = dateStr;
-    // Jika data dari backend adalah string YYYY-MM-DD, tambahkan offset waktu agar parsing stabil
     if (
       typeof dateStr === "string" &&
       dateStr.length === 10 &&
@@ -158,18 +174,15 @@ function Pelamar() {
     const date = new Date(dateToParse);
 
     if (isNaN(date.getTime())) {
-      // Jika parsing gagal, kembalikan string asli
       return dateStr;
     }
 
-    // Format tanggal ke format lokal "dd/mm/yyyy"
     return date.toLocaleDateString("id-ID", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
   };
-  // ✅ AKHIR FUNGSI FORMAT DATE YANG DIPERBAIKI
 
   // Handler untuk mengubah score pelamar
   const handleScoreChange = async (id, newScore) => {
@@ -184,10 +197,11 @@ function Pelamar() {
 
     // Kirim Update ke Backend
     try {
-      const response = await fetch(`${API_URL_APPLICANTS}/${id}/score`, { // Menggunakan API_URL_APPLICANTS
+      const response = await fetch(`${API_URL_APPLICANTS}/${id}/score`, { 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ score: newScore === "" ? null : newScore }),
+        body: JSON.stringify({ score: newScore }),
+        credentials: 'include', // Sertakan cookie
       });
 
       if (!response.ok) {
@@ -199,6 +213,77 @@ function Pelamar() {
       fetchApplicants();
     }
   };
+  
+  // FUNGSI UTAMA UNTUK MENGUBAH STATUS DARI DROPDOWN
+  const handleStatusChange = async (applicant, newStatusValue) => {
+      // Jika statusnya sama, jangan lakukan apa-apa
+      if (applicant.status === newStatusValue) return;
+
+      let newStatus, newStage;
+      let action;
+
+      if (newStatusValue === 'accepted') {
+          newStatus = 'accepted';
+          newStage = 'Accepted';
+          action = 'accept';
+      } else if (newStatusValue === 'rejected') {
+          // Arahkan ke reject pada tahap saat ini
+          newStatus = `rejected-at-${applicant.status}`;
+          newStage = 'Rejected';
+          action = 'reject';
+      } else {
+          // Pindah ke tahap yang dipilih (aksi "next")
+          const nextStageObj = stageFlow.find(s => s.status === newStatusValue);
+          if (nextStageObj) {
+              newStatus = nextStageObj.status;
+              newStage = nextStageObj.stage;
+              action = 'next';
+          }
+      }
+
+      if (!newStatus) return;
+
+
+      if (action === 'next') {
+          // KASUS 1: NEXT STEP (TIDAK ADA MODAL PESAN - LANGSUNG UPDATE)
+          
+          // 1. Optimistic UI Update
+          setApplicants((prev) =>
+              prev.map((a) =>
+                  a.id === applicant.id
+                      ? { ...a, status: newStatus, stage: newStage }
+                      : a
+              )
+          );
+          
+          // 2. Kirim Update Status ke Backend
+          try {
+              const response = await fetch(`${API_URL_APPLICANTS}/${applicant.id}/status`, { 
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: newStatus, stage: newStage }),
+                  credentials: 'include',
+              });
+
+              if (!response.ok) {
+                  throw new Error("Gagal memperbarui status di server.");
+              }
+              console.log(`Status berhasil diubah ke ${newStage} untuk ${applicant.name}`);
+          } catch (e) {
+              console.error("Status update failed:", e);
+              alert("Gagal memperbarui status di server. Data akan direfresh.");
+              fetchApplicants();
+          }
+
+      } else {
+          // KASUS 2: ACCEPT ATAU REJECT (DENGAN MODAL PESAN)
+          setSelectedApplicant({...applicant, status: newStatus, stage: newStage});
+          setModalAction(action);
+          setMessage(getMessage({...applicant, status: newStatus}, action));
+          setIsModalOpen(true);
+      }
+  };
+
 
   const getProgress = (status) => {
     const stageProgress = {
@@ -259,18 +344,15 @@ function Pelamar() {
   const filteredApplicants = applicants.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) &&
-      // Filter status
       (filterStatus.value === "rejected"
         ? a.status.startsWith("rejected")
         : filterStatus.value
         ? a.status === filterStatus.value
         : true) &&
-      // Filter posisi
       (filterPosisi.value ? a.position === filterPosisi.value : true)
   );
 
   const exportToCSV = () => {
-    // ... (Logika exportToCSV tetap sama)
     const header = [
       "Nama",
       "Email",
@@ -304,82 +386,53 @@ function Pelamar() {
   };
 
   const handleDownloadCV = (applicant) => {
-    console.log(`[SIMULASI] Mengunduh CV milik ${applicant.name}`);
+    if (!applicant.cvUrl) {
+      alert(`CV untuk ${applicant.name} tidak tersedia.`);
+      return;
+    }
+    // Menggunakan helper function yang sudah dimodifikasi
+    downloadFileFromUrl(applicant.cvUrl, `cv_${applicant.name}.pdf`);
   };
 
   const handleDownloadPortofolio = (applicant) => {
-    console.log(`[SIMULASI] Mengunduh Portofolio milik ${applicant.name}`);
+    if (!applicant.portfolioUrl) {
+      alert(`Portofolio untuk ${applicant.name} tidak tersedia.`);
+      return;
+    }
+    // Menggunakan helper function yang sudah dimodifikasi
+    downloadFileFromUrl(applicant.portfolioUrl, `portofolio_${applicant.name}.pdf`);
   };
 
   const getMessage = (applicant, action) => {
     const baseMessage = `Halo ${applicant.name}, ini adalah pesan dari tim rekrutmen.`;
 
-    if (applicant.status.startsWith("rejected")) {
-      return `${baseMessage}\n\nTerima kasih atas waktu dan usaha Anda. [Pesan penolakan umum...]`;
+    if (applicant.status.startsWith("rejected") || action === 'reject') {
+      return `${baseMessage}\n\nTerima kasih atas waktu dan usaha Anda. Kami mohon maaf, Anda tidak lolos pada tahap ini.`;
     }
 
-    if (action === "next") {
-      const currentIndex = stageFlow.findIndex(
-        (s) => s.status === applicant.status
-      );
-      const nextStage = stageFlow[currentIndex + 1];
-      if (nextStage) {
-        return `${baseMessage}\n\nSelamat! Anda telah lolos ke tahap ${nextStage.stage}. [Pesan lanjutan...]`;
-      }
-    } else if (action === "accept") {
-      return `${baseMessage}\n\nSelamat! Anda telah diterima untuk posisi ${applicant.position}. [Pesan penerimaan...]`;
-    } else if (action === "reject") {
-      return `${baseMessage}\n\nTerima kasih atas minat Anda. [Pesan penolakan...]`;
-    } else if (action === "pesan") {
-      return `${baseMessage}\n\n[Pesan kustom...]`;
+    if (action === 'accept') {
+        return `${baseMessage}\n\nSelamat! Anda telah diterima untuk posisi ${applicant.position}. Kami tunggu kehadiran Anda!`;
     }
-    return "";
+
+    // Default message for progression (action === 'next' or undefined)
+    const nextStageName = stageFlow.find(s => s.status === applicant.status)?.stage;
+    if (nextStageName) {
+        return `${baseMessage}\n\nSelamat! Anda telah lolos dan melanjutkan ke tahap: ${nextStageName}.`;
+    }
+    
+    // Fallback message for custom action (should not happen if action === 'pesan' is removed)
+    return `${baseMessage}\n\n[Pesan kustom...]`;
   };
 
-  const openModal = (applicant, action) => {
-    setSelectedApplicant(applicant);
-    setModalAction(action);
-    setMessage(getMessage(applicant, action));
-    setIsModalOpen(true);
-  };
-
-  // --- FUNGSI UPDATE STATUS DENGAN API (Menggunakan useCallback DENGAN DEPENDENSI LENGKAP) ---
+  // --- FUNGSI UPDATE STATUS DENGAN API ---
   const handleSendMessage = useCallback(async () => {
     if (!selectedApplicant) return;
 
-    if (modalAction === "pesan") {
-      alert(
-        `Pesan untuk ${selectedApplicant.name} telah dikirim:\n\n"${message}"`
-      );
-      setIsModalOpen(false);
-      return;
-    }
+    // Status dan stage sudah disiapkan di openModal atau handleStatusChange
+    const newStatus = selectedApplicant.status; 
+    const newStage = selectedApplicant.stage; 
 
-    let newStatus, newStage;
-
-    if (modalAction === "next") {
-      const currentIndex = stageFlow.findIndex(
-        (s) => s.status === selectedApplicant.status
-      );
-      const nextStage = stageFlow[currentIndex + 1];
-      if (nextStage) {
-        newStatus = nextStage.status;
-        newStage = nextStage.stage;
-      }
-    } else if (modalAction === "accept") {
-      newStatus = "accepted";
-      newStage = "Accepted";
-    } else if (modalAction === "reject") {
-      newStatus = `rejected-at-${selectedApplicant.status}`;
-      newStage = "Rejected";
-    }
-
-    if (!newStatus) {
-      setIsModalOpen(false);
-      return;
-    }
-
-    // 1. Optimistic UI Update (dengan pesan yang dikirim)
+    // 1. Optimistic UI Update
     setApplicants((prev) =>
       prev.map((a) =>
         a.id === selectedApplicant.id
@@ -387,17 +440,21 @@ function Pelamar() {
           : a
       )
     );
-    alert(
-      `Pesan untuk ${selectedApplicant.name} telah dikirim dan status diubah!`
-    );
+    console.log(`Status berhasil diubah ke ${newStage} untuk ${selectedApplicant.name}`);
+
 
     // 2. Kirim Update Status ke Backend
     try {
-      await fetch(`${API_URL_APPLICANTS}/${selectedApplicant.id}/status`, { // Menggunakan API_URL_APPLICANTS
+      const response = await fetch(`${API_URL_APPLICANTS}/${selectedApplicant.id}/status`, { 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus, stage: newStage }),
+        credentials: 'include', // Sertakan cookie
       });
+
+      if (!response.ok) {
+        throw new Error("Gagal memperbarui status di server.");
+      }
     } catch (e) {
       console.error("Status update failed:", e);
       alert("Gagal memperbarui status di server. Data akan direfresh.");
@@ -405,7 +462,7 @@ function Pelamar() {
     }
 
     setIsModalOpen(false);
-  }, [selectedApplicant, modalAction, message, fetchApplicants]);
+  }, [selectedApplicant, message, fetchApplicants]); // Menghapus modalAction dari dependencies karena sudah dicheck di awal
   // --- AKHIR FUNGSI UPDATE STATUS ---
 
   // Logika untuk menentukan apakah kolom Score bisa diinput atau tidak (TETAP)
@@ -497,7 +554,7 @@ function Pelamar() {
             <input
               type="text"
               placeholder="Cari pelamar..."
-              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg w-full text-sm  
+              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg w-full text-sm 
               focus:outline-none focus:ring-1 focus:ring-sky-500/30"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -543,7 +600,7 @@ function Pelamar() {
             </div>
           </Listbox>
 
-          {/* Posisi Listbox - 🔑 MENGGUNAKAN jobPositions */}
+          {/* Posisi Listbox */}
           <Listbox value={filterPosisi} onChange={setFilterPosisi}>
             <div className="relative w-44">
               <Listbox.Button className="flex justify-between items-center w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm truncate focus:outline-none focus:ring-1 focus:ring-sky-500/30">
@@ -556,7 +613,6 @@ function Pelamar() {
                 leaveFrom="opacity-100"
                 leaveTo="opacity-0"
               >
-                {/* 🔑 Menggunakan state jobPositions */}
                 <Listbox.Options className="absolute mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-50">
                   {jobPositions.map((posisi) => (
                     <Listbox.Option
@@ -609,20 +665,16 @@ function Pelamar() {
           </div>
         ) : (
           <div>
-            {" "}
-            {/* overflow-x-auto Dihapus */}
             <table className="w-full border-collapse">
-              {/* Header Tabel Disesuaikan untuk rounded corners */}
+              {/* Header Tabel */}
               <thead className="bg-gray-100 sticky top-0 z-10">
                 <tr>
-                  {/* Sudut Kiri Atas */}
                   <th className="p-3 text-left rounded-tl-xl">Pelamar</th>
                   <th className="p-3 text-left">Posisi</th>
                   <th className="p-3 text-center">Tahap Seleksi</th>
                   <th className="p-3 text-center">Progress</th>
                   <th className="p-3 text-center">Score</th>
                   <th className="p-3 text-left">Tanggal Lamar</th>
-                  {/* Sudut Kanan Atas */}
                   <th className="p-3 text-right rounded-tr-xl">Aksi</th>
                 </tr>
               </thead>
@@ -631,14 +683,24 @@ function Pelamar() {
               <tbody>
                 {filteredApplicants.map((a, idx) => (
                   <tr key={a.id} className="hover:bg-gray-50 transition">
-                    {/* 1. Pelamar (Rata Kiri) */}
+                    {/* 1. Pelamar */}
                     <td className="p-3">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={a.avatar}
-                          alt={a.name}
-                          className="w-10 h-10 rounded-full"
-                        />
+                        {/* LOGIKA KONDISIONAL AVATAR */}
+                        {a.avatar && a.avatar.length > 0 ? (
+                          <img
+                            src={a.avatar}
+                            alt={a.name}
+                            className="w-10 h-10 rounded-full object-cover"
+                            // Optional: Tambahkan onError handling jika URL gambar gagal dimuat
+                            onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <User className="h-5 w-5 text-gray-500" />
+                          </div>
+                        )}
+                        {/* AKHIR LOGIKA AVATAR */}
                         <div>
                           <p className="font-medium">{a.name}</p>
                           <p className="text-sm text-gray-500">{a.email}</p>
@@ -646,27 +708,99 @@ function Pelamar() {
                       </div>
                     </td>
 
-                    {/* 2. Posisi (Rata Kiri) */}
+                    {/* 2. Posisi */}
                     <td className="p-3">
                       <p className="font-medium">{a.position}</p>
                       <p className="text-sm text-gray-500">{a.experience}</p>
                     </td>
 
-                    {/* 3. Tahap Seleksi (Rata Kiri) */}
+                    {/* 3. Tahap Seleksi (DROPDOWN) */}
                     <td className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {getStatusIcon(a.status)}
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(
-                            a.status
-                          )}`}
-                        >
-                          {a.stage}
-                        </span>
+                      <div className="flex items-center justify-center">
+                          {/* Listbox untuk Status */}
+                          <Listbox 
+                              value={a.status} 
+                              onChange={(newStatus) => handleStatusChange(a, newStatus)}
+                              disabled={a.status === 'accepted' || a.status.startsWith('rejected')} // Disable jika sudah final
+                          >
+                            {({ open }) => (
+                              <div className="relative w-40">
+                                <Listbox.Button 
+                                    className={`flex items-center justify-between w-full px-2 py-1 rounded-lg text-xs font-medium transition ${
+                                        getBadgeColor(a.status)
+                                    } ${open ? 'ring-2 ring-sky-500/50' : ''}`}
+                                >
+                                    <div className="flex items-center gap-1">
+                                      {getStatusIcon(a.status)}
+                                      {a.stage}
+                                    </div>
+                                    <ChevronDown className="h-3 w-3" />
+                                </Listbox.Button>
+                                <Transition
+                                    as={Fragment}
+                                    leave="transition ease-in duration-100"
+                                    leaveFrom="opacity-100"
+                                    leaveTo="opacity-0"
+                                >
+                                  <Listbox.Options className="absolute mt-1 w-full max-h-60 overflow-auto bg-white border border-gray-300 rounded-lg shadow-lg z-50 text-left">
+                                    
+                                    {/* Opsi Tahap Selanjutnya (Flow) */}
+                                    {stageFlow.map((step) => (
+                                      <Listbox.Option
+                                        key={step.status}
+                                        value={step.status}
+                                        className={({ active }) =>
+                                          `cursor-pointer select-none relative py-2 pl-3 pr-9 text-sm ${
+                                            active ? 'bg-sky-100 text-sky-900' : 'text-gray-900'
+                                          }`
+                                        }
+                                      >
+                                        {({ selected }) => (
+                                          <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                            {step.stage}
+                                            {selected && (
+                                              <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-sky-600">
+                                                <Check className="h-4 w-4" />
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </Listbox.Option>
+                                    ))}
+
+                                    {/* Separator */}
+                                    <hr className="my-1 border-gray-200" />
+                                    
+                                    {/* Opsi Final Status */}
+                                    <Listbox.Option value="accepted" className={({ active }) =>
+                                        `cursor-pointer select-none relative py-2 pl-3 pr-9 text-sm ${
+                                          active ? 'bg-green-100 text-green-900' : 'text-green-700'
+                                        }`
+                                      }
+                                    >
+                                        DITERIMA
+                                    </Listbox.Option>
+
+                                    <Listbox.Option value="rejected" className={({ active }) =>
+                                        `cursor-pointer select-none relative py-2 pl-3 pr-9 text-sm ${
+                                          active ? 'bg-red-100 text-red-900' : 'text-red-700'
+                                        }`
+                                      }
+                                    >
+                                        DITOLAK
+                                    </Listbox.Option>
+
+                                  </Listbox.Options>
+                                </Transition>
+                              </div>
+                            )}
+                          </Listbox>
                       </div>
                     </td>
+                    {/* AKHIR 3. Tahap Seleksi (DROPDOWN) */}
 
-                    {/* 4. Progress (Rata Kiri) */}
+
+                    {/* 4. Progress */}
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <div className="h-2 bg-gray-200 rounded w-24">
@@ -681,7 +815,7 @@ function Pelamar() {
                       </div>
                     </td>
 
-                    {/* 5. Score (EDITABLE INPUT dengan logika kondisional) */}
+                    {/* 5. Score */}
                     <td className="p-3 text-center">
                       {isScoreEditable(a.status) ? (
                         <input
@@ -699,7 +833,6 @@ function Pelamar() {
                           }`}
                         />
                       ) : (
-                        // Tampilkan 0 dan non-editable jika status di bawah Psikotes
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${
                             blockedScoreStages.includes(a.status)
@@ -712,7 +845,7 @@ function Pelamar() {
                       )}
                     </td>
 
-                    {/* 6. Tanggal Lamar (Rata Kiri) */}
+                    {/* 6. Tanggal Lamar */}
                     <td className="p-3 text-left">
                       <div className="flex items-center gap-1 text-sm text-gray-500">
                         <Calendar className="h-4 w-4" />
@@ -720,30 +853,10 @@ function Pelamar() {
                       </div>
                     </td>
 
-                    {/* 7. Aksi (Rata Kanan) */}
-                    {/* 🔑 PERUBAHAN PENTING: Tambahkan 'relative' pada td untuk menjadi acuan 'absolute' dropdown */}
+                    {/* 7. Aksi */}
                     <td className="p-3 text-right relative">
                       <div className="flex justify-end gap-2 items-center">
-                        <button
-                          onClick={() => openModal(a, "next")}
-                          className="p-1 rounded hover:bg-gray-100 transition"
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openModal(a, "accept")}
-                          className="p-1 rounded bg-green-500/80 text-white hover:bg-green-600 transition"
-                        >
-                          <ThumbsUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openModal(a, "reject")}
-                          className="p-1 rounded bg-red-500/80 text-white hover:bg-red-600 transition"
-                        >
-                          <ThumbsDown className="h-4 w-4" />
-                        </button>
-
-                        {/* Menggunakan div relative inline-block untuk dropdown yang akurat */}
+                        {/* Dropdown More */}
                         <Listbox>
                           <div className="relative inline-block">
                             <Listbox.Button className="p-1 rounded hover:bg-gray-100 transition">
@@ -755,10 +868,8 @@ function Pelamar() {
                               leaveFrom="opacity-100"
                               leaveTo="opacity-0"
                             >
-                              {/* 🔑 PERUBAHAN PENTING: Logika 'bottom-full' untuk dua baris terakhir */}
                               <Listbox.Options
                                 className={`absolute right-0 w-40 bg-white border border-gray-300 rounded-lg shadow-xl z-50 focus:outline-none ${
-                                  // Logika untuk menampilkan dropdown ke atas jika di 2 baris terakhir
                                   idx >= filteredApplicants.length - 2
                                     ? "bottom-full mb-1"
                                     : "mt-1"
@@ -786,14 +897,6 @@ function Pelamar() {
                                 >
                                   <Download className="h-4 w-4" /> Portofolio
                                 </Listbox.Option>
-
-                                <Listbox.Option
-                                  value="pesan"
-                                  onClick={() => openModal(a, "pesan")}
-                                  className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                                >
-                                  <MessageSquare className="h-4 w-4" /> Pesan
-                                </Listbox.Option>
                               </Listbox.Options>
                             </Transition>
                           </div>
@@ -813,11 +916,8 @@ function Pelamar() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 space-y-4">
             <h2 className="text-lg font-semibold">
-              {modalAction === "next" &&
-                "Kirim pesan untuk lanjut ke tahap berikutnya"}
               {modalAction === "accept" && "Kirim pesan penerimaan"}
               {modalAction === "reject" && "Kirim pesan penolakan"}
-              {modalAction === "pesan" && "Kirim pesan"}
             </h2>
             <textarea
               className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/30"

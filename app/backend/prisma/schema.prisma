@@ -95,8 +95,11 @@ model Application {
   jobId         Int
   cvUrl         String
   portfolioUrl  String?
-  status        String    @default("Under Review")
+  status        String    @default("under-review")
+  stage         String    @default("Under Review")
+  score         Int?
   appliedAt     DateTime  @default(now())
+
   user          User      @relation(fields: [userId], references: [id])
   job           Job       @relation(fields: [jobId], references: [id])
 }
