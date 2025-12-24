@@ -65,6 +65,8 @@ module.exports = {
         appliedDate: app.appliedAt,
         cvUrl: app.cvUrl,
         portfolioUrl: app.portfolioUrl,
+
+        profile: app.user.profile || null
       }));
 
       res.json({

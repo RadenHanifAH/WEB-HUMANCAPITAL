@@ -103,3 +103,18 @@ model Application {
   user          User      @relation(fields: [userId], references: [id])
   job           Job       @relation(fields: [jobId], references: [id])
 }
+
+model Report {
+  id                Int       @id @default(autoincrement())
+  period            String
+  startDate         DateTime
+  endDate           DateTime
+  totalApplications Int       @default(0)
+  accepted          Int       @default(0)
+  rejected          Int       @default(0)
+  averageProcessTime Float?
+  conversionRate    Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  positionDetails   Json?
+}

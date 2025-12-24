@@ -12,7 +12,7 @@ import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 
 import Home from "./pages/Home";
-import Lowongan from "./pages/Lowongan";
+import Lowongan from "./pages/Lowongan/Index.jsx";
 
 import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
