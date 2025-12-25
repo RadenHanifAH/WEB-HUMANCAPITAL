@@ -10,6 +10,7 @@ dotenv.config();
 const authRoutes = require("./modules/auth/auth.routes");
 const jobsRoutes = require("./modules/jobs/job.routes");
 const applicationRoutes = require("./modules/application/application.routes");
+const reportsRoutes = require("./modules/reports/reports.routes");
 
 const app = express();
 
@@ -36,6 +37,8 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/reports", reportsRoutes);
+
 
 // ===== Default =====
 app.get("/", (req, res) => {

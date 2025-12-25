@@ -74,21 +74,21 @@ model Profile {
 
 
 model Job {
-  id             Int             @id @default(autoincrement())
-  title          String
-  department     String?
-  location       String?
-  type           JobType?
-  experience     ExperienceLevel?
-  education      EducationLevel?
-  description    String?
-  requirements   String?
-  deadline       DateTime?
-  status         String          @default("active")
-  createdAt      DateTime        @default(now())
-  applications   Application[]
+  id           Int           @id @default(autoincrement())
+  title        String
+  department   String?
+  location     String?
+  type         JobType?
+  experience   ExperienceLevel?
+  education    EducationLevel?
+  // Gunakan atribut @db.Text agar kapasitasnya besar (65,535 karakter)
+  description  String?       @db.Text 
+  requirements String?       @db.Text
+  deadline     DateTime?
+  status       String        @default("active")
+  createdAt    DateTime      @default(now())
+  applications Application[]
 }
-
 model Application {
   id            Int       @id @default(autoincrement())
   userId        Int
@@ -104,7 +104,7 @@ model Application {
   job           Job       @relation(fields: [jobId], references: [id])
 }
 
-model Report {
+model Reports {
   id                Int       @id @default(autoincrement())
   period            String
   startDate         DateTime
