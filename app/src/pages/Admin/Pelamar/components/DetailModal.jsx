@@ -22,8 +22,8 @@ const DetailModal = ({ applicant, profile, onClose }) => {
 
   const stageFlow = [
     "under-review",
-    "interview-hc",
-    "psikotes",
+    "Interview-HC",
+    "Psikotes",
     "final-interview",
   ];
 
@@ -31,7 +31,7 @@ const DetailModal = ({ applicant, profile, onClose }) => {
     const currentStatus = applicant.status;
     const stageIndex = stageFlow.indexOf(stageStatus);
 
-    if (currentStatus?.startsWith("rejected")) {
+    if (currentStatus?.startsWith("Rejected")) {
       const rejectedStage = currentStatus.split("-").pop();
       const rejectedIndex = stageFlow.indexOf(rejectedStage);
       if (stageIndex >= rejectedIndex && rejectedIndex !== -1) {
@@ -60,7 +60,7 @@ const DetailModal = ({ applicant, profile, onClose }) => {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[999] p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-999 p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-8 space-y-7 max-h-[90vh] overflow-y-auto relative">
         {/* HEADER */}
         <div className="flex justify-between items-start pb-5 border-b border-gray-200">

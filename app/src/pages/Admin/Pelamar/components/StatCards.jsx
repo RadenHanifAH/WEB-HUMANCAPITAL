@@ -4,9 +4,9 @@ import { Clock, User, AlertCircle, TrendingUp } from "lucide-react";
 const StatCards = ({ applicants }) => {
   const stats = [
     { label: "Under Review", count: applicants.filter(a => a.status === "under-review").length, icon: Clock, color: "text-orange-500", sub: "Sedang ditinjau" },
-    { label: "Interview HC", count: applicants.filter(a => a.status === "interview-hc").length, icon: User, color: "text-blue-500", sub: "Menunggu jadwal" },
-    { label: "Psikotes", count: applicants.filter(a => a.status === "psikotes").length, icon: AlertCircle, color: "text-purple-500", sub: "Dalam proses" },
-    { label: "Final Interview", count: applicants.filter(a => a.status === "final-interview").length, icon: TrendingUp, color: "text-green-500", sub: "Tahap akhir" },
+    { label: "Interview HC", count: applicants.filter(a => a.status === "Interview-HC").length, icon: User, color: "text-blue-500", sub: "Menunggu jadwal" },
+    { label: "Psikotes", count: applicants.filter(a => a.status === "Psikotes").length, icon: AlertCircle, color: "text-purple-500", sub: "Dalam proses" },
+    { label: "Final Interview", count: applicants.filter(a => a.status === "Final Interview").length, icon: TrendingUp, color: "text-green-500", sub: "Tahap akhir" },
   ];
 
   return (

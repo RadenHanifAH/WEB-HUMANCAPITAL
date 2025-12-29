@@ -1,33 +1,63 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const  prisma = require("../../config/prisma")
 
 class ReportsRepository {
-  findAll(filter = {}) {
-    return prisma.report.findMany({
-      where: filter,
-      orderBy: { startDate: "desc" },
+  /**
+   * Create new report
+   */
+  async create(data) {
+    return prisma.reports.create({ data });
+  }
+
+  /**
+   * Update existing report
+   */
+  async update(id, data) {
+    return prisma.reports.update({
+      where: { id: Number(id) },
+      data,
     });
   }
 
-  findByPeriod(period) {
-    return prisma.report.findMany({
-      where: { period },
-      orderBy: { startDate: "desc" },
+  /**
+   * Find report by criteria
+   */
+  async findFirst(where) {
+    return prisma.reports.findFirst({ where });
+  }
+
+  /**
+   * Find all reports with optional filter
+   */
+  async findMany(where = {}) {
+    return prisma.reports.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
     });
   }
 
-  getAggregatedMetrics() {
-    return prisma.report.aggregate({
-      _sum: {
-        totalApplications: true,
-        accepted: true,
-        rejected: true,
-      },
-      _avg: {
-        averageProcessTime: true,
-        conversionRate: true,
-      },
+  /**
+   * Find report by ID
+   */
+  async findById(id) {
+    return prisma.reports.findUnique({
+      where: { id: Number(id) },
     });
+  }
+
+  /**
+   * Delete report
+   */
+  async delete(id) {
+    return prisma.reports.delete({
+      where: { id: Number(id) },
+    });
+  }
+
+  /**
+   * Count reports
+   */
+  async count(where = {}) {
+    return prisma.reports.count({ where });
   }
 }
 

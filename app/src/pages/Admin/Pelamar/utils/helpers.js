@@ -28,7 +28,7 @@ export const downloadFileFromUrl = (url, filename) => {
 
 export const getProgress = (status) => {
   const stageProgress = {
-    "under-review": 25, "interview-hc": 50, psikotes: 75, "final-interview": 100, accepted: 100,
+    "under-review": 25, "Interview HC": 50, "Psikotes": 75, "Final Interview": 100, Accepted: 100,
   };
   if (status.startsWith("rejected-at-")) {
     const rejectionStage = status.split("-")[2];

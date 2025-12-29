@@ -4,7 +4,7 @@ import Lokeradmin from "./Lokeradmin/Lokeradmin";
 import Pelamar from "./Pelamar/Pelamar";
 import Arsip from "./Lokeradmin/components/ArsipPelamar";
 import Acceptance from "../Users/Acceptance";
-import Repots from "../Users/Repots";
+import Reports from "../Users/Reports";
 import Messages from "../Users/Messages";
 import Schedule from "../Users/Schedule";
 import SettingsPage from "../Users/Settings";
@@ -19,7 +19,7 @@ const MainContent = forwardRef(({ activeTab, sidebarWidth }, ref) => (
     {activeTab === "jobs" && <Lokeradmin />}
     {activeTab === "applicants" && <Pelamar />}
     {activeTab === "employees" && <Arsip />}
-    {activeTab === "reports" && <Repots />}
+    {activeTab === "reports" && <Reports />}
     {activeTab === "messages" && <Messages />}
     {activeTab === "schedule" && <Schedule />}
     {activeTab === "acceptance" && <Acceptance />}

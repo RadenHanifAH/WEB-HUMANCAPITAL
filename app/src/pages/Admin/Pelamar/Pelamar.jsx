@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { usePelamar } from "./hooks/usePelamar";
-import { statusOptions, stageFlow, API_URL_APPLICANTS } from "./utils/constants";
+import { statusOptions, API_URL_APPLICANTS } from "./utils/constants";
 import { downloadFileFromUrl } from "./utils/helpers";
 import { 
   ChevronLeft, 
@@ -52,53 +52,58 @@ function Pelamar() {
   }, [search, filterStatus, filterPosisi]);
 
   // 3. Fungsi Update Status
-  const handleStatusUpdate = async (applicant, newStatusValue) => {
-    if (applicant.status === newStatusValue) return;
+ const handleStatusUpdate = async (applicant, newStatusValue) => {
+   if (applicant.status === newStatusValue) return;
 
-    let newStatus, newStage, action;
+   let newStatus, newStage, action;
 
-    if (newStatusValue === "accepted") {
-      newStatus = "accepted";
-      newStage = "Accepted";
-      action = "accept";
-    } else if (newStatusValue === "rejected") {
-      newStatus = `rejected-at-${applicant.status}`;
-      newStage = "Rejected";
-      action = "reject";
-    } else {
-      const nextStageObj = stageFlow.find((s) => s.status === newStatusValue);
-      if (nextStageObj) {
-        newStatus = nextStageObj.status;
-        newStage = nextStageObj.stage;
-        action = "next";
-      }
-    }
+   if (newStatusValue === "accepted") {
+     newStatus = "Accepted";
+     newStage = "Accepted"; // ✅ Stage berubah jadi "Diterima"
+     action = "accept";
+   } else if (newStatusValue === "rejected") {
+     newStatus = "Rejected";
+     newStage = "Rejected"; // ✅ Stage berubah jadi "Ditolak"
+     action = "reject";
+   } else {
+     // ✅ UNTUK STATUS LAINNYA (interview-hc, psikotes, final-interview)
+     newStatus = newStatusValue;
+     newStage = "Under Review"; // ✅ Stage TETAP "Under Review"
+     action = "next";
+   }
 
-    if (!newStatus) return;
+   if (!newStatus) return;
 
-    if (action === "next") {
-      const loadingToast = toast.loading(`Memperbarui status ${applicant.name}...`);
-      try {
-        const response = await fetch(`${API_URL_APPLICANTS}/${applicant.id}/status`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus, stage: newStage }),
-          credentials: "include",
-        });
+   if (action === "next") {
+     const loadingToast = toast.loading(
+       `Memperbarui status ${applicant.name}...`
+     );
+     try {
+       const response = await fetch(
+         `${API_URL_APPLICANTS}/${applicant.id}/status`,
+         {
+           method: "PUT",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ status: newStatus, stage: newStage }),
+           credentials: "include",
+         }
+       );
 
-        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
-        toast.success(`Status ${applicant.name} berhasil diubah ke ${newStage}`, { id: loadingToast });
-        fetchApplicants();
-      } catch (e) {
-        toast.error(`Gagal update status: ${e.message}`, { id: loadingToast });
-      }
-    } else {
-      setModalData({ applicant, action, status: newStatus, stage: newStage });
-      setIsMessageModalOpen(true);
-    }
-  };
-
+       toast.success(`Status ${applicant.name} berhasil diubah`, {
+         id: loadingToast,
+       });
+       fetchApplicants();
+     } catch (e) {
+       toast.error(`Gagal update status: ${e.message}`, { id: loadingToast });
+     }
+   } else {
+     // Accept/Reject butuh modal
+     setModalData({ applicant, action, status: newStatus, stage: newStage });
+     setIsMessageModalOpen(true);
+   }
+ };
   // 4. Logika Download Portfolio
   const handleDownloadPortfolio = (a) => {
     if (!a.portfolioUrl) {

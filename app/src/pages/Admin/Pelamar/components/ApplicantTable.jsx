@@ -32,39 +32,39 @@ const ApplicantTable = ({
   const getStatusIcon = (status) => {
     const icons = {
       "under-review": Clock,
-      "interview-hc": User,
-      psikotes: AlertCircle,
-      "final-interview": TrendingUp,
-      accepted: Check,
-      rejected: XCircle,
+      "Interview HC": User,
+      "Psikotes": AlertCircle,
+      "Final Interview": TrendingUp,
+      "Accepted": Check,
+      "Rejected": XCircle,
     };
     const Icon =
-      icons[status.startsWith("rejected") ? "rejected" : status] || Clock;
+      icons[status.startsWith("Rejected") ? "Rejected" : status] || Clock;
     const colors = {
       "under-review": "text-orange-500",
-      "interview-hc": "text-blue-500",
-      psikotes: "text-purple-500",
-      "final-interview": "text-green-500",
-      accepted: "text-green-600",
-      rejected: "text-red-600",
+      "Interview HC": "text-blue-500",
+      "Psikotes": "text-purple-500",
+      "Final Interview": "text-green-500",
+      "Accepted": "text-green-600",
+      "Rejected": "text-red-600",
     };
     return (
       <Icon
         className={`h-4 w-4 ${
-          colors[status.startsWith("rejected") ? "rejected" : status]
+          colors[status.startsWith("Rejected") ? "Rejected" : status]
         }`}
       />
     );
   };
 
   const getBadgeColor = (status) => {
-    if (status.startsWith("rejected")) return "bg-red-100 text-red-700";
+    if (status.startsWith("Rejected")) return "bg-red-100 text-red-700";
     const colors = {
       "under-review": "bg-orange-100 text-orange-600",
-      "interview-hc": "bg-blue-100 text-blue-600",
-      psikotes: "bg-purple-100 text-purple-600",
-      "final-interview": "bg-green-100 text-green-600",
-      accepted: "bg-green-200 text-green-700",
+      "Interview HC": "bg-blue-100 text-blue-600",
+      "Psikotes": "bg-purple-100 text-purple-600",
+      "Final Interview": "bg-green-100 text-green-600",
+      "Accepted": "bg-green-200 text-green-700",
     };
     return colors[status] || "bg-gray-100 text-gray-600";
   };
@@ -134,7 +134,7 @@ const ApplicantTable = ({
                 value={a.status}
                 onChange={(val) => onOpenStatusModal(a, val)}
                 disabled={
-                  a.status === "accepted" || a.status.startsWith("rejected")
+                  a.status === "Accepted" || a.status.startsWith("Rejected")
                 }
               >
                 <div className="relative inline-block w-40">
@@ -145,7 +145,7 @@ const ApplicantTable = ({
                   >
                     <div className="flex items-center gap-2">
                       {getStatusIcon(a.status)}
-                      <span>{a.stage}</span>
+                      <span>{a.status}</span>
                     </div>
                     <ChevronDown className="h-3 w-3 opacity-60" />
                   </Listbox.Button>
@@ -157,7 +157,7 @@ const ApplicantTable = ({
                       {stageFlow.map((step) => (
                         <Listbox.Option
                           key={step.status}
-                          value={step.status}
+                          value={step.stage}
                           className={({ active }) =>
                             `px-3 py-2 cursor-pointer text-xs ${
                               active
@@ -212,10 +212,10 @@ const ApplicantTable = ({
                   max="100"
                   value={a.score ?? ""}
                   // Kondisi Lock: Jika status bukan 'psikotes' (artinya sudah lewat) DAN score sudah ada isinya
-                  disabled={a.status !== "psikotes" && a.score !== null}
+                  disabled={a.status !== "Psikotes" && a.score !== null}
                   onChange={(e) => handleScoreChange(a.id, e.target.value)}
                   className={`w-14 text-center border border-gray-400 rounded-md p-1 text-xs transition-all ${
-                    a.status !== "psikotes" && a.score !== null
+                    a.status !== "Psikotes" && a.score !== null
                       ? "bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200" // Style saat terkunci
                       : "focus:ring-2 focus:ring-sky-200 outline-none"
                   }`}

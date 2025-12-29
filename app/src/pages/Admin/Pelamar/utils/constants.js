@@ -3,7 +3,7 @@ export const API_URL_JOBS = "http://localhost:4000/api/jobs";
 
 export const statusOptions = [
   { value: "", label: "Status" },
-  { value: "under-review", label: "Under Review" },
+  { value: "under-review", label: "Under-Review" },
   { value: "interview-hc", label: "Interview HC" },
   { value: "psikotes", label: "Psikotes" },
   { value: "final-interview", label: "Final Interview" },
@@ -12,7 +12,7 @@ export const statusOptions = [
 ];
 
 export const stageFlow = [
-  { status: "under-review", stage: "Under Review" },
+  { status: "Under-Review", stage: "under-review" },
   { status: "interview-hc", stage: "Interview HC" },
   { status: "psikotes", stage: "Psikotes" },
   { status: "final-interview", stage: "Final Interview" },
