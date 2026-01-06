@@ -4,8 +4,8 @@ import Lokeradmin from "./Lokeradmin/Lokeradmin";
 import Pelamar from "./Pelamar/Pelamar";
 import Arsip from "./Lokeradmin/components/ArsipPelamar";
 import Acceptance from "../Users/Acceptance";
-import Reports from "../Users/Reports";
-import Messages from "../Users/Messages";
+import Reports from "./Reports/index";
+import Messages from "./messages/index";
 import Schedule from "../Users/Schedule";
 import SettingsPage from "../Users/Settings";
 
