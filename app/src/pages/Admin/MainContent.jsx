@@ -2,11 +2,11 @@ import React, { forwardRef } from "react";
 import Dashboard from "./Dashboard/Dashboard";
 import Lokeradmin from "./Lokeradmin/Lokeradmin";
 import Pelamar from "./Pelamar/Pelamar";
-import Arsip from "./Lokeradmin/components/ArsipPelamar";
+import Arsip from "./Arsip/index";
 import Acceptance from "../Users/Acceptance";
 import Reports from "./Reports/index";
 import Messages from "./messages/index";
-import Schedule from "../Users/Schedule";
+import Schedule from "./Shedules/index";
 import SettingsPage from "../Users/Settings";
 
 const MainContent = forwardRef(({ activeTab, sidebarWidth }, ref) => (

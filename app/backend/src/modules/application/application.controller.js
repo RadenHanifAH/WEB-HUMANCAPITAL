@@ -1,4 +1,3 @@
-// backend/src/modules/application/application.controller.js
 const service = require("./application.service");
 
 module.exports = {
@@ -9,11 +8,8 @@ module.exports = {
       const { jobId } = req.body;
       const userId = req.user.id;
 
-      if (!jobId)
-        return res.status(400).json({ message: "Job ID wajib dikirim" });
+      if (!jobId) return res.status(400).json({ message: "Job ID wajib dikirim" });
 
-      // ✅ Logika baru untuk mengambil banyak file
-      // ✅ Gunakan pengecekan yang aman agar tidak crash jika portfolio kosong
       const cvUrl = req.files?.["cv"]?.[0]
         ? `/uploads/cvs/${req.files["cv"][0].filename}`
         : null;
@@ -22,13 +18,7 @@ module.exports = {
         ? `/uploads/portfolios/${req.files["portfolio"][0].filename}`
         : null;
 
-      // ✅ Kirim portfolioUrl ke service (jangan null lagi)
-      const created = await service.applyJob(
-        userId,
-        jobId,
-        cvUrl,
-        portfolioUrl
-      );
+      const created = await service.applyJob(userId, jobId, cvUrl, portfolioUrl);
 
       res.status(201).json({
         message: "Lamaran berhasil dikirim",
@@ -36,9 +26,7 @@ module.exports = {
       });
     } catch (err) {
       console.error("Apply Error:", err);
-      res
-        .status(500)
-        .json({ message: "Gagal mengirim lamaran", error: err.message });
+      res.status(500).json({ message: "Gagal mengirim lamaran", error: err.message });
     }
   },
 
@@ -66,25 +54,27 @@ module.exports = {
         cvUrl: app.cvUrl,
         portfolioUrl: app.portfolioUrl,
 
-        profile: app.user.profile || null
+        profile: app.user.profile || null,
       }));
 
-      res.json({
-        message: "Daftar lamaran",
-        data: formattedApplications,
-      });
+      res.json({ message: "Daftar lamaran", data: formattedApplications });
     } catch (err) {
       console.error("GetAll Error:", err);
       res.status(500).json({ error: err.message });
     }
   },
 
+  // ✅ stage akan otomatis ikut status (controller cukup terima status saja)
   async updateStatus(req, res) {
     try {
-      const { status, stage } = req.body;
+      const { status } = req.body; // ✅ HANYA status
       const { id } = req.params;
 
-      const updated = await service.updateApplicationStatus(id, status, stage);
+      if (!status) {
+        return res.status(400).json({ message: "status wajib dikirim" });
+      }
+
+      const updated = await service.updateApplicationStatus(id, status);
 
       res.json({
         message: "Status lamaran diperbarui",
@@ -110,6 +100,23 @@ module.exports = {
     } catch (err) {
       console.error("UpdateScore Error:", err);
       res.status(500).json({ error: err.message });
+    }
+  },
+
+  async getMyLatest(req, res) {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+      const userId = req.user.id;
+      const data = await service.getMyTimelineApplication(userId);
+
+      return res.json({
+        message: "Timeline application",
+        data,
+      });
+    } catch (err) {
+      console.error("getMyLatest Error:", err);
+      res.status(500).json({ message: err.message });
     }
   },
 };

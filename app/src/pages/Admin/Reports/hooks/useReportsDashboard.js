@@ -6,10 +6,11 @@ export function useReportsDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // 3 dropdown berbeda
-  const [trendPeriod, setTrendPeriod] = useState(periodOptions[2]); // monthly
-  const [positionPeriod, setPositionPeriod] = useState(periodOptions[2]); // monthly
-  const [statusPeriod, setStatusPeriod] = useState(periodOptions[2]); // monthly
+  const safeOpt = (i) => periodOptions?.[i] || periodOptions?.[0] || { id: "monthly", label: "Bulanan" };
+
+  const [trendPeriod, setTrendPeriod] = useState(safeOpt(2));    // monthly
+  const [positionPeriod, setPositionPeriod] = useState(safeOpt(2));
+  const [statusPeriod, setStatusPeriod] = useState(safeOpt(2));
 
   const [trendData, setTrendData] = useState({ labels: [], applications: [] });
   const [acceptanceData, setAcceptanceData] = useState({ labels: [], values: [] });
@@ -43,21 +44,19 @@ export function useReportsDashboard() {
     try {
       setLoading(true);
 
-      // 1) TREND
-      const resTrend = await axios.get(`${API_BASE_URL}/charts?period=${trendPeriod.id}`);
-      setTrendData(resTrend.data?.chartTrend || { labels: [], applications: [] });
+      const [resTrend, resStatus, resPos] = await Promise.all([
+        axios.get(`${API_BASE_URL}/charts?period=${trendPeriod.id}`, { withCredentials: true }),
+        axios.get(`${API_BASE_URL}/charts?period=${statusPeriod.id}`, { withCredentials: true }),
+        axios.get(`${API_BASE_URL}/metrics?period=${positionPeriod.id}`, { withCredentials: true }),
+      ]);
 
-      // 2) STATUS
-      const resStatus = await axios.get(`${API_BASE_URL}/charts?period=${statusPeriod.id}`);
-      setAcceptanceData({
-        labels: resStatus.data?.chartAcceptance?.labels || [],
-        values: resStatus.data?.chartAcceptance?.values || [],
-      });
+      const trend = resTrend.data?.chartTrend || { labels: [], applications: [] };
+      setTrendData({ labels: trend.labels || [], applications: trend.applications || [] });
 
-      // 3) LOWONGAN/POSISI
-      const resPos = await axios.get(`${API_BASE_URL}/metrics?period=${positionPeriod.id}`);
+      const acc = resStatus.data?.chartAcceptance || { labels: [], values: [] };
+      setAcceptanceData({ labels: acc.labels || [], values: acc.values || [] });
+
       const positionDetails = resPos.data?.positionDetails || [];
-
       setDetailedPositions(
         positionDetails.map((p, idx) => ({
           ...p,
@@ -77,9 +76,8 @@ export function useReportsDashboard() {
   useEffect(() => {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trendPeriod, positionPeriod, statusPeriod]);
+  }, [trendPeriod?.id, positionPeriod?.id, statusPeriod?.id]);
 
-  // helper buat export URL params
   const exportParams = useMemo(
     () => ({
       trendPeriodId: trendPeriod.id,

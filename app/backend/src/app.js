@@ -12,6 +12,8 @@ const jobsRoutes = require("./modules/jobs/job.routes");
 const applicationRoutes = require("./modules/application/application.routes");
 const reportsRoutes = require("./modules/reports/reports.routes");
 const messagesRoutes = require("./modules/messages/messages.routes");
+const schedulesRoutes = require("./modules/schedules/schedules.routes");
+const archivesRoutes = require("./modules/archives/archives.routes");
 
 const app = express();
 
@@ -40,6 +42,9 @@ app.use("/api/jobs", jobsRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/messages", messagesRoutes);
+app.use("/api/schedules", schedulesRoutes);
+app.use("/api/archives", archivesRoutes);
+
 
 
 // ===== Default =====

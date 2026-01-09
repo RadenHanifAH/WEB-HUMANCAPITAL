@@ -1,4 +1,3 @@
-// backend/src/modules/application/application.repository.js
 const prisma = require("../../config/prisma");
 
 module.exports = {
@@ -9,35 +8,55 @@ module.exports = {
   findAll() {
     return prisma.application.findMany({
       include: {
-        user: {
-          include: {
-            profile: true, // 🛑 PASTIKAN RELASI PROFILE DIMUAT DI SINI
-          },
-        },
+        user: { include: { profile: true } },
         job: true,
       },
       orderBy: { appliedAt: "desc" },
     });
   },
 
-  findById(id) {
-    return prisma.application.findUnique({
-      where: { id: Number(id) },
-      include: { user: true, job: true },
+  findLatestByUserId(userId) {
+    return prisma.application.findFirst({
+      where: { userId: Number(userId) },
+      orderBy: { appliedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+        appliedAt: true,
+        job: { select: { title: true } },
+      },
     });
   },
-  // ✅ FUNGSI BARU/DIUBAH: Untuk mengupdate status dan stage
+
+  findActiveByUserId(userId) {
+    return prisma.application.findFirst({
+      where: {
+        userId: Number(userId),
+        archive: { is: null },
+      },
+      orderBy: { appliedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+        appliedAt: true,
+        job: { select: { title: true } },
+      },
+    });
+  },
+
   updateStatusAndStage(id, status, stage) {
     return prisma.application.update({
       where: { id: Number(id) },
-      data: { status, stage }, // Update status DAN stage
+      data: { status, stage },
     });
   },
-  // ✅ FUNGSI BARU: Untuk mengupdate score
+
   updateScore(id, score) {
     return prisma.application.update({
       where: { id: Number(id) },
-      data: { score: score === null ? null : Number(score) }, // Pastikan score diubah ke Number atau null
+      data: { score: score === null ? null : Number(score) },
     });
   },
 };

@@ -8,39 +8,78 @@ import {
   MapPin,
   Hash,
   UserCheck,
+  User,
   CalendarDays,
   TrendingUp as ScoreIcon,
 } from "lucide-react";
 
+
+
+const toKebab = (val) =>
+  String(val || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+
 const DetailModal = ({ applicant, profile, onClose }) => {
   if (!applicant) return null;
 
-  const blockedScoreStages = ["under-review", "interview-hc"];
-  const shouldDisplayScore =
-    !blockedScoreStages.includes(applicant.status) &&
-    !applicant.status?.startsWith("rejected-at-under-review");
+  // ✅ NORMALIZE
+  const statusRaw = applicant.status || "";
+  const stageRaw = applicant.stage || ""; // ✅ ambil stage dari application
+  const status = toKebab(statusRaw);
+  const stage = toKebab(stageRaw);
 
+  // ✅ flow harus konsisten kebab-case
   const stageFlow = [
     "under-review",
-    "Interview-HC",
-    "Psikotes",
+    "interview-hc",
+    "psikotes",
     "final-interview",
+    "offering-final-result",
   ];
 
-  const getStageIcon = (stageStatus) => {
-    const currentStatus = applicant.status;
-    const stageIndex = stageFlow.indexOf(stageStatus);
+  // ✅ Final status
+  const isAccepted =
+    status === "accepted" || status.includes("accept") || stage === "accepted";
+  const isRejected =
+    status === "rejected" || status.includes("reject") || stage === "rejected";
 
-    if (currentStatus?.startsWith("Rejected")) {
-      const rejectedStage = currentStatus.split("-").pop();
-      const rejectedIndex = stageFlow.indexOf(rejectedStage);
-      if (stageIndex >= rejectedIndex && rejectedIndex !== -1) {
-        return <XCircle className="h-5 w-5 text-red-500" />;
+  const blockedScoreStages = ["under-review", "interview-hc"];
+  const shouldDisplayScore =
+    !blockedScoreStages.includes(status) && !isRejected;
+
+  // ✅ Tentukan posisi progress berdasarkan STAGE kalau ada,
+  // fallback ke STATUS kalau stage kosong
+  const currentKey = stage || status;
+  const currentIndex = stageFlow.indexOf(currentKey);
+
+  const getStageIcon = (stageKey) => {
+    const idx = stageFlow.indexOf(stageKey);
+
+    // kalau accepted -> semua hijau
+    if (isAccepted) return <CheckCircle className="h-5 w-5 text-green-500" />;
+
+    // kalau rejected -> semua setelah posisi current jadi merah
+    if (isRejected) {
+      if (currentIndex === -1) {
+        // kalau tidak ketemu index, minimal tampilkan abu2
+        return <CheckCircle className="h-5 w-5 text-gray-300" />;
       }
+      if (idx <= currentIndex) {
+        // sampai tahap terakhir yang dicapai sebelum reject
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      }
+      return <XCircle className="h-5 w-5 text-red-500" />;
     }
 
-    const currentStageIndex = stageFlow.indexOf(currentStatus);
-    if (currentStatus === "accepted" || stageIndex <= currentStageIndex) {
+    // normal progress
+    if (currentIndex === -1) {
+      // kalau stage/status tidak match, tampilkan abu2 (biar tidak salah)
+      return <CheckCircle className="h-5 w-5 text-gray-300" />;
+    }
+
+    if (idx <= currentIndex) {
       return <CheckCircle className="h-5 w-5 text-green-500" />;
     }
 
@@ -59,34 +98,53 @@ const DetailModal = ({ applicant, profile, onClose }) => {
     </div>
   );
 
+  const stageLabel = (k) =>
+    k.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-999 p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-8 space-y-7 max-h-[90vh] overflow-y-auto relative">
         {/* HEADER */}
         <div className="flex justify-between items-start pb-5 border-b border-gray-200">
           <div className="flex items-center gap-5">
-            <img
-              src={profile?.fotoProfile || "https://placehold.co/150"}
-              alt="Foto Profil"
-              className="w-20 h-20 rounded-full object-cover border-2 border-sky-100"
-            />
+            {profile?.fotoProfile ? (
+              <img
+                src={profile.fotoProfile}
+                alt="Foto Profil"
+                className="w-20 h-20 rounded-full object-cover border-2 border-sky-100"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-2 border-sky-100">
+                <User className="h-10 text-gray-400" />
+              </div>
+            )}
+
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-extrabold text-gray-900">
                   {profile?.fullName || applicant.name}
                 </h2>
-                {applicant.status === "accepted" && (
+
+                {isAccepted && (
                   <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
                     Diterima
                   </span>
                 )}
-                {applicant.status?.startsWith("rejected") && (
+
+                {isRejected && (
                   <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
                     Ditolak
                   </span>
                 )}
               </div>
+
               <p className="text-gray-600 text-lg mt-1">{applicant.position}</p>
+
+              {/* ✅ debug kecil biar kamu tahu yang dipakai */}
+              <p className="text-xs text-gray-400 mt-1">
+                status: <span className="font-semibold">{statusRaw}</span> |
+                stage: <span className="font-semibold">{stageRaw}</span>
+              </p>
             </div>
           </div>
 
@@ -170,11 +228,12 @@ const DetailModal = ({ applicant, profile, onClose }) => {
             <h3 className="text-md font-bold text-gray-900 mb-4">
               Progress Seleksi
             </h3>
+
             <div className="space-y-3">
-              {stageFlow.map((stage) => (
-                <div key={stage} className="flex items-center gap-3 capitalize">
-                  {getStageIcon(stage)}
-                  <span>{stage.replace("-", " ")}</span>
+              {stageFlow.map((k) => (
+                <div key={k} className="flex items-center gap-3">
+                  {getStageIcon(k)}
+                  <span className="capitalize">{stageLabel(k)}</span>
                 </div>
               ))}
             </div>
@@ -185,7 +244,6 @@ const DetailModal = ({ applicant, profile, onClose }) => {
               Kelengkapan Dokumen
             </h3>
             <div className="space-y-3">
-              {/* Data Pribadi */}
               <div className="flex items-center gap-3">
                 {profile?.NIK ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />
@@ -195,7 +253,6 @@ const DetailModal = ({ applicant, profile, onClose }) => {
                 <span>Data Pribadi Lengkap</span>
               </div>
 
-              {/* CV */}
               <div className="flex items-center gap-3">
                 {applicant?.cvUrl ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />
@@ -205,7 +262,6 @@ const DetailModal = ({ applicant, profile, onClose }) => {
                 <span>CV Terupload</span>
               </div>
 
-              {/* Portofolio (Opsional) */}
               <div className="flex items-center gap-3">
                 {applicant?.portfolioUrl ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />

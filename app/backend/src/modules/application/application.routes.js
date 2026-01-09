@@ -1,14 +1,9 @@
-// backend/src/modules/application/application.routes.js (Pastikan ini yang Anda gunakan)
-
 const router = require("express").Router();
 const ctrl = require("./application.controller");
 const uploadCV = require("../../middleware/upload");
-
-// 🛑 AMBIL FUNGSI DARI OBJEK EXPORTED
 const { protectRoute, adminRoute } = require("../../middleware/auth");
 
-// pelamar apply job (POST) - Jika user biasa bisa apply, cukup protectRoute
-
+// pelamar apply job
 router.post(
   "/job",
   protectRoute,
@@ -18,13 +13,17 @@ router.post(
   ]),
   ctrl.apply
 );
-// admin melihat semua lamaran (GET) - HARUS protectRoute DILANJUTKAN adminRoute
+
+// admin melihat semua lamaran
 router.get("/", protectRoute, adminRoute, ctrl.getAll);
 
-// admin update status lamaran (PUT)
+// ✅ admin update STATUS saja (stage akan otomatis ikut status di service)
 router.put("/:id/status", protectRoute, adminRoute, ctrl.updateStatus);
 
-// admin update score lamaran
+// admin update score
 router.put("/:id/score", protectRoute, adminRoute, ctrl.updateScore);
+
+// user lihat timeline
+router.get("/me/latest", protectRoute, ctrl.getMyLatest);
 
 module.exports = router;

@@ -19,7 +19,7 @@ import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
 import Admin from "./pages/Admin/Sidebar/Admin.jsx";
 
-import Profile from "./pages/Users/Profile.jsx"; // ✔ FIXED
+import Profile from "./pages/Users/Profile/index.jsx"; // ✔ FIXED
 
 import useAuthStore from "./store/useAuthStore";
 import { Loader2 } from "lucide-react";
