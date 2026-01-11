@@ -77,7 +77,7 @@ export default function SchedulesPage() {
     <div className="p-6 bg-gray-50 min-h-screen font-sans">
       <Toaster position="top-center" />
 
-      <h1 className="text-2xl font-semibold text-sky-900 mb-3">Jadwal Interview</h1>
+      <h1 className="text-2xl font-semibold text-sky-900 mb-3">Jadwal Test</h1>
 
       <div className="flex justify-between items-center mb-6">
         <div className="flex flex-col sm:flex-row gap-4">

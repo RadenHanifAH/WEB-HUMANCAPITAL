@@ -11,6 +11,7 @@ import ToastNotification from "./components/ToastNotification";
 import DataPribadiSection from "./components/sections/DataPribadiSection";
 import PengaturanAkunSection from "./components/sections/PengaturanAkunSection";
 import KeluarSection from "./components/sections/KeluarSection";
+import LamaranSayaSection from "./components/sections/LamaranSayaSection";
 
 import {
   defaultProfileData,
@@ -21,31 +22,113 @@ import {
 
 import { compressImageToBase64 } from "./utils/imageCompression";
 
+/** ✅ Normalisasi stage supaya konsisten */
+const normalizeStage = (stage) => {
+  const s = String(stage || "").trim().toLowerCase();
+  if (!s) return null;
+
+  // legacy -> new
+  if (s === "under review" || s === "under-review" || s === "screening") return "Screaning";
+  if (s === "psikotes") return "Psikotes/technical test";
+  if (s.includes("technical")) return "Psikotes/technical test";
+
+  // exact
+  if (s === "screaning") return "Screaning";
+  if (s === "interview hc") return "Interview HC";
+  if (s === "final interview") return "Final Interview";
+  if (s.includes("offering")) return "Offering/Final Result";
+
+  return stage;
+};
+
+/** ✅ Ambil stage dari status "rejected-at-xxx" */
+const stageFromRejectedStatus = (statusRaw) => {
+  const s = String(statusRaw || "").trim().toLowerCase();
+  if (!s.startsWith("rejected-at-")) return null;
+
+  const slug = s.replace("rejected-at-", "").trim();
+
+  if (
+    slug.includes("screaning") ||
+    slug.includes("screening") ||
+    slug.includes("under-review") ||
+    slug.includes("under_review")
+  ) {
+    return "Screaning";
+  }
+
+  if (slug.includes("interview-hc") || slug.includes("interviewhc")) {
+    return "Interview HC";
+  }
+
+  if (
+    slug.includes("psikotes") ||
+    slug.includes("psychotest") ||
+    slug.includes("psycho") ||
+    slug.includes("technical")
+  ) {
+    return "Psikotes/technical test";
+  }
+
+  if (slug.includes("final-interview") || slug.includes("finalinterview")) {
+    return "Final Interview";
+  }
+
+  if (slug.includes("offering")) {
+    return "Offering/Final Result";
+  }
+
+  return null;
+};
+
+/** ✅ RULE KHUSUS:
+ * Kalau ditolak di Final Interview -> currentStep dibuat ke "Offering/Final Result"
+ */
+const rejectedFinalInterviewGoesToFinalResult = (statusRaw, stageRaw) => {
+  const s = String(statusRaw || "").toLowerCase();
+  const stage = normalizeStage(stageRaw);
+
+  // jika status reject-at-final-interview
+  if (s.startsWith("rejected-at-") && s.includes("final-interview")) return true;
+
+  // fallback kalau backend belum pakai rejected-at tapi stage-nya final interview dan status reject
+  if (s.includes("reject") && stage === "Final Interview") return true;
+
+  return false;
+};
+
+/** ✅ helper aman untuk ISO date */
+const safeToISO = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+};
+
 const ProfilePage = () => {
-  // auth store
   const { user, checkAuth, loading: storeLoading, setUser } = useAuthStore();
 
-  // UI state
   const [activeMenu, setActiveMenu] = useState("Data Pribadi");
 
-  // local editable data
   const [editedData, setEditedData] = useState(defaultProfileData);
   const [isDataPribadiEditable, setIsDataPribadiEditable] = useState(false);
 
-  // refs & upload
   const dateInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const [uploadedPhoto, setUploadedPhoto] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
 
-  // save/loading/error
   const [saving, setSaving] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [error, setError] = useState(null);
 
-  // ✅ application state (untuk timeline)
+  // ✅ timeline app (latest/active)
   const [application, setApplication] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
+
+  // ✅ list lamaran
+  const [myApplications, setMyApplications] = useState([]);
+  const [loadingMyApps, setLoadingMyApps] = useState(true);
 
   // account settings
   const [newPassword, setNewPassword] = useState("");
@@ -56,17 +139,23 @@ const ProfilePage = () => {
 
   // toast
   const [toast, setToast] = useState({ message: null, type: null });
-
   const showToast = (message, type) => {
     setToast({ message: Array.isArray(message) ? message : [message], type });
   };
 
-  // initial auth
+  // ✅ interval ref biar bisa di-clear saat logout
+  const timelineIntervalRef = useRef(null);
+
+  /** ---------------------------
+   *  Auth Init
+   *  --------------------------- */
   useEffect(() => {
     if (!user) checkAuth();
   }, [user, checkAuth]);
 
-  // sync user -> editedData
+  /** ---------------------------
+   *  Sync user -> editedData
+   *  --------------------------- */
   useEffect(() => {
     if (user) {
       setEditedData({
@@ -89,65 +178,132 @@ const ProfilePage = () => {
     setLoadingInitial(false);
   }, [user]);
 
-  // auto hide toast
+  /** ---------------------------
+   *  Auto hide toast
+   *  --------------------------- */
   useEffect(() => {
     if (toast.message) {
-      const timer = setTimeout(
-        () => setToast({ message: null, type: null }),
-        4500
-      );
+      const timer = setTimeout(() => setToast({ message: null, type: null }), 4500);
       return () => clearTimeout(timer);
     }
   }, [toast]);
 
+  /** ---------------------------
+   *  Fetch Timeline + My Applications
+   *  --------------------------- */
   useEffect(() => {
-    let intervalId;
+    let isMounted = true;
 
-    const fetchTimelineApplication = async () => {
+    if (!user) {
+      setApplication(null);
+      setMyApplications([]);
+      setLoadingApp(false);
+      setLoadingMyApps(false);
+
+      if (timelineIntervalRef.current) {
+        clearInterval(timelineIntervalRef.current);
+        timelineIntervalRef.current = null;
+      }
+
+      return () => {};
+    }
+
+    const controller = new AbortController();
+
+    const fetchTimelineApplication = async (signal) => {
       try {
-        const res = await axios.get("/applications/me/latest"); // ✅ FIX
-        const data = res?.data?.data || null;
-
-        console.log("[timeline] me/latest:", data);
+        const res = await axios.get("/applications/me/latest", { signal });
+        const data = res?.data?.data ?? null;
+        if (!isMounted || signal?.aborted) return;
         setApplication(data);
       } catch (e) {
-        console.error(
-          "[timeline] fetch error:",
-          e?.response?.data || e.message
-        );
+        if (!isMounted || signal?.aborted) return;
+
+        const status = e?.response?.status;
+        if (status === 401) {
+          setApplication(null);
+          return;
+        }
         setApplication(null);
       } finally {
-        setLoadingApp(false);
+        if (isMounted && !signal?.aborted) setLoadingApp(false);
       }
     };
 
-    fetchTimelineApplication();
-    intervalId = setInterval(fetchTimelineApplication, 5000);
+    const fetchMyApplications = async (signal) => {
+      try {
+        const res = await axios.get("/applications/me", { signal });
+        const items = res?.data?.data ?? [];
+        if (!isMounted || signal?.aborted) return;
+        setMyApplications(Array.isArray(items) ? items : []);
+      } catch (e) {
+        if (!isMounted || signal?.aborted) return;
 
-    return () => clearInterval(intervalId);
-  }, []);
+        const status = e?.response?.status;
+        if (status === 401) {
+          setMyApplications([]);
+          return;
+        }
+        setMyApplications([]);
+      } finally {
+        if (isMounted && !signal?.aborted) setLoadingMyApps(false);
+      }
+    };
 
-  // ✅ derive timeline state from application
-  const derivedCurrentStep = useMemo(() => {
-    // stage harus match step name di HiringTimeline
-    return application?.stage || "Under Review";
-  }, [application]);
+    setLoadingApp(true);
+    setLoadingMyApps(true);
+    fetchTimelineApplication(controller.signal);
+    fetchMyApplications(controller.signal);
+
+    if (timelineIntervalRef.current) clearInterval(timelineIntervalRef.current);
+    timelineIntervalRef.current = setInterval(() => {
+      const c = new AbortController();
+      fetchTimelineApplication(c.signal);
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+
+      if (timelineIntervalRef.current) {
+        clearInterval(timelineIntervalRef.current);
+        timelineIntervalRef.current = null;
+      }
+    };
+  }, [user]);
+
+  /** ---------------------------
+   *  Derived timeline state
+   *  --------------------------- */
+  const hasApplication = useMemo(() => !!application, [application]);
 
   const derivedFinalStatus = useMemo(() => {
-    // Kamu belum punya final decision di Application schema (final ada di Archive).
-    // Jadi sementara:
-    // - kalau status mengandung "rejected" => Rejected
-    // - kalau status mengandung "accepted" => Accepted
-    // - default => Pending
-    const s = (application?.status || "").toLowerCase();
+    if (!application) return "Pending";
+    const s = String(application?.status || "").toLowerCase();
     if (s.includes("reject")) return "Rejected";
-    if (s.includes("accept")) return "Accepted";
+    if (s.includes("accept") || s.includes("hired")) return "Accepted";
     return "Pending";
   }, [application]);
 
+  const derivedCurrentStep = useMemo(() => {
+    if (!application) return null;
+
+    // ✅ RULE KHUSUS: ditolak di Final Interview -> masuk Final Result
+    if (rejectedFinalInterviewGoesToFinalResult(application?.status, application?.stage)) {
+      return "Offering/Final Result";
+    }
+
+    // ✅ PRIORITAS: kalau status rejected-at-xxx => stop di stage itu
+    const rejectedStage = stageFromRejectedStatus(application?.status);
+    if (rejectedStage) return rejectedStage;
+
+    // fallback: pakai stage dari backend
+    return normalizeStage(application?.stage) || "Screaning";
+  }, [application]);
+
   const finalStatusClass = useMemo(
-    () => getFinalStatusColor(derivedFinalStatus),
-    [derivedFinalStatus]
+    () => getFinalStatusColor(derivedFinalStatus, derivedCurrentStep),
+    [derivedFinalStatus, derivedCurrentStep]
   );
 
   const statusText = useMemo(
@@ -158,11 +314,12 @@ const ProfilePage = () => {
   const currentPhotoUrl =
     uploadedPhoto ||
     editedData?.profile?.fotoProfile ||
-    defaultProfileData.profile.fotoProfile;
+    defaultProfileData?.profile?.fotoProfile ||
+    "";
 
-  /* ---------------------------
-     Handlers: Data Pribadi
-     --------------------------- */
+  /** ---------------------------
+   *  Handlers: Data Pribadi
+   *  --------------------------- */
   const handleDataPribadiChange = (e) => {
     const { id, value } = e.target;
     const ROOT_FIELDS = ["name", "email"];
@@ -170,14 +327,12 @@ const ProfilePage = () => {
     if (!ROOT_FIELDS.includes(id)) {
       setEditedData((prev) => ({
         ...prev,
-        profile: { ...prev.profile, [id]: value },
+        profile: { ...(prev?.profile || {}), [id]: value },
       }));
     } else {
       setEditedData((prev) => ({ ...prev, [id]: value }));
     }
   };
-
-  const handleEditDataPribadi = () => setIsDataPribadiEditable(true);
 
   const handleCancelEdit = () => {
     if (user) {
@@ -203,6 +358,7 @@ const ProfilePage = () => {
     setPasswordError(null);
     setNewPassword("");
     setConfirmPassword("");
+    setError(null);
   };
 
   const handleSaveDataPribadi = async () => {
@@ -211,43 +367,43 @@ const ProfilePage = () => {
       setError(null);
 
       const payload = {
-        fullName: editedData.profile.fullName,
-        NIK: editedData.profile.NIK,
-        gender: editedData.profile.gender,
-        nomorHp: editedData.profile.nomorHp,
-        tempatLahir: editedData.profile.tempatLahir,
-        tanggalLahir: editedData.profile.tanggalLahir
-          ? new Date(editedData.profile.tanggalLahir).toISOString()
-          : null,
-        alamat: editedData.profile.alamat,
-        fotoProfile: editedData.profile.fotoProfile,
-        about: editedData.profile.about,
+        fullName: editedData?.profile?.fullName || "",
+        NIK: editedData?.profile?.NIK || "",
+        gender: editedData?.profile?.gender || "",
+        nomorHp: editedData?.profile?.nomorHp || "",
+        tempatLahir: editedData?.profile?.tempatLahir || "",
+        tanggalLahir: safeToISO(editedData?.profile?.tanggalLahir),
+        alamat: editedData?.profile?.alamat || "",
+        fotoProfile: editedData?.profile?.fotoProfile || "",
+        about: editedData?.profile?.about || "",
       };
 
-      console.log("Payload size:", JSON.stringify(payload).length, "bytes");
-      console.log("FotoProfile length:", payload.fotoProfile?.length || 0);
-
       const res = await axios.put("/auth/profile", payload);
+      const updatedProfile = res?.data?.data || payload;
 
-      setUser({ ...editedData, profile: res.data.data });
+      setUser({
+        ...editedData,
+        profile: {
+          ...(editedData?.profile || {}),
+          ...updatedProfile,
+        },
+      });
+
       setUploadedPhoto(null);
       setIsDataPribadiEditable(false);
       showToast("Data Pribadi berhasil diperbarui!", "success");
     } catch (err) {
-      console.error("Save Data Pribadi error:", err);
-      console.error("Error response:", err.response?.data);
-      showToast(
-        err.response?.data?.message || "Gagal menyimpan Data Pribadi.",
-        "error"
-      );
+      const msg = err?.response?.data?.message || "Gagal menyimpan Data Pribadi.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setSaving(false);
     }
   };
 
-  /* ---------------------------
-     Photo Upload (Client Preview)
-     --------------------------- */
+  /** ---------------------------
+   *  Photo Upload
+   *  --------------------------- */
   const handlePhotoUploadClientPreview = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -276,46 +432,48 @@ const ProfilePage = () => {
       setUploadedPhoto(compressedBase64);
       setEditedData((prev) => ({
         ...prev,
-        profile: { ...prev.profile, fotoProfile: compressedBase64 },
+        profile: { ...(prev?.profile || {}), fotoProfile: compressedBase64 },
       }));
 
       setIsDataPribadiEditable(true);
       setActiveMenu("Data Pribadi");
 
-      showToast(
-        "Foto dipilih! Klik 'Simpan' untuk menyimpan perubahan.",
-        "success"
-      );
-    } catch (err) {
-      console.error("Compress image error:", err);
+      showToast("Foto dipilih! Klik 'Simpan' untuk menyimpan perubahan.", "success");
+    } catch {
       showToast("Gagal memproses gambar.", "error");
     }
   };
 
-  /* ---------------------------
-     Pengaturan Akun
-     --------------------------- */
+  /** ---------------------------
+   *  Pengaturan Akun
+   *  --------------------------- */
   const handleSaveAkun = async () => {
     setPasswordError(null);
+    setError(null);
+
+    if (newPassword || confirmPassword) {
+      if (newPassword.length < 6) {
+        setPasswordError("Password minimal 6 karakter!");
+        return;
+      }
+
+      const hasUpperCase = /[A-Z]/.test(newPassword);
+      const hasNumber = /[0-9]/.test(newPassword);
+      const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+
+      if (!hasUpperCase || !hasNumber || !hasSymbol) {
+        setPasswordError("Password harus mengandung huruf besar, angka, dan simbol!");
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setPasswordError("Konfirmasi password tidak sama!");
+        return;
+      }
+    }
+
     const changes = [];
-
-    if (newPassword && newPassword.length < 6) {
-      setPasswordError("Password minimal 6 karakter!");
-      return;
-    }
-
-    const hasUpperCase = /[A-Z]/.test(newPassword);
-    const hasNumber = /[0-9]/.test(newPassword);
-    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-
-    if (!hasUpperCase || !hasNumber || !hasSymbol) {
-      setPasswordError(
-        "Password harus mengandung huruf besar, angka, dan simbol!"
-      );
-      return;
-    }
-
-    changes.push("Password berhasil diubah.");
+    if (newPassword) changes.push("Password berhasil diubah.");
     if (uploadedPhoto) changes.push("Foto Profil berhasil diganti.");
 
     if (changes.length === 0) {
@@ -325,38 +483,43 @@ const ProfilePage = () => {
 
     try {
       setSaving(true);
-      // NOTE: endpoint password belum ada. Ini simulasi saja.
       showToast(changes, "success");
-
       setNewPassword("");
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
     } catch (err) {
-      console.error("Save Akun error", err);
-      showToast("Gagal menyimpan Pengaturan Akun.", "error");
+      const msg = err?.response?.data?.message || "Gagal menyimpan Pengaturan Akun.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setSaving(false);
     }
   };
 
-  /* ---------------------------
-     Logout
-     --------------------------- */
+  /** ---------------------------
+   *  Logout
+   *  --------------------------- */
   const handleLogout = () => {
     try {
+      if (timelineIntervalRef.current) {
+        clearInterval(timelineIntervalRef.current);
+        timelineIntervalRef.current = null;
+      }
+
       setUser(null);
+      setApplication(null);
+      setMyApplications([]);
+      setLoadingApp(false);
+      setLoadingMyApps(false);
+
       showToast("Logout berhasil. Silakan refresh halaman.", "success");
       setActiveMenu("Keluar");
-    } catch (err) {
-      console.error("Logout error", err);
+    } catch {
       showToast("Gagal logout.", "error");
     }
   };
 
-  /* ---------------------------
-     Render content
-     --------------------------- */
   const renderMainContent = () => {
     if (activeMenu === "Data Pribadi") {
       return (
@@ -364,7 +527,7 @@ const ProfilePage = () => {
           editedData={editedData}
           setEditedData={setEditedData}
           isEditable={isDataPribadiEditable}
-          onEdit={handleEditDataPribadi}
+          onEdit={() => setIsDataPribadiEditable(true)}
           onCancel={handleCancelEdit}
           onSave={handleSaveDataPribadi}
           onChange={handleDataPribadiChange}
@@ -392,9 +555,7 @@ const ProfilePage = () => {
       );
     }
 
-    if (activeMenu === "Keluar") {
-      return <KeluarSection />;
-    }
+    if (activeMenu === "Keluar") return <KeluarSection />;
 
     return (
       <div className="p-6 text-gray-500 bg-white rounded-xl">
@@ -407,9 +568,7 @@ const ProfilePage = () => {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
         <LoaderIcon className="w-12 h-12 text-sky-600 animate-spin mb-3" />
-        <p className="text-sky-700 font-semibold text-lg">
-          Memuat data pengguna...
-        </p>
+        <p className="text-sky-700 font-semibold text-lg">Memuat data pengguna...</p>
       </div>
     );
   }
@@ -426,19 +585,13 @@ const ProfilePage = () => {
         {/* Sidebar */}
         <div className="w-full lg:w-1/4 space-y-6">
           <ProfileSidebar
-            userName={
-              editedData?.profile?.fullName ||
-              editedData?.name ||
-              "Nama Pengguna"
-            }
+            userName={editedData?.profile?.fullName || editedData?.name || "Nama Pengguna"}
             currentPhotoUrl={currentPhotoUrl}
             fileInputRef={fileInputRef}
             isHovered={isHovered}
             setIsHovered={setIsHovered}
             onPhotoChange={handlePhotoUploadClientPreview}
-            onPickPhoto={() =>
-              fileInputRef.current && fileInputRef.current.click()
-            }
+            onPickPhoto={() => fileInputRef.current && fileInputRef.current.click()}
             activeMenu={activeMenu}
             setActiveMenu={(menu) => {
               setActiveMenu(menu);
@@ -451,15 +604,13 @@ const ProfilePage = () => {
 
         {/* Main */}
         <div className="w-full lg:w-3/4 space-y-6">
-          {/* ✅ Timeline now from application */}
           {loadingApp ? (
             <div className="bg-white rounded-xl shadow-xl p-6 sm:p-8 border border-gray-100">
-              <p className="text-gray-600 font-medium">
-                Memuat status tahapan seleksi...
-              </p>
+              <p className="text-gray-600 font-medium">Memuat status tahapan seleksi...</p>
             </div>
           ) : (
             <HiringTimeline
+              hasApplication={hasApplication}
               currentStep={derivedCurrentStep}
               finalStatus={derivedFinalStatus}
               finalStatusClass={finalStatusClass}
@@ -467,21 +618,25 @@ const ProfilePage = () => {
             />
           )}
 
+          {loadingMyApps ? (
+            <div className="bg-white rounded-xl shadow-xl p-6 sm:p-8 border border-gray-100">
+              <p className="text-gray-600 font-medium">Memuat daftar lamaran...</p>
+            </div>
+          ) : (
+            <LamaranSayaSection applications={myApplications} />
+          )}
+
           {renderMainContent()}
         </div>
       </div>
 
-      {/* Global saving overlay */}
       {saving && (
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/90">
           <LoaderIcon className="w-12 h-12 text-sky-600 animate-spin mb-3" />
-          <p className="text-sky-700 font-semibold text-lg">
-            Menyimpan perubahan...
-          </p>
+          <p className="text-sky-700 font-semibold text-lg">Menyimpan perubahan...</p>
         </div>
       )}
 
-      {/* Local error */}
       {error && (
         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow">
           {error}

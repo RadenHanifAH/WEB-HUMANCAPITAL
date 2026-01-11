@@ -85,6 +85,9 @@ model User {
   messages     Message[]
   interviewSchedulesCreated InterviewSchedule[] @relation("ScheduleCreatedBy")
   archives     Archive[]
+
+  resetPasswordTokenHash String?  // simpan hash token
+  resetPasswordExpires   DateTime?
 }
 
 
@@ -129,8 +132,8 @@ model Application {
   jobId         Int
   cvUrl         String
   portfolioUrl  String?
-  status        String    @default("under-review")
-  stage         String    @default("Under Review")
+  status        String    @default("screaning")
+  stage         String    @default("Screaning")
   score         Int?
   appliedAt     DateTime  @default(now())
 

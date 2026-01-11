@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
-
-const PLACEHOLDER = "https://placehold.co/150";
+import { User } from "lucide-react";
 
 export default function UserAvatar({
   fotoProfile,
@@ -15,11 +14,23 @@ export default function UserAvatar({
     return val ? val : null;
   }, [fotoProfile]);
 
-  const finalSrc = !src || broken ? PLACEHOLDER : src;
+  const showFallback = !src || broken;
+
+  if (showFallback) {
+    return (
+      <div
+        className={`${className} rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center flex-shrink-0`}
+        aria-label={alt}
+        title={alt}
+      >
+        <User className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
 
   return (
     <img
-      src={finalSrc}
+      src={src}
       alt={alt}
       className={`${className} rounded-full object-cover border-2 border-sky-100 flex-shrink-0`}
       onError={() => setBroken(true)}

@@ -3,6 +3,32 @@ import { Link } from "react-router-dom";
 import { MapPin, ArrowRight } from "lucide-react";
 import { fetchJobs } from "./Admin/Lokeradmin/services/api";
 
+/**
+ * ✅ Parse requirements agar selalu jadi array per-point
+ * Support:
+ * - array: ["A", "B"]
+ * - string dipisah newline: "A\nB\nC"
+ * - string dipisah koma/semicolon: "A, B; C"
+ */
+function parseRequirements(req) {
+  if (!req) return [];
+
+  // kalau sudah array
+  if (Array.isArray(req)) {
+    return req.map((x) => String(x).trim()).filter(Boolean);
+  }
+
+  // kalau string
+  const s = String(req).trim();
+  if (!s) return [];
+
+  // pecah berdasarkan newline / koma / semicolon
+  return s
+    .split(/\r?\n|,|;/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 const Jobs = ({ newJobFromAdmin }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,16 +42,18 @@ const Jobs = ({ newJobFromAdmin }) => {
         if (Array.isArray(data) && data.length) {
           // 1. Filter hanya job aktif
           const activeJobs = data.filter((job) => job.status === "active");
-          
-          // 2. SORTING: Urutkan dari ID terbesar (terbaru) ke terkecil
-          // Agar yang paling baru ada di index 0 (Posisi Kiri)
+
+          // 2. Sorting terbaru
           const sortedJobs = activeJobs.sort((a, b) => b.id - a.id);
 
-          // 3. Ambil 3 data pertama (yang terbaru)
-          setJobs(sortedJobs.slice(0, 3)); 
+          // 3. Ambil 3 job terbaru
+          setJobs(sortedJobs.slice(0, 3));
+        } else {
+          setJobs([]);
         }
       } catch (err) {
         console.error("Gagal fetch jobs", err);
+        setJobs([]);
       } finally {
         setLoading(false);
       }
@@ -39,13 +67,8 @@ const Jobs = ({ newJobFromAdmin }) => {
     if (newJobFromAdmin.status !== "active") return;
 
     setJobs((prevJobs) => {
-      // PERUBAHAN DISINI:
-      // Taruh newJobFromAdmin di DEPAN array (...prevJobs di belakang)
-      // Ini akan membuat item baru muncul di Kiri.
       const updated = [newJobFromAdmin, ...prevJobs];
-      
-      // Ambil 3 teratas saja agar tampilan tidak rusak
-      return updated.slice(0, 3); 
+      return updated.slice(0, 3);
     });
   }, [newJobFromAdmin]);
 
@@ -73,11 +96,11 @@ const Jobs = ({ newJobFromAdmin }) => {
       {/* Job Cards */}
       <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-[80rem] mx-auto">
         {jobs.map((job) => {
-          const requirementsArray = Array.isArray(job.requirements)
-            ? job.requirements
-            : typeof job.requirements === "string"
-            ? job.requirements.split(",").map((r) => r.trim())
-            : [];
+          const reqs = parseRequirements(job.requirements);
+
+          // ✅ hanya tampil 3
+          const shownReqs = reqs.slice(0, 4);
+          const remaining = Math.max(0, reqs.length - shownReqs.length);
 
           return (
             <div
@@ -113,19 +136,26 @@ const Jobs = ({ newJobFromAdmin }) => {
                   <div className="text-sm font-semibold text-gray-800">
                     Persyaratan Utama:
                   </div>
+
+                  {/* ✅ tampil per-point + max 3 */}
                   <ul className="text-sm text-gray-600 space-y-1">
-                    {requirementsArray.length ? (
-                      requirementsArray.map((req, i) => (
+                    {shownReqs.length ? (
+                      shownReqs.map((req, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-amber-600 mt-1 font-extrabold">
                             •
                           </span>
-                          {req}
+                          <span className="leading-snug">{req}</span>
                         </li>
                       ))
                     ) : (
-                      <li className="text-gray-400 italic">
-                        Tidak ada persyaratan
+                      <li className="text-gray-400 italic">Tidak ada persyaratan</li>
+                    )}
+
+                    {/* ✅ jika lebih dari 3 */}
+                    {remaining > 0 && (
+                      <li className="text-gray-500 text-xs font-semibold">
+                        +{remaining} lainnya
                       </li>
                     )}
                   </ul>

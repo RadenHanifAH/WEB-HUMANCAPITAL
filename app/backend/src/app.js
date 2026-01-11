@@ -14,10 +14,14 @@ const reportsRoutes = require("./modules/reports/reports.routes");
 const messagesRoutes = require("./modules/messages/messages.routes");
 const schedulesRoutes = require("./modules/schedules/schedules.routes");
 const archivesRoutes = require("./modules/archives/archives.routes");
+const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
 
 const app = express();
 
-// ===== Middleware Global =====
+// ✅ 1) cookie parser dulu
+app.use(cookieParser());
+
+// ✅ 2) cors untuk credentials
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -25,16 +29,12 @@ app.use(
   })
 );
 
-// ⛔ JSON hanya untuk non-upload
+// ✅ 3) body parser
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
-// ✅ WAJIB: serve folder uploads
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "uploads"))
-);
+// ✅ serve uploads
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ===== Routes =====
 app.use("/api/auth", authRoutes);
@@ -44,10 +44,8 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/schedules", schedulesRoutes);
 app.use("/api/archives", archivesRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
-
-
-// ===== Default =====
 app.get("/", (req, res) => {
   res.status(200).send("✅ HR Backend Service Running");
 });

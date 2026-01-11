@@ -17,7 +17,7 @@ router.post(
 // admin melihat semua lamaran
 router.get("/", protectRoute, adminRoute, ctrl.getAll);
 
-// ✅ admin update STATUS saja (stage akan otomatis ikut status di service)
+// admin update STATUS saja (stage otomatis ikut status di service)
 router.put("/:id/status", protectRoute, adminRoute, ctrl.updateStatus);
 
 // admin update score
@@ -25,5 +25,8 @@ router.put("/:id/score", protectRoute, adminRoute, ctrl.updateScore);
 
 // user lihat timeline
 router.get("/me/latest", protectRoute, ctrl.getMyLatest);
+
+// user lihat list lamaran dia
+router.get("/me", protectRoute, ctrl.getMyApplications);
 
 module.exports = router;

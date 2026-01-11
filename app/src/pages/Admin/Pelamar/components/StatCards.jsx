@@ -1,12 +1,77 @@
-import React from 'react';
+import React, { useMemo } from "react";
 import { Clock, User, AlertCircle, TrendingUp } from "lucide-react";
 
+const normalizeStatus = (raw) => {
+  const s = String(raw || "").trim();
+  const low = s.toLowerCase();
+
+  if (low === "screaning" || low === "screening" || low === "under-review" || low === "under review")
+    return "Screaning";
+
+  if (low === "interview hc" || low === "interview-hc" || low === "interviewhc")
+    return "Interview HC";
+
+  if (
+    low === "psikotes" ||
+    low === "psikotes/technical test" ||
+    low === "technical test" ||
+    low === "psychotest" ||
+    low === "psycho test"
+  )
+    return "Psikotes/Technical Test";
+
+  if (low === "final interview" || low === "final-interview" || low === "finalinterview")
+    return "Final Interview";
+
+  return s;
+};
+
 const StatCards = ({ applicants }) => {
+  const counts = useMemo(() => {
+    const c = {
+      "Screaning": 0,
+      "Interview HC": 0,
+      "Psikotes/Technical Test": 0,
+      "Final Interview": 0,
+    };
+
+    (applicants || []).forEach((a) => {
+      const st = normalizeStatus(a.status);
+      if (c[st] !== undefined) c[st] += 1;
+    });
+
+    return c;
+  }, [applicants]);
+
   const stats = [
-    { label: "Under Review", count: applicants.filter(a => a.status === "under-review").length, icon: Clock, color: "text-orange-500", sub: "Sedang ditinjau" },
-    { label: "Interview HC", count: applicants.filter(a => a.status === "Interview-HC").length, icon: User, color: "text-blue-500", sub: "Menunggu jadwal" },
-    { label: "Psikotes", count: applicants.filter(a => a.status === "Psikotes").length, icon: AlertCircle, color: "text-purple-500", sub: "Dalam proses" },
-    { label: "Final Interview", count: applicants.filter(a => a.status === "Final Interview").length, icon: TrendingUp, color: "text-green-500", sub: "Tahap akhir" },
+    {
+      label: "Screaning",
+      count: counts["Screaning"],
+      icon: Clock,
+      color: "text-orange-500",
+      sub: "Sedang ditinjau",
+    },
+    {
+      label: "Interview HC",
+      count: counts["Interview HC"],
+      icon: User,
+      color: "text-blue-500",
+      sub: "Menunggu jadwal",
+    },
+    {
+      label: "Psikotes/Technical Test",
+      count: counts["Psikotes/Technical Test"],
+      icon: AlertCircle,
+      color: "text-purple-500",
+      sub: "Dalam proses",
+    },
+    {
+      label: "Final Interview",
+      count: counts["Final Interview"],
+      icon: TrendingUp,
+      color: "text-green-500",
+      sub: "Tahap akhir",
+    },
   ];
 
   return (

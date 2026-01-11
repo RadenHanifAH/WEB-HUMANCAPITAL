@@ -15,6 +15,17 @@ module.exports = {
     });
   },
 
+  findById(id) {
+    return prisma.application.findUnique({
+      where: { id: Number(id) },
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+      },
+    });
+  },
+
   findLatestByUserId(userId) {
     return prisma.application.findFirst({
       where: { userId: Number(userId) },
@@ -24,7 +35,9 @@ module.exports = {
         status: true,
         stage: true,
         appliedAt: true,
-        job: { select: { title: true } },
+        cvUrl: true,
+        portfolioUrl: true,
+        job: { select: { id: true, title: true } },
       },
     });
   },
@@ -41,7 +54,25 @@ module.exports = {
         status: true,
         stage: true,
         appliedAt: true,
-        job: { select: { title: true } },
+        cvUrl: true,
+        portfolioUrl: true,
+        job: { select: { id: true, title: true } },
+      },
+    });
+  },
+
+  findManyByUserId(userId) {
+    return prisma.application.findMany({
+      where: { userId: Number(userId) },
+      orderBy: { appliedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+        appliedAt: true,
+        cvUrl: true,
+        portfolioUrl: true,
+        job: { select: { id: true, title: true } },
       },
     });
   },

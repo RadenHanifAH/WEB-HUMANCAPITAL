@@ -1,14 +1,29 @@
 const prisma = require("../../config/prisma");
 
-function getFinalStatusFromApp(app) {
-  const s = String(app.stage || app.status || "").toLowerCase();
-  if (s.includes("accepted")) return "accepted";
-  if (s.includes("rejected")) return "rejected";
+function detectFinalStatus(app) {
+  const s = String(app.status || "").toLowerCase();
+  const st = String(app.stage || "").toLowerCase();
+
+  // accepted
+  if (
+    s.includes("accept") ||
+    st.includes("accept") ||
+    s.includes("hired") ||
+    st.includes("hired")
+  ) {
+    return "accepted";
+  }
+
+  // rejected
+  if (s.includes("reject") || st.includes("reject")) {
+    return "rejected";
+  }
+
   return null;
 }
 
 module.exports = {
-  // ✅ ambil arsip dari tabel Archive (bukan Application)
+  // ✅ LIST ARCHIVES (join user.profile + job)
   async findArchives({ q, status, page = 1, pageSize = 10 }) {
     const text = (q || "").trim();
     const s = (status || "all").toLowerCase();
@@ -36,18 +51,22 @@ module.exports = {
         orderBy: { decisionDate: "desc" },
         skip,
         take,
+        include: {
+          user: { include: { profile: true } }, // ✅ biar bisa ambil fullName & fotoProfile
+          job: true,
+        },
       }),
     ]);
 
     return { total, items, page: Number(page), pageSize: Number(pageSize) };
   },
 
-  // ✅ Hapus arsip dari tabel Archive
+  // ✅ DELETE 1 ARCHIVE
   async deleteArchiveById(id) {
     return prisma.archive.delete({ where: { id: Number(id) } });
   },
 
-  // ✅ INI YANG BIKIN DATA MASUK KE DB ARCHIVE
+  // ✅ UPSERT archive dari 1 application
   async upsertArchiveFromApplication(applicationId) {
     const app = await prisma.application.findUnique({
       where: { id: Number(applicationId) },
@@ -59,8 +78,8 @@ module.exports = {
 
     if (!app) throw new Error("Application tidak ditemukan");
 
-    const finalStatus = getFinalStatusFromApp(app);
-    if (!finalStatus) return null; // belum accepted/rejected
+    const finalStatus = detectFinalStatus(app);
+    if (!finalStatus) return null;
 
     const data = {
       applicationId: app.id,
@@ -69,7 +88,7 @@ module.exports = {
       applicantName: app.user?.name || "Unknown",
       applicantEmail: app.user?.email || "-",
       position: app.job?.title || "Unknown Position",
-      finalStatus,
+      finalStatus, // accepted / rejected
       decisionDate: app.updatedAt || new Date(),
       notes: app.notes || null,
     };
@@ -81,15 +100,15 @@ module.exports = {
     });
   },
 
-  // ✅ migrasi data lama: tarik semua accepted/rejected dari Application -> Archive
+  // ✅ SYNC semua accepted/rejected dari Application -> Archive (migrasi data lama)
   async syncFromApplications() {
     const apps = await prisma.application.findMany({
       where: {
         OR: [
-          { stage: { contains: "accepted" } },
-          { stage: { contains: "rejected" } },
-          { status: { contains: "accepted" } },
-          { status: { contains: "rejected" } },
+          { status: { contains: "accept", mode: "insensitive" } },
+          { stage: { contains: "accept", mode: "insensitive" } },
+          { status: { contains: "reject", mode: "insensitive" } },
+          { stage: { contains: "reject", mode: "insensitive" } },
         ],
       },
       select: { id: true },
@@ -101,6 +120,96 @@ module.exports = {
       if (row) synced++;
     }
 
-    return { synced };
+    return { totalFound: apps.length, synced };
+  },
+
+  // ============================================================
+  // ✅ NEW: UPDATE SNAPSHOT NAME/EMAIL IN ARCHIVE (ikut profile)
+  // ============================================================
+
+  // ✅ update snapshot hanya untuk archive yang sedang tampil (by ids)
+  async syncSnapshotFromUserProfileByIds(archiveIds = []) {
+    const ids = (Array.isArray(archiveIds) ? archiveIds : [])
+      .map((x) => Number(x))
+      .filter(Boolean);
+
+    if (!ids.length) return { updated: 0 };
+
+    // ambil archive yang diminta + join user & profile
+    const rows = await prisma.archive.findMany({
+      where: { id: { in: ids } },
+      include: { user: { include: { profile: true } } },
+    });
+
+    let updated = 0;
+
+    for (const a of rows) {
+      // target snapshot terbaru
+      const newName =
+        a.user?.profile?.fullName ||
+        a.user?.name ||
+        a.applicantName;
+
+      const newEmail =
+        a.user?.email ||
+        a.applicantEmail;
+
+      const needUpdate =
+        (newName && newName !== a.applicantName) ||
+        (newEmail && newEmail !== a.applicantEmail);
+
+      if (!needUpdate) continue;
+
+      await prisma.archive.update({
+        where: { id: a.id },
+        data: {
+          applicantName: newName || a.applicantName,
+          applicantEmail: newEmail || a.applicantEmail,
+        },
+      });
+
+      updated++;
+    }
+
+    return { updated };
+  },
+
+  // ✅ update snapshot untuk SEMUA archive (kalau kamu mau 1x sync besar)
+  async syncSnapshotAll() {
+    const rows = await prisma.archive.findMany({
+      where: { userId: { not: null } },
+      include: { user: { include: { profile: true } } },
+    });
+
+    let updated = 0;
+
+    for (const a of rows) {
+      const newName =
+        a.user?.profile?.fullName ||
+        a.user?.name ||
+        a.applicantName;
+
+      const newEmail =
+        a.user?.email ||
+        a.applicantEmail;
+
+      const needUpdate =
+        (newName && newName !== a.applicantName) ||
+        (newEmail && newEmail !== a.applicantEmail);
+
+      if (!needUpdate) continue;
+
+      await prisma.archive.update({
+        where: { id: a.id },
+        data: {
+          applicantName: newName || a.applicantName,
+          applicantEmail: newEmail || a.applicantEmail,
+        },
+      });
+
+      updated++;
+    }
+
+    return { totalChecked: rows.length, updated };
   },
 };

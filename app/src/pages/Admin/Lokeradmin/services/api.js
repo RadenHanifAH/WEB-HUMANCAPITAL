@@ -2,14 +2,18 @@ const API_URL = "http://localhost:4000/api/jobs";
 
 export const fetchJobs = async () => {
   try {
-    const res = await fetch(`${API_URL}?limit=9999`); // FIX agar ambil semua data
+    // ✅ ADMIN harus isPublic=false agar tidak difilter status=active
+    const res = await fetch(`${API_URL}?limit=9999&isPublic=false`, {
+      credentials: "include",
+    });
+
     if (!res.ok) return [];
 
     const data = await res.json();
 
     return (data.data || []).map((job) => ({
       ...job,
-      applicants: job.applicants ?? 0,
+      applicants: job.applicants ?? 0, // ✅ ini harusnya sudah dikirim backend
     }));
   } catch (err) {
     console.error("Fetch Error:", err);
@@ -38,6 +42,7 @@ export const deleteJob = async (id) => {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
   });
+
   if (!res.ok) throw new Error("Gagal menghapus lowongan.");
   return res.json();
 };

@@ -4,6 +4,7 @@ import { Mail, Lock, User, Phone, IdCard, Eye, EyeOff } from "lucide-react";
 import Logo from "../../assets/perusahaan1.png";
 import { Link, useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
+import toast from "react-hot-toast"; // ✅ tambah ini
 
 function Daftar() {
   const navigate = useNavigate();
@@ -22,14 +23,12 @@ function Daftar() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
 
-  // --- Validasi password ---
   const validatePassword = (password) => {
     const regex =
       /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[{\]};:'",.<>/?\\|`~]).{8,}$/;
     return regex.test(password);
   };
 
-  // --- Handle perubahan input ---
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
     setFormData((prev) => ({
@@ -39,30 +38,47 @@ function Daftar() {
     if (error) setError("");
   };
 
-  // --- Handle submit form ---
+  // ✅ helper toast style seperti gambar
+  const toastSuccess = (message) =>
+    toast.success(message, {
+      style: { borderLeft: "6px solid #22c55e" }, // hijau
+      iconTheme: { primary: "#22c55e", secondary: "#fff" },
+    });
+
+  const toastError = (message) =>
+    toast.error(message, {
+      style: { borderLeft: "6px solid #ef4444" }, // merah
+      iconTheme: { primary: "#ef4444", secondary: "#fff" },
+    });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     if (!validatePassword(formData.password)) {
-      setError(
-        "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol."
-      );
+      const msg =
+        "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol.";
+      setError(msg);
+      toastError(msg);
       return;
     }
 
     if (formData.password !== formData.konfirmasiPassword) {
-      setError("Konfirmasi password tidak cocok.");
+      const msg = "Konfirmasi password tidak cocok.";
+      setError(msg);
+      toastError(msg);
       return;
     }
 
     if (!formData.setuju) {
-      setError("Anda harus menyetujui pernyataan kebenaran data.");
+      const msg = "Anda harus menyetujui pernyataan kebenaran data.";
+      setError(msg);
+      toastError(msg);
       return;
     }
 
     try {
-      const response = await axiosInstance.post("/auth/register", {
+      await axiosInstance.post("/auth/register", {
         name: formData.nama,
         email: formData.email,
         password: formData.password,
@@ -70,26 +86,25 @@ function Daftar() {
         nomorHp: formData.noHp,
       });
 
-      alert("Pendaftaran berhasil! Silakan login.");
-      console.log("Response:", response.data);
+      // ✅ toast berhasil seperti gambar (muncul tengah atas)
+      toastSuccess("Pendaftaran berhasil! Silakan login.");
 
-      // ✅ Redirect ke halaman login
-      navigate("/login");
+      // ✅ redirect login (kasih jeda biar toast sempat terlihat)
+      setTimeout(() => navigate("/login"), 900);
     } catch (err) {
-      setError(err.response?.data?.message || "Terjadi kesalahan pada server");
+      const msg = err.response?.data?.message || "Terjadi kesalahan pada server";
+      setError(msg);
+      toastError(msg);
     }
   };
 
   return (
     <div className="relative min-h-screen w-full bg-white overflow-hidden">
-      {/* Background gradient blur */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/50 via-blue-400/40 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
       <div className="absolute inset-0 backdrop-blur-md bg-white/30 pointer-events-none" />
 
-      {/* Container utama */}
       <div className="relative flex items-center justify-center min-h-screen py-10">
         <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden m-6 lg:m-8 min-h-[130vh]">
-          {/* Gambar kiri */}
           <div className="hidden lg:flex lg:w-1/2 items-center justify-center bg-white/40 p-10">
             <img
               src={Logo}
@@ -98,13 +113,10 @@ function Daftar() {
             />
           </div>
 
-          {/* Form kanan */}
           <div className="w-full lg:w-1/2 p-6 sm:p-10 flex justify-center items-center">
             <div
               className="w-full max-w-md h-full overflow-y-auto lg:overflow-visible"
-              style={{
-                maxHeight: "calc(120vh - 80px)",
-              }}
+              style={{ maxHeight: "calc(120vh - 80px)" }}
             >
               <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
                 Hai, Selamat Datang!
@@ -253,16 +265,10 @@ function Daftar() {
                     />
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showConfirmPassword ? (
-                        <EyeOff size={18} />
-                      ) : (
-                        <Eye size={18} />
-                      )}
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
@@ -277,17 +283,13 @@ function Daftar() {
                     className="mt-1 accent-sky-700"
                   />
                   <label className="text-sm text-gray-700 leading-snug">
-                    Dengan ini saya menyatakan bahwa seluruh data dan/atau
-                    informasi yang saya sampaikan adalah benar.
+                    Dengan ini saya menyatakan bahwa seluruh data dan/atau informasi yang saya sampaikan adalah benar.
                   </label>
                 </div>
 
-                {/* Error */}
-                {error && (
-                  <p className="text-sm text-red-600 font-medium">{error}</p>
-                )}
+                {/* Error text (tetap boleh tampil di form) */}
+                {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
 
-                {/* Tombol daftar */}
                 <button
                   type="submit"
                   className="w-full px-5 py-2.5 sm:px-6 sm:py-3 
@@ -298,13 +300,9 @@ function Daftar() {
                   Daftar
                 </button>
 
-                {/* Tautan login */}
                 <p className="text-sm text-gray-700 text-center mt-3">
                   Sudah memiliki akun?{" "}
-                  <Link
-                    to="/login"
-                    className="text-sky-800 font-semibold hover:underline"
-                  >
+                  <Link to="/login" className="text-sky-800 font-semibold hover:underline">
                     Masuk disini
                   </Link>
                 </p>

@@ -15,9 +15,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-// =========================================================================
-// IMPORT INTEGRASI BACKEND (SESUAIKAN PATH BERDASARKAN PROJEK ANDA)
-// =========================================================================
 import useAuthStore from "../store/useAuthStore";
 import axiosInstance from "../api/axiosInstance";
 import { fetchJobs } from "./Admin/Lokeradmin/services/api";
@@ -31,30 +28,20 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
   const getPageNumbers = () => {
     const pages = [];
     if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (currentPage > 3) {
-        pages.push("...");
-      }
+      if (currentPage > 3) pages.push("...");
+
       let startPage = Math.max(2, currentPage - 1);
       let endPage = Math.min(totalPages - 1, currentPage + 1);
 
-      if (currentPage <= 3) {
-        endPage = 4;
-      }
-      if (currentPage >= totalPages - 2) {
-        startPage = totalPages - 3;
-      }
+      if (currentPage <= 3) endPage = 4;
+      if (currentPage >= totalPages - 2) startPage = totalPages - 3;
 
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
-      }
-      if (currentPage < totalPages - 2) {
-        pages.push("...");
-      }
+      for (let i = startPage; i <= endPage; i++) pages.push(i);
+
+      if (currentPage < totalPages - 2) pages.push("...");
       pages.push(totalPages);
     }
     return pages;
@@ -79,6 +66,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         >
           <ChevronLeft size={16} />
         </button>
+
         {displayPages.map((page, index) =>
           page === "..." ? (
             <span
@@ -101,6 +89,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
             </button>
           )
         )}
+
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
@@ -125,7 +114,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
 // =========================================================================
 function Lowongan() {
   const locationRouter = useLocation();
-  const { user } = useAuthStore(); // Mengambil status login dari Zustand
+  const { user } = useAuthStore();
 
   const jobsPerPage = 4;
 
@@ -141,9 +130,16 @@ function Lowongan() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [submitting, setSubmitting] = useState(false); // State untuk loading submit
 
+  const [submitting, setSubmitting] = useState(false);
+
+  // ✅ state: user sudah punya lamaran aktif?
+  const [checkingApply, setCheckingApply] = useState(false);
+  const [hasActiveApplication, setHasActiveApplication] = useState(false);
+
+  // ==========================
   // Fetch jobs
+  // ==========================
   useEffect(() => {
     const loadJobs = async () => {
       try {
@@ -151,15 +147,10 @@ function Lowongan() {
         const response = await fetchJobs();
 
         let data = [];
-        if (Array.isArray(response)) {
-          data = response;
-        } else if (response && Array.isArray(response.data)) {
-          data = response.data;
-        }
+        if (Array.isArray(response)) data = response;
+        else if (response && Array.isArray(response.data)) data = response.data;
 
-        // Sorting Descending (Terbaru Pertama)
         const sortedData = data.sort((a, b) => b.id - a.id);
-
         setJobs(sortedData);
       } catch (err) {
         console.error(err);
@@ -170,6 +161,44 @@ function Lowongan() {
     };
     loadJobs();
   }, []);
+
+  // ==========================
+  // ✅ cek apakah user sudah melamar (1x rule)
+  // pakai /applications/me/latest
+  // ==========================
+  useEffect(() => {
+    const checkActiveApplication = async () => {
+      if (!user) {
+        setHasActiveApplication(false);
+        return;
+      }
+
+      setCheckingApply(true);
+      try {
+        const res = await axiosInstance.get("/applications/me/latest");
+        const app = res?.data?.data ?? null;
+
+        // jika ada application dan statusnya belum final => berarti masih aktif
+        // backend kamu juga punya logika active = archive null, tapi di sini minimal: kalau ada data -> anggap sudah melamar.
+        // kalau kamu mau lebih ketat: cek app.status apakah reject/accept
+        if (app) {
+          const s = String(app.status || "").toLowerCase();
+          const isFinal =
+            s.includes("reject") || s.includes("accept") || s.includes("hired");
+          setHasActiveApplication(!isFinal);
+        } else {
+          setHasActiveApplication(false);
+        }
+      } catch {
+        // kalau error 401 / 500 / network error
+        setHasActiveApplication(false);
+      } finally {
+        setCheckingApply(false);
+      }
+    };
+
+    checkActiveApplication();
+  }, [user]);
 
   // Filter lists
   const departments = useMemo(
@@ -188,8 +217,10 @@ function Lowongan() {
   const matchJobType = (jobTypeFilter, jobTypeData) => {
     if (jobTypeFilter === "all") return true;
     if (!jobTypeData) return false;
+
     const filterLower = jobTypeFilter.toLowerCase();
     const dataLower = jobTypeData.toLowerCase();
+
     if (
       filterLower.includes("magang") &&
       (dataLower === "onsite" || dataLower.includes("internship"))
@@ -199,6 +230,7 @@ function Lowongan() {
       return true;
     if (filterLower.includes("kontrak") && dataLower.includes("full-time"))
       return true;
+
     return filterLower === dataLower;
   };
 
@@ -224,9 +256,8 @@ function Lowongan() {
 
   // Safe Find Page
   const findJobPage = (jobId, jobsList) => {
-    if (!jobsList || !Array.isArray(jobsList) || jobsList.length === 0) {
+    if (!jobsList || !Array.isArray(jobsList) || jobsList.length === 0)
       return 1;
-    }
     const index = jobsList.findIndex((job) => job.id === jobId);
     if (index === -1) return 1;
     return Math.ceil((index + 1) / jobsPerPage);
@@ -255,9 +286,8 @@ function Lowongan() {
     }
     if (filteredJobs.length > 0) {
       if (!selectedJob || !filteredJobs.some((j) => j.id === selectedJob.id)) {
-        if (window.innerWidth >= 1024 || !selectedJob) {
+        if (window.innerWidth >= 1024 || !selectedJob)
           setSelectedJob(filteredJobs[0]);
-        }
       }
     } else {
       setSelectedJob(null);
@@ -277,13 +307,12 @@ function Lowongan() {
   const handleCardClick = (job) => {
     setSelectedJob(job);
     setShowDetail(true);
-    if (window.innerWidth < 1024) {
+    if (window.innerWidth < 1024)
       window.scrollTo({ top: 0, behavior: "smooth" });
-    }
   };
 
   // =========================================================================
-  // LOGIKA PENGIRIMAN LAMARAN KE BACKEND
+  // LOGIKA PENGIRIMAN LAMARAN KE BACKEND (1x apply)
   // =========================================================================
   const handleApply = async () => {
     if (!selectedJob) return;
@@ -291,6 +320,14 @@ function Lowongan() {
     // 1. Cek Login
     if (!user) {
       toast.error("Anda harus login untuk melamar pekerjaan ini.");
+      return;
+    }
+
+    // ✅ 1x apply rule
+    if (hasActiveApplication) {
+      toast.error(
+        "Anda tidak dapat melamar lagi. Anda masih memiliki lamaran yang sedang diproses."
+      );
       return;
     }
 
@@ -312,29 +349,42 @@ function Lowongan() {
       const formData = new FormData();
       formData.append("jobId", selectedJob.id);
       formData.append("cv", cvFile);
-      if (portfolioFile) {
-        formData.append("portfolio", portfolioFile);
-      }
+      if (portfolioFile) formData.append("portfolio", portfolioFile);
 
       const response = await axiosInstance.post("/applications/job", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       console.log("Success:", response.data);
       toast.success(`Lamaran untuk ${selectedJob.title} berhasil dikirim!`);
 
+      // ✅ setelah sukses: anggap user punya lamaran aktif
+      setHasActiveApplication(true);
+
       // Reset form
       setCvFile(null);
       setPortfolioFile(null);
-      // Reset input file elements secara visual
       document
         .querySelectorAll('input[type="file"]')
         .forEach((input) => (input.value = ""));
     } catch (err) {
       console.error("Error submitting application:", err);
-      const message = err.response?.data?.message || "Gagal mengirim lamaran";
+
+      // ✅ tangkap error khusus dari backend
+      const code = err?.response?.data?.code;
+      const message = err?.response?.data?.message || "Gagal mengirim lamaran";
+
+      if (
+        code === "ACTIVE_APPLICATION_EXISTS" ||
+        message.toLowerCase().includes("masih memiliki lamaran")
+      ) {
+        setHasActiveApplication(true);
+        toast.error(
+          "Anda tidak dapat melamar lagi. Anda masih memiliki lamaran yang sedang diproses."
+        );
+        return;
+      }
+
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -342,23 +392,19 @@ function Lowongan() {
   };
 
   const renderRequirements = (reqs) => {
-    if (Array.isArray(reqs)) {
+    if (Array.isArray(reqs))
       return reqs.map((req, i) => <li key={i}>{req}</li>);
-    }
-    if (typeof reqs === "string") {
+    if (typeof reqs === "string")
       return reqs
         .split(/\r?\n/)
         .map((req, i) => (req.trim() ? <li key={i}>{req.trim()}</li> : null));
-    }
     return <li>Tidak ada persyaratan spesifik.</li>;
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "Tidak ditentukan";
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return dateString;
-    }
+    if (isNaN(date.getTime())) return dateString;
     return new Intl.DateTimeFormat("id-ID", {
       day: "numeric",
       month: "long",
@@ -423,6 +469,17 @@ function Lowongan() {
         {error}
       </div>
     );
+
+  // ✅ disable apply button jika:
+  // - lowongan closed
+  // - sedang submit
+  // - sedang cek status apply
+  // - user sudah punya lamaran aktif
+  const applyDisabled =
+    selectedJob?.status === "closed" ||
+    submitting ||
+    checkingApply ||
+    hasActiveApplication;
 
   return (
     <div className="px-4 lg:px-[7rem] flex flex-col gap-6 p-4 font-inter">
@@ -498,6 +555,7 @@ function Lowongan() {
               Tidak ada lowongan yang ditemukan.
             </div>
           )}
+
           {filteredJobs.length > jobsPerPage && (
             <Pagination
               currentPage={safeCurrentPage}
@@ -521,7 +579,9 @@ function Lowongan() {
               >
                 <ArrowLeft size={20} /> Kembali ke Daftar Lowongan
               </button>
+
               <h2 className="text-2xl font-bold">{selectedJob.title}</h2>
+
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-2 mb-4 gap-2 sm:gap-0">
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                   <span className="flex items-center gap-1">
@@ -552,7 +612,16 @@ function Lowongan() {
                     : `Deadline: ${formatDate(selectedJob.deadline)}`}
                 </span>
               </div>
+
               <hr className="my-4" />
+
+              {/* ✅ ALERT kalau user sudah punya lamaran aktif */}
+              {user && hasActiveApplication && (
+                <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+                  Anda sudah memiliki lamaran yang sedang diproses. Anda tidak
+                  dapat melamar lagi.
+                </div>
+              )}
 
               <h3 className="font-semibold">Persyaratan:</h3>
               <ul className="list-disc list-inside text-gray-700 mt-2 space-y-1">
@@ -572,7 +641,12 @@ function Lowongan() {
                   <input
                     type="file"
                     accept=".pdf"
-                    disabled={selectedJob.status === "closed" || submitting}
+                    disabled={
+                      selectedJob.status === "closed" ||
+                      submitting ||
+                      checkingApply ||
+                      hasActiveApplication
+                    }
                     onChange={(e) => setCvFile(e.target.files[0])}
                     className="block border border-gray-300 rounded-lg w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -585,7 +659,12 @@ function Lowongan() {
                   <input
                     type="file"
                     accept=".pdf"
-                    disabled={selectedJob.status === "closed" || submitting}
+                    disabled={
+                      selectedJob.status === "closed" ||
+                      submitting ||
+                      checkingApply ||
+                      hasActiveApplication
+                    }
                     onChange={(e) => setPortfolioFile(e.target.files[0])}
                     className="block border border-gray-300 rounded-lg w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -595,15 +674,19 @@ function Lowongan() {
               {/* TOMBOL LAMAR */}
               <button
                 onClick={handleApply}
-                disabled={selectedJob.status === "closed" || submitting}
+                disabled={applyDisabled}
                 className={`mt-6 px-6 py-2 rounded-lg text-white font-medium shadow transition ${
-                  selectedJob.status === "closed" || submitting
+                  applyDisabled
                     ? "bg-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600"
                 }`}
               >
                 {selectedJob.status === "closed"
                   ? "Lowongan Ditutup"
+                  : checkingApply
+                  ? "Mengecek status..."
+                  : hasActiveApplication
+                  ? "Tidak bisa melamar lagi"
                   : submitting
                   ? "Mengirim..."
                   : "Lamar Sekarang"}

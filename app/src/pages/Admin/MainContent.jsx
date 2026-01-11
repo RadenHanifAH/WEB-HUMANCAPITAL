@@ -3,7 +3,6 @@ import Dashboard from "./Dashboard/Dashboard";
 import Lokeradmin from "./Lokeradmin/Lokeradmin";
 import Pelamar from "./Pelamar/Pelamar";
 import Arsip from "./Arsip/index";
-import Acceptance from "../Users/Acceptance";
 import Reports from "./Reports/index";
 import Messages from "./messages/index";
 import Schedule from "./Shedules/index";

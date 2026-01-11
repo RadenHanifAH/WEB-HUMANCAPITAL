@@ -7,13 +7,16 @@ export const formatDate = (dateStr) => {
   const date = new Date(dateToParse);
   if (isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString("id-ID", {
-    day: "2-digit", month: "2-digit", year: "numeric",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 };
 
 export const downloadFileFromUrl = (url, filename) => {
   if (!url) return;
   const finalUrl = url.startsWith("/") ? `http://localhost:4000${url}` : url;
+
   if (finalUrl.startsWith("data:")) {
     const link = document.createElement("a");
     link.href = finalUrl;
@@ -27,12 +30,16 @@ export const downloadFileFromUrl = (url, filename) => {
 };
 
 export const getProgress = (status) => {
+  const s = String(status || "").trim();
+
   const stageProgress = {
-    "under-review": 25, "Interview HC": 50, "Psikotes": 75, "Final Interview": 100, Accepted: 100,
+    Screaning: 25,
+    "Interview HC": 50,
+    "Psikotes/Technical Test": 75,
+    "Final Interview": 100,
+    Accepted: 100,
   };
-  if (status.startsWith("rejected-at-")) {
-    const rejectionStage = status.split("-")[2];
-    return stageProgress[rejectionStage] || 0;
-  }
-  return stageProgress[status] || 0;
+
+  if (s.toLowerCase().startsWith("rejected")) return 100;
+  return stageProgress[s] || 0;
 };

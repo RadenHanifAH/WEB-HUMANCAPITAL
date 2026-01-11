@@ -1,8 +1,16 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { 
-  Search, ClipboardList, Briefcase, Users, ChevronDown, Check,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight 
+import {
+  Search,
+  ClipboardList,
+  Briefcase,
+  Users,
+  ChevronDown,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { Listbox } from "@headlessui/react";
 
@@ -11,7 +19,7 @@ import Create from "./components/Create";
 import ViewJob from "../Lokeradmin/components/ViewJob";
 import JobTable from "../Lokeradmin/components/JobTable";
 import Alert from "../Lokeradmin/components/Alert";
-import ConfirmDelete from "./components/ConfirmDelet"; 
+import ConfirmDelete from "./components/ConfirmDelet";
 import { fetchJobs, saveJob, deleteJob } from "../Lokeradmin/services/api";
 
 function Lokeradmin() {
@@ -21,7 +29,7 @@ function Lokeradmin() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // State Edit & View
   const [selectedJob, setSelectedJob] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -33,7 +41,7 @@ function Lokeradmin() {
 
   // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5; 
+  const itemsPerPage = 5;
 
   // ALERT STATE
   const [alert, setAlert] = useState({
@@ -48,7 +56,7 @@ function Lokeradmin() {
       try {
         setLoading(true);
         const data = await fetchJobs();
-        
+
         if (Array.isArray(data)) {
           // MODIFIKASI DISINI:
           // Urutkan ID dari Besar ke Kecil (b.id - a.id)
@@ -80,10 +88,14 @@ function Lokeradmin() {
 
   // --- LOGIKA FILTER ---
   const filteredJobs = jobs.filter((job) => {
-    const titleMatch = job.title?.toLowerCase().includes(searchTerm.toLowerCase());
-    const deptMatch = job.department?.toLowerCase().includes(searchTerm.toLowerCase());
+    const titleMatch = job.title
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const deptMatch = job.department
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesSearch = titleMatch || deptMatch;
-    
+
     const matchesStatus = statusFilter === "all" || job.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -97,20 +109,42 @@ function Lokeradmin() {
   const getStatusBadge = (status) => {
     switch (status) {
       case "active":
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700">Active</span>;
+        return (
+          <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700">
+            Active
+          </span>
+        );
       case "draft":
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-600">Draft</span>;
+        return (
+          <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-600">
+            Draft
+          </span>
+        );
       case "closed":
-        return <span className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-600">Closed</span>;
+        return (
+          <span className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-600">
+            Closed
+          </span>
+        );
       default:
         return null;
     }
   };
 
   const handleActionSelect = (job, action) => {
-    if (action === "view") { setSelectedJob(job); setIsViewOpen(true); }
-    if (action === "edit") { setSelectedJob(job); setIsEditMode(true); setIsCreateOpen(true); }
-    if (action === "delete") { setJobToDelete(job); setIsDeleteOpen(true); }
+    if (action === "view") {
+      setSelectedJob(job);
+      setIsViewOpen(true);
+    }
+    if (action === "edit") {
+      setSelectedJob(job);
+      setIsEditMode(true);
+      setIsCreateOpen(true);
+    }
+    if (action === "delete") {
+      setJobToDelete(job);
+      setIsDeleteOpen(true);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -118,7 +152,7 @@ function Lokeradmin() {
     try {
       await deleteJob(jobToDelete.id);
       setJobs((prev) => prev.filter((j) => j.id !== jobToDelete.id));
-      
+
       setAlert({
         message: "Lowongan berhasil dihapus!",
         type: "success",
@@ -128,7 +162,6 @@ function Lokeradmin() {
       if (currentJobs.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       }
-
     } catch (err) {
       console.error(err);
       setAlert({
@@ -145,40 +178,40 @@ function Lokeradmin() {
   // --- 2. HANDLE SAVE (DATA BARU DI AWAL & RESET PAGE) ---
   const handleSaveJob = async (jobData) => {
     try {
-      const savedJob = await saveJob(
+      const response = await saveJob(
         jobData,
         isEditMode ? selectedJob?.id : null
       );
 
-      // Fallback ID: Gunakan Date.now() agar ID selalu unik & paling besar (terbaru)
-      const finalJob = { 
-        ...jobData, 
-        ...savedJob, // Prioritas data dari API
-        id: savedJob?.id || Date.now() 
-      };
+      // ✅ backend kamu balikin { success, message, data }
+      const saved = response?.data ?? response;
+
+      if (!saved?.id) {
+        throw new Error("Response API tidak mengembalikan id job.");
+      }
 
       setJobs((prevJobs) => {
         if (isEditMode) {
-          // Jika Edit, update item yang sesuai ID
-          return prevJobs.map((j) => j.id === selectedJob.id ? finalJob : j);
+          // ✅ update berdasarkan id asli dari DB
+          return prevJobs.map((j) =>
+            j.id === saved.id ? { ...j, ...saved } : j
+          );
         } else {
-          // Jika Baru, taruh di PALING ATAS ARRAY (index 0)
-          return [finalJob, ...prevJobs];
+          // ✅ job baru masuk paling atas
+          return [{ ...saved, applicants: saved.applicants ?? 0 }, ...prevJobs];
         }
       });
 
-      // Reset & Close
       setIsCreateOpen(false);
       setIsEditMode(false);
       setSelectedJob(null);
 
-      // PENTING: Paksa pindah ke halaman 1 agar user melihat data yang baru dibuat
-      if (!isEditMode) {
-        setCurrentPage(1);
-      }
+      if (!isEditMode) setCurrentPage(1);
 
       setAlert({
-        message: isEditMode ? "Lowongan berhasil diperbarui!" : "Lowongan berhasil dibuat!",
+        message: isEditMode
+          ? "Lowongan berhasil diperbarui!"
+          : "Lowongan berhasil dibuat!",
         type: "success",
         visible: true,
       });
@@ -199,12 +232,16 @@ function Lokeradmin() {
   };
 
   const getPaginationGroup = () => {
-    const delta = 1; 
+    const delta = 1;
     const range = [];
     const rangeWithDots = [];
 
     for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= currentPage - delta && i <= currentPage + delta)
+      ) {
         range.push(i);
       }
     }
@@ -213,7 +250,7 @@ function Lokeradmin() {
     for (let i of range) {
       if (l) {
         if (i - l === 2) rangeWithDots.push(l + 1);
-        else if (i - l !== 1) rangeWithDots.push('...');
+        else if (i - l !== 1) rangeWithDots.push("...");
       }
       rangeWithDots.push(i);
       l = i;
@@ -241,9 +278,7 @@ function Lokeradmin() {
         onConfirm={handleConfirmDelete}
       />
 
-      <h1 className="text-2xl font-bold text-sky-900 mb-3">
-        Lowongan Kerja
-      </h1>
+      <h1 className="text-2xl font-bold text-sky-900 mb-3">Lowongan Kerja</h1>
 
       {error && (
         <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded shadow-sm">
@@ -256,31 +291,39 @@ function Lokeradmin() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="flex justify-between items-center p-5 border border-gray-200 rounded-xl shadow-sm bg-white hover:shadow-md transition">
           <div>
-            <h3 className="text-sm text-gray-500 font-medium">Total Lowongan</h3>
+            <h3 className="text-sm text-gray-500 font-medium">
+              Total Lowongan
+            </h3>
             <p className="text-3xl font-bold text-gray-800 mt-1">{totalJobs}</p>
           </div>
           <div className="p-3 bg-sky-50 rounded-lg">
-             <ClipboardList className="w-6 h-6 text-sky-600" />
+            <ClipboardList className="w-6 h-6 text-sky-600" />
           </div>
         </div>
 
         <div className="flex justify-between items-center p-5 border border-gray-200 rounded-xl shadow-sm bg-white hover:shadow-md transition">
           <div>
-            <h3 className="text-sm text-gray-500 font-medium">Lowongan Aktif</h3>
-            <p className="text-3xl font-bold text-gray-800 mt-1">{activeJobs}</p>
+            <h3 className="text-sm text-gray-500 font-medium">
+              Lowongan Aktif
+            </h3>
+            <p className="text-3xl font-bold text-gray-800 mt-1">
+              {activeJobs}
+            </p>
           </div>
           <div className="p-3 bg-green-50 rounded-lg">
-             <Briefcase className="w-6 h-6 text-green-600" />
+            <Briefcase className="w-6 h-6 text-green-600" />
           </div>
         </div>
 
         <div className="flex justify-between items-center p-5 border border-gray-200 rounded-xl shadow-sm bg-white hover:shadow-md transition">
           <div>
             <h3 className="text-sm text-gray-500 font-medium">Total Pelamar</h3>
-            <p className="text-3xl font-bold text-gray-800 mt-1">{totalApplicants}</p>
+            <p className="text-3xl font-bold text-gray-800 mt-1">
+              {totalApplicants}
+            </p>
           </div>
           <div className="p-3 bg-purple-50 rounded-lg">
-             <Users className="w-6 h-6 text-purple-600" />
+            <Users className="w-6 h-6 text-purple-600" />
           </div>
         </div>
       </div>
@@ -322,7 +365,9 @@ function Lokeradmin() {
                           }`}
                         >
                           <span>{st === "all" ? "Semua Status" : st}</span>
-                          {selected && <Check className="w-4 h-4 text-sky-600" />}
+                          {selected && (
+                            <Check className="w-4 h-4 text-sky-600" />
+                          )}
                         </div>
                       )}
                     </Listbox.Option>
@@ -349,9 +394,9 @@ function Lokeradmin() {
             Memuat data lowongan...
           </div>
         ) : filteredJobs.length === 0 ? (
-           <div className="text-center py-20 text-gray-500">
-             Data tidak ditemukan.
-           </div>
+          <div className="text-center py-20 text-gray-500">
+            Data tidak ditemukan.
+          </div>
         ) : (
           <>
             <JobTable
@@ -371,23 +416,27 @@ function Lokeradmin() {
                   <ChevronsLeft className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
                   disabled={currentPage === 1}
                   className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                
+
                 <div className="flex gap-1">
                   {getPaginationGroup().map((item, index) => (
                     <button
                       key={index}
-                      onClick={() => typeof item === 'number' && setCurrentPage(item)}
-                      disabled={item === '...'}
+                      onClick={() =>
+                        typeof item === "number" && setCurrentPage(item)
+                      }
+                      disabled={item === "..."}
                       className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                         item === currentPage
                           ? "bg-sky-600 text-white border border-sky-600"
-                          : item === '...'
+                          : item === "..."
                           ? "bg-transparent text-gray-500 cursor-default"
                           : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                       }`}
@@ -398,7 +447,9 @@ function Lokeradmin() {
                 </div>
 
                 <button
-                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 transition-colors"
                 >

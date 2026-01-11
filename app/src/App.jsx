@@ -17,9 +17,10 @@ import Lowongan from "./pages/Lowongan/Index.jsx";
 import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
+import ResetPasswordNew from "./pages/Login/ResetPasswordNew"; // ✅ TAMBAH
 import Admin from "./pages/Admin/Sidebar/Admin.jsx";
 
-import Profile from "./pages/Users/Profile/index.jsx"; // ✔ FIXED
+import Profile from "./pages/Users/Profile/index.jsx";
 
 import useAuthStore from "./store/useAuthStore";
 import { Loader2 } from "lucide-react";
@@ -41,32 +42,33 @@ function Layout() {
     );
   }
 
-  const hideNavbar = [
-    "/login",
-    "/daftar",
-    "/reset-password",
-    "/admin/dashboard",
-  ];
+  // ❗ pakai startsWith supaya /reset-password/:token ikut ter-handle
+  const hideNavbar =
+    location.pathname.startsWith("/login") ||
+    location.pathname.startsWith("/daftar") ||
+    location.pathname.startsWith("/reset") ||
+    location.pathname.startsWith("/reset-password") ||
+    location.pathname.startsWith("/admin/dashboard");
 
-  const hideFooter = [
-    "/login",
-    "/daftar",
-    "/reset-password",
-    "/admin/dashboard",
-  ];
+  const hideFooter =
+    location.pathname.startsWith("/login") ||
+    location.pathname.startsWith("/daftar") ||
+    location.pathname.startsWith("/reset") ||
+    location.pathname.startsWith("/reset-password") ||
+    location.pathname.startsWith("/admin/dashboard");
 
   return (
     <>
       <Toaster position="top-right" />
 
-      {!checkingAuth && !hideNavbar.includes(location.pathname) && <Navbar />}
+      {!checkingAuth && !hideNavbar && <Navbar />}
 
       <Routes>
-        {/* PUBLIC */}
+        {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Home />} />
         <Route path="/lowongan" element={<Lowongan />} />
 
-        {/* AUTH */}
+        {/* ================= AUTH ================= */}
         <Route
           path="/login"
           element={!user ? <Login /> : <Navigate to="/" />}
@@ -77,25 +79,27 @@ function Layout() {
           element={!user ? <Daftar /> : <Navigate to="/" />}
         />
 
-        <Route path="/reset-password" element={<Reset />} />
+        {/* RESET PASSWORD */}
+        <Route path="/reset" element={<Reset />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordNew />} />
 
-        {/* ADMIN */}
+        {/* ================= ADMIN ================= */}
         <Route
           path="/admin/dashboard"
           element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
         />
 
-        {/* USER */}
+        {/* ================= USER ================= */}
         <Route
           path="/profile"
           element={user ? <Profile /> : <Navigate to="/login" />}
         />
 
-        {/* FALLBACK */}
+        {/* ================= FALLBACK ================= */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 
-      {!checkingAuth && !hideFooter.includes(location.pathname) && <Footer />}
+      {!checkingAuth && !hideFooter && <Footer />}
     </>
   );
 }

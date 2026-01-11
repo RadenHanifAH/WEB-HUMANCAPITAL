@@ -1,6 +1,6 @@
 import React from "react";
-import axios from "axios";
 import { FileSpreadsheet } from "lucide-react";
+import axios from "axios";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,30 +18,25 @@ import PositionsCard from "./components/PositionsCard";
 import StatusCard from "./components/StatusCard";
 import ExportButtons from "./components/ExportButtons";
 
+import { useReportsDashboard } from "./hooks/useReportsDashboard";
 import { API_BASE_URL } from "./utils/constants";
 import { downloadBlob, getFilenameFromContentDisposition } from "./utils/download";
-import { useReportsDashboard } from "./hooks/useReportsDashboard";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 export default function ReportsPage() {
-  const {
-    loading,
-    exporting,
-    setExporting,
-    dropdownState,
-    dataState,
-    exportParams,
-  } = useReportsDashboard();
+  const { loading, exporting, setExporting, dropdownState, dataState, exportParams } =
+    useReportsDashboard();
 
-  const {
-    trendPeriod,
-    positionPeriod,
-    statusPeriod,
-    setTrendPeriod,
-    setPositionPeriod,
-    setStatusPeriod,
-  } = dropdownState;
+  const { trendPeriod, setTrendPeriod } = dropdownState;
 
   const {
     trendData,
@@ -51,44 +46,62 @@ export default function ReportsPage() {
     setShowFullPositionList,
   } = dataState;
 
-  const exportReport = async (type) => {
+  /**
+   * ✅ FIX TOTAL:
+   * - type=dashboard: export 3 sheet (trend ikut dropdown, posisi+status tetap monthly)
+   * - type=trend_analytics: export trend saja (period ikut dropdown)
+   * - type=position_analytics: export posisi saja (monthly)
+   * - type=status_analytics: export status saja (monthly)
+   */
+  const exportExcel = async (type) => {
+    if (exporting) return;
+
     setExporting(true);
     try {
-      // EXPORT SEMUA (dashboard)
+      let params = { format: "xlsx" };
+
       if (type === "dashboard") {
-        const response = await axios.get(
-          `${API_BASE_URL}/export?type=dashboard&trendPeriod=${exportParams.trendPeriodId}&positionPeriod=${exportParams.positionPeriodId}&statusPeriod=${exportParams.statusPeriodId}`,
-          { withCredentials: true, responseType: "blob" }
-        );
-
-        const filename = getFilenameFromContentDisposition(
-          response.headers["content-disposition"],
-          `laporan_dashboard_${new Date().toISOString().split("T")[0]}.csv`
-        );
-
-        downloadBlob(response.data, filename);
-        return;
+        params = {
+          ...params,
+          type: "dashboard",
+          trendPeriod: exportParams.trendPeriodId, // ✅ ikut dropdown
+        };
+      } else if (type === "trend_analytics") {
+        params = {
+          ...params,
+          type: "trend_analytics",
+          period: exportParams.trendPeriodId, // ✅ ikut dropdown
+        };
+      } else if (type === "position_analytics") {
+        params = {
+          ...params,
+          type: "position_analytics",
+          period: exportParams.fixedPeriod, // ✅ tetap monthly
+        };
+      } else if (type === "status_analytics") {
+        params = {
+          ...params,
+          type: "status_analytics",
+          period: exportParams.fixedPeriod, // ✅ tetap monthly
+        };
+      } else {
+        params = { ...params, type };
       }
 
-      // EXPORT SINGLE (ikut dropdown masing-masing)
-      let period = exportParams.trendPeriodId;
-      if (type === "position_analytics") period = exportParams.positionPeriodId;
-      if (type === "status_analytics") period = exportParams.statusPeriodId;
-
-      const response = await axios.get(`${API_BASE_URL}/export?type=${type}&period=${period}`, {
+      const res = await axios.get(`${API_BASE_URL}/export`, {
         withCredentials: true,
         responseType: "blob",
+        params,
       });
 
-      const filename = getFilenameFromContentDisposition(
-        response.headers["content-disposition"],
-        `laporan_${type}_${period}_${new Date().toISOString().split("T")[0]}.csv`
-      );
+      const cd = res.headers?.["content-disposition"];
+      const fallback = `laporan_${type}.xlsx`;
+      const filename = getFilenameFromContentDisposition(cd, fallback);
 
-      downloadBlob(response.data, filename);
-    } catch (error) {
-      console.error("Export Error:", error);
-      alert("❌ Gagal export laporan: " + (error.response?.data?.message || error.message));
+      downloadBlob(res.data, filename);
+    } catch (e) {
+      console.error("Export Excel Error:", e);
+      alert("❌ Gagal export Excel: " + (e?.message || "Unknown error"));
     } finally {
       setExporting(false);
     }
@@ -98,41 +111,38 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 font-[Inter] text-gray-900 p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-sky-900 mb-3">Laporan Rekrutmen</h1>
+        <h1 className="text-2xl font-semibold text-sky-900 mb-3">
+          Laporan Rekrutmen
+        </h1>
 
         <button
-          onClick={() => exportReport("dashboard")}
+          onClick={() => exportExcel("dashboard")}
           disabled={exporting}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
           <FileSpreadsheet className="h-4 w-4" />
-          {exporting ? "Menyimpan & Export..." : "Export Semua"}
+          {exporting ? "Menyimpan & Export..." : "Export"}
         </button>
       </div>
 
-      {/* Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrendCard trendPeriod={trendPeriod} setTrendPeriod={setTrendPeriod} trendData={trendData} />
+        <TrendCard
+          trendPeriod={trendPeriod}
+          setTrendPeriod={setTrendPeriod}
+          trendData={trendData}
+        />
 
         <PositionsCard
-          positionPeriod={positionPeriod}
-          setPositionPeriod={setPositionPeriod}
           detailedPositions={detailedPositions}
           showFullPositionList={showFullPositionList}
           setShowFullPositionList={setShowFullPositionList}
         />
 
-        <StatusCard
-          statusPeriod={statusPeriod}
-          setStatusPeriod={setStatusPeriod}
-          acceptanceData={acceptanceData}
-        />
+        <StatusCard acceptanceData={acceptanceData} />
       </div>
 
-      {/* Export single */}
-      <ExportButtons exporting={exporting} onExport={exportReport} />
+      <ExportButtons exporting={exporting} onExport={exportExcel} />
     </div>
   );
 }

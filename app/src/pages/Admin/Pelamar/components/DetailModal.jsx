@@ -13,8 +13,6 @@ import {
   TrendingUp as ScoreIcon,
 } from "lucide-react";
 
-
-
 const toKebab = (val) =>
   String(val || "")
     .trim()
@@ -24,58 +22,82 @@ const toKebab = (val) =>
 const DetailModal = ({ applicant, profile, onClose }) => {
   if (!applicant) return null;
 
-  // ✅ NORMALIZE
   const statusRaw = applicant.status || "";
-  const stageRaw = applicant.stage || ""; // ✅ ambil stage dari application
+  const stageRaw = applicant.stage || "";
+
   const status = toKebab(statusRaw);
   const stage = toKebab(stageRaw);
 
-  // ✅ flow harus konsisten kebab-case
   const stageFlow = [
-    "under-review",
+    "screaning",
     "interview-hc",
     "psikotes",
     "final-interview",
     "offering-final-result",
   ];
 
-  // ✅ Final status
-  const isAccepted =
-    status === "accepted" || status.includes("accept") || stage === "accepted";
+  const isAccepted = status === "accepted" || status.includes("accept");
   const isRejected =
-    status === "rejected" || status.includes("reject") || stage === "rejected";
+    status === "rejected" ||
+    status.includes("reject") ||
+    status.startsWith("rejected-at-");
 
-  const blockedScoreStages = ["under-review", "interview-hc"];
-  const shouldDisplayScore =
-    !blockedScoreStages.includes(status) && !isRejected;
+  // ✅ ambil "stage yang ditolak" dari status rejected-at-xxx
+  const rejectedStageKey = status.startsWith("rejected-at-")
+    ? status.replace("rejected-at-", "").trim()
+    : null;
 
-  // ✅ Tentukan posisi progress berdasarkan STAGE kalau ada,
-  // fallback ke STATUS kalau stage kosong
+  // ✅ index untuk progress normal
   const currentKey = stage || status;
   const currentIndex = stageFlow.indexOf(currentKey);
+
+  // ✅ index untuk rejected (kalau ada rejected-at-xxx)
+  const rejectedIndex = rejectedStageKey
+    ? stageFlow.indexOf(rejectedStageKey)
+    : -1;
+
+  const blockedScoreStages = ["screaning", "interview-hc"];
+  const shouldDisplayScore = !blockedScoreStages.includes(status) && !isRejected;
+
+  const stageLabel = (k) => {
+    if (k === "screaning") return "Screaning";
+    if (k === "interview-hc") return "Interview HC";
+    if (k === "psikotes") return "Psikotes";
+    if (k === "final-interview") return "Final Interview";
+    if (k === "offering-final-result") return "Offering Final Result";
+    return k.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   const getStageIcon = (stageKey) => {
     const idx = stageFlow.indexOf(stageKey);
 
-    // kalau accepted -> semua hijau
-    if (isAccepted) return <CheckCircle className="h-5 w-5 text-green-500" />;
-
-    // kalau rejected -> semua setelah posisi current jadi merah
-    if (isRejected) {
-      if (currentIndex === -1) {
-        // kalau tidak ketemu index, minimal tampilkan abu2
-        return <CheckCircle className="h-5 w-5 text-gray-300" />;
-      }
-      if (idx <= currentIndex) {
-        // sampai tahap terakhir yang dicapai sebelum reject
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      }
-      return <XCircle className="h-5 w-5 text-red-500" />;
+    // ✅ accepted: semua hijau
+    if (isAccepted) {
+      return <CheckCircle className="h-5 w-5 text-green-500" />;
     }
 
-    // normal progress
+    // ✅ rejected: X hanya di stage yang ditolak
+    if (isRejected) {
+      // kalau rejected-at-xxx tidak ketemu, fallback: tidak usah bikin kacau
+      if (rejectedIndex === -1) {
+        // fallback: tampilkan sampai stage terakhir yg ada (pakai currentIndex kalau ketemu)
+        if (currentIndex !== -1 && idx <= currentIndex) {
+          return <CheckCircle className="h-5 w-5 text-green-500" />;
+        }
+        return <CheckCircle className="h-5 w-5 text-gray-300" />;
+      }
+
+      if (idx < rejectedIndex) {
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      }
+      if (idx === rejectedIndex) {
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      }
+      return <CheckCircle className="h-5 w-5 text-gray-300" />;
+    }
+
+    // ✅ normal progress (belum final)
     if (currentIndex === -1) {
-      // kalau stage/status tidak match, tampilkan abu2 (biar tidak salah)
       return <CheckCircle className="h-5 w-5 text-gray-300" />;
     }
 
@@ -97,9 +119,6 @@ const DetailModal = ({ applicant, profile, onClose }) => {
       </div>
     </div>
   );
-
-  const stageLabel = (k) =>
-    k.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-999 p-4 backdrop-blur-sm">
@@ -140,10 +159,9 @@ const DetailModal = ({ applicant, profile, onClose }) => {
 
               <p className="text-gray-600 text-lg mt-1">{applicant.position}</p>
 
-              {/* ✅ debug kecil biar kamu tahu yang dipakai */}
               <p className="text-xs text-gray-400 mt-1">
-                status: <span className="font-semibold">{statusRaw}</span> |
-                stage: <span className="font-semibold">{stageRaw}</span>
+                status: <span className="font-semibold">{statusRaw}</span> | stage:{" "}
+                <span className="font-semibold">{stageRaw}</span>
               </p>
             </div>
           </div>
@@ -171,21 +189,11 @@ const DetailModal = ({ applicant, profile, onClose }) => {
         </div>
 
         {/* INFORMASI PRIBADI */}
-        <h3 className="text-xl font-bold text-gray-900 mt-6">
-          Informasi Pribadi
-        </h3>
+        <h3 className="text-xl font-bold text-gray-900 mt-6">Informasi Pribadi</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <DetailField label="NIK" value={profile?.NIK} icon={Hash} />
-          <DetailField
-            label="Jenis Kelamin"
-            value={profile?.gender}
-            icon={UserCheck}
-          />
-          <DetailField
-            label="Tempat Lahir"
-            value={profile?.tempatLahir}
-            icon={MapPin}
-          />
+          <DetailField label="Jenis Kelamin" value={profile?.gender} icon={UserCheck} />
+          <DetailField label="Tempat Lahir" value={profile?.tempatLahir} icon={MapPin} />
           <DetailField
             label="Tanggal Lahir"
             value={
@@ -195,40 +203,14 @@ const DetailModal = ({ applicant, profile, onClose }) => {
             }
             icon={CalendarDays}
           />
-          <DetailField
-            label="No Handphone"
-            value={profile?.nomorHp}
-            icon={Phone}
-          />
+          <DetailField label="No Handphone" value={profile?.nomorHp} icon={Phone} />
           <DetailField label="Email" value={applicant.email} icon={Mail} />
         </div>
 
-        {/* ALAMAT */}
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-700">Alamat Lengkap</h4>
-          <div className="flex items-start gap-2 text-gray-800">
-            <MapPin className="h-5 w-5 text-sky-600 shrink-0" />
-            <span className="font-medium text-gray-900">
-              {profile?.alamat || "Alamat belum diisi"}
-            </span>
-          </div>
-        </div>
-
-        {/* ABOUT */}
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-bold text-gray-900">Tentang Saya</h3>
-          <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg text-gray-700">
-            {profile?.about || "Pelamar belum mengisi deskripsi diri."}
-          </div>
-        </div>
-
-        {/* PROGRESS & DOKUMEN */}
+        {/* PROGRESS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-200">
           <div>
-            <h3 className="text-md font-bold text-gray-900 mb-4">
-              Progress Seleksi
-            </h3>
-
+            <h3 className="text-md font-bold text-gray-900 mb-4">Progress Seleksi</h3>
             <div className="space-y-3">
               {stageFlow.map((k) => (
                 <div key={k} className="flex items-center gap-3">
@@ -239,10 +221,9 @@ const DetailModal = ({ applicant, profile, onClose }) => {
             </div>
           </div>
 
+          {/* DOKUMEN */}
           <div>
-            <h3 className="text-md font-bold text-gray-900 mb-4">
-              Kelengkapan Dokumen
-            </h3>
+            <h3 className="text-md font-bold text-gray-900 mb-4">Kelengkapan Dokumen</h3>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {profile?.NIK ? (
@@ -269,14 +250,13 @@ const DetailModal = ({ applicant, profile, onClose }) => {
                   <XCircle className="h-5 w-5 text-gray-400" />
                 )}
                 <span>
-                  {applicant?.portfolioUrl
-                    ? "Portofolio Terupload"
-                    : "Belum ada portofolio"}
+                  {applicant?.portfolioUrl ? "Portofolio Terupload" : "Belum ada portofolio"}
                 </span>
               </div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

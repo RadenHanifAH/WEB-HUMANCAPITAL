@@ -1,7 +1,13 @@
-const API_URL = "http://localhost:4000/api/dashboard/data";
+import axiosInstance from "../../../../api/axiosInstance"; 
+// sesuaikan path relatifnya dengan struktur folder kamu
 
 export const fetchDashboardData = async () => {
-  const response = await fetch(API_URL);
-  if (!response.ok) throw new Error(`Gagal memuat data: ${response.statusText}`);
-  return await response.json();
+  // axiosInstance sudah baseURL http://localhost:4000/api
+  const res = await axiosInstance.get("/dashboard/data"); 
+  return res.data;
+};
+
+export const fetchMyProfile = async () => {
+  const res = await axiosInstance.get("/auth/profile"); 
+  return res.data;
 };

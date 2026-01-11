@@ -1,132 +1,93 @@
 const reportsService = require("./reports.service");
 
 class ReportsController {
-  // ✅ Metrics untuk posisi (bisa terima period)
   getRecruitmentMetrics = async (req, res) => {
     try {
       const { period } = req.query;
       const metrics = await reportsService.getOverallMetrics(period || "monthly");
-      res.status(200).json(metrics);
+      return res.status(200).json(metrics);
     } catch (error) {
-      res.status(500).json({
-        message: "Gagal memuat metrik",
-        error: error.message,
-      });
+      return res
+        .status(500)
+        .json({ message: "Gagal memuat metrik", error: error.message });
     }
   };
 
-  // ✅ Chart trend + status (bisa terima period)
   getChartData = async (req, res) => {
     try {
       const { period } = req.query;
       const data = await reportsService.getReportsByPeriod(period || "monthly");
-      res.status(200).json(data);
+      return res.status(200).json(data);
     } catch (error) {
-      res.status(500).json({
-        message: "Gagal memuat chart",
-        error: error.message,
-      });
+      return res
+        .status(500)
+        .json({ message: "Gagal memuat chart", error: error.message });
     }
   };
 
   /**
-   * ✅ Export
-   * - type=trend_analytics | position_analytics | status_analytics
-   *   pakai: ?type=...&period=monthly
-   *
-   * - type=dashboard
-   *   pakai: ?type=dashboard&trendPeriod=weekly&positionPeriod=yearly&statusPeriod=daily
+   * /api/reports/export
+   * - type=dashboard -> 3 sheet (trend + posisi + status)
+   *    trendPeriod = dari dropdown
+   *    posisi/status = default monthly (tetap)
+   * - type=trend_analytics -> 1 sheet trend (period dari dropdown)
+   * - type=position_analytics -> 1 sheet posisi (period default monthly)
+   * - type=status_analytics -> 1 sheet status (period default monthly)
    */
   exportReport = async (req, res) => {
     try {
-      const { type } = req.query;
+      const { type = "dashboard", format = "xlsx" } = req.query;
 
-      const reportType = type || "dashboard";
+      let report;
 
-      let savedReport;
+      if (type === "dashboard") {
+        const { trendPeriod = "monthly" } = req.query;
 
-      if (reportType === "dashboard") {
-        const { trendPeriod, positionPeriod, statusPeriod } = req.query;
-
-        savedReport = await reportsService.saveDashboardSnapshot({
-          trendPeriod: trendPeriod || "monthly",
-          positionPeriod: positionPeriod || "monthly",
-          statusPeriod: statusPeriod || "monthly",
+        // posisi & status dibuat tetap (misal monthly) karena kamu minta tidak ikut dropdown
+        report = await reportsService.buildDashboardExportData({
+          trendPeriod,
+          positionPeriod: "monthly",
+          statusPeriod: "monthly",
         });
       } else {
-        const { period } = req.query;
-        const reportPeriod = period || "monthly";
-        savedReport = await reportsService.saveReportSnapshot(reportPeriod);
+        // single export
+        const { period = "monthly" } = req.query;
+
+        // kamu minta: trend ikut dropdown, posisi/status tetap
+        const finalPeriod =
+          type === "trend_analytics" ? period : "monthly";
+
+        report = await reportsService.buildSingleData({
+          type,
+          period: finalPeriod,
+        });
       }
 
-      const csvData = reportsService.generateCSVData(savedReport, reportType);
+      const today = new Date().toISOString().split("T")[0];
 
-      const filename = `laporan_${reportType}_${new Date()
-        .toISOString()
-        .split("T")[0]}.csv`;
+      if (String(format).toLowerCase() === "xlsx") {
+        const buffer = await reportsService.generateXLSXBuffer(report, type);
 
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.status(200).send("\uFEFF" + csvData);
+        const filename = `laporan_${type}_${today}.xlsx`;
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`
+        );
+        return res.status(200).send(Buffer.from(buffer));
+      }
+
+      return res
+        .status(400)
+        .json({ message: "Format tidak didukung. Pakai format=xlsx" });
     } catch (error) {
       console.error("Export Report Error:", error);
-      res.status(500).json({
-        message: "Gagal export laporan",
-        error: error.message,
-      });
-    }
-  };
-
-  getSavedReports = async (req, res) => {
-    try {
-      const { period } = req.query;
-      const reports = await reportsService.getSavedReports(period);
-
-      res.status(200).json({
-        message: "Daftar laporan tersimpan",
-        count: reports.length,
-        data: reports,
-      });
-    } catch (error) {
-      res.status(500).json({
-        message: "Gagal memuat laporan tersimpan",
-        error: error.message,
-      });
-    }
-  };
-
-  getReportById = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const report = await reportsService.getReportById(id);
-
-      if (!report) {
-        return res.status(404).json({ message: "Laporan tidak ditemukan" });
-      }
-
-      res.status(200).json({
-        message: "Detail laporan",
-        data: report,
-      });
-    } catch (error) {
-      res.status(500).json({
-        message: "Gagal memuat detail laporan",
-        error: error.message,
-      });
-    }
-  };
-
-  deleteReport = async (req, res) => {
-    try {
-      const { id } = req.params;
-      await reportsService.deleteReport(id);
-
-      res.status(200).json({ message: "Laporan berhasil dihapus" });
-    } catch (error) {
-      res.status(500).json({
-        message: "Gagal menghapus laporan",
-        error: error.message,
-      });
+      return res
+        .status(500)
+        .json({ message: "Gagal export laporan", error: error.message });
     }
   };
 }

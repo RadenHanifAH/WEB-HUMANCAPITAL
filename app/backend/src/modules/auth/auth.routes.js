@@ -10,4 +10,8 @@ router.post("/logout", authController.logout);
 router.get("/profile", authMiddleware.protectRoute, authController.getProfile)
 router.put("/profile", authMiddleware.protectRoute, authController.updateProfile)
 
+router.post("/password-reset/request", authController.requestReset);
+router.post("/password-reset/confirm", authController.confirmReset);
+
+
 module.exports = router;

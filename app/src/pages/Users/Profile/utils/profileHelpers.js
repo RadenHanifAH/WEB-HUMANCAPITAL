@@ -16,7 +16,7 @@ export const defaultProfileData = {
     fotoProfile: "",
     about: "",
   },
-  currentStep: "Under Review",
+  currentStep: "Screaning",
   finalStatus: "Pending",
 };
 
@@ -39,9 +39,14 @@ export const toDisplayFormat = (dateStr) => {
   return dateStr;
 };
 
+// ✅ jika user belum melamar => semua pending (abu)
 export const getStepState = (stepName, currentStep, finalStatus, steps) => {
+  if (!currentStep) return "pending";
+
   const currentStepIndex = steps.findIndex((step) => step.name === currentStep);
   const stepIndex = steps.findIndex((step) => step.name === stepName);
+
+  if (currentStepIndex === -1 || stepIndex === -1) return "pending";
 
   if (finalStatus === "Rejected") {
     if (stepIndex < currentStepIndex) return "completed";
@@ -58,18 +63,51 @@ export const getStepState = (stepName, currentStep, finalStatus, steps) => {
   return "pending";
 };
 
-export const getFinalStatusColor = (finalStatus) => {
-  return finalStatus === "Accepted"
-    ? "bg-green-100 text-green-700"
-    : finalStatus === "Rejected"
-    ? "bg-red-100 text-red-700"
-    : "bg-yellow-100 text-yellow-700";
+/**
+ * ✅ Warna badge berdasarkan step (Pending)
+ * Kamu bisa ubah mapping warnanya sesuka kamu
+ */
+export const getStepBadgeColor = (currentStep) => {
+  const step = String(currentStep || "").trim();
+
+  // default kalau kosong / belum melamar
+  if (!step) return "bg-gray-100 text-gray-700";
+
+  switch (step) {
+    case "Screaning":
+      return "bg-orange-100 text-orange-600";
+    case "Interview HC":
+      return "bg-blue-100 text-blue-600";
+    case "Psikotes/technical test":
+      return "bg-purple-100 text-purple-600";
+    case "Final Interview":
+      return "bg-green-100 text-green-600";
+    case "Offering/Final Result":
+      return "bg-teal-100 text-teal-700";
+    default:
+      // kalau ada mismatch nama step
+      return "bg-gray-100 text-gray-700";
+  }
 };
 
+/**
+ * ✅ Class badge final status (Accepted / Rejected / Pending)
+ * - Pending sekarang warnanya mengikuti step
+ */
+export const getFinalStatusColor = (finalStatus, currentStep) => {
+  if (finalStatus === "Accepted") return "bg-green-100 text-green-700";
+  if (finalStatus === "Rejected") return "bg-red-100 text-red-700";
+  return getStepBadgeColor(currentStep); // ✅ pending ikut step
+};
+
+/**
+ * ✅ Text badge kanan atas
+ * - "PROSES" dihilangkan
+ * - jadi langsung "(currentStep)"
+ */
 export const getStatusText = (finalStatus, currentStep) => {
-  return finalStatus === "Accepted"
-    ? "DITERIMA"
-    : finalStatus === "Rejected"
-    ? "DITOLAK"
-    : `PROSES (${currentStep})`;
+  if (finalStatus === "Accepted") return "DITERIMA";
+  if (finalStatus === "Rejected") return "DITOLAK";
+  if (currentStep) return `(${currentStep})`; // ✅ tanpa "PROSES"
+  return "BELUM MELAMAR";
 };

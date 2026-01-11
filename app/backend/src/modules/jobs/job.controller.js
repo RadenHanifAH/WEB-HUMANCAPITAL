@@ -1,3 +1,4 @@
+// src/modules/jobs/job.controller.js
 const jobService = require("./job.service");
 
 const getAllJobs = async (req, res) => {
@@ -10,14 +11,12 @@ const getAllJobs = async (req, res) => {
       type,
       experience,
       education,
-      isPublic = "true", 
-      ...otherFilters
+      isPublic = "true",
     } = req.query;
 
     const filter = {};
-
     if (department) filter.department = department;
-    if (location) filter.location = { contains: location.toLowerCase() };
+    if (location) filter.location = { contains: location };
     if (type) filter.type = type;
     if (experience) filter.experience = experience;
     if (education) filter.education = education;
@@ -26,7 +25,7 @@ const getAllJobs = async (req, res) => {
       filter,
       parseInt(page),
       parseInt(limit),
-      isPublic === "false"
+      isPublic === "true"
     );
 
     res.status(200).json({
@@ -43,10 +42,7 @@ const getAllJobs = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(404).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -61,7 +57,7 @@ const getJobById = async (req, res) => {
       data: job,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(error.statusCode || 404).json({
       success: false,
       message: error.message,
     });
@@ -70,8 +66,7 @@ const getJobById = async (req, res) => {
 
 const createJob = async (req, res) => {
   try {
-    const jobData = req.body;
-    const newJob = await jobService.createJob(jobData);
+    const newJob = await jobService.createJob(req.body);
 
     res.status(201).json({
       success: true,
@@ -79,18 +74,14 @@ const createJob = async (req, res) => {
       data: newJob,
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
 const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
-    const jobData = req.body;
-    const updatedJob = await jobService.updateJob(id, jobData);
+    const updatedJob = await jobService.updateJob(id, req.body);
 
     res.status(200).json({
       success: true,
@@ -98,7 +89,7 @@ const updateJob = async (req, res) => {
       data: updatedJob,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(error.statusCode || 404).json({
       success: false,
       message: error.message,
     });
@@ -116,7 +107,7 @@ const deleteJob = async (req, res) => {
       data: deletedJob,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(error.statusCode || 404).json({
       success: false,
       message: error.message,
     });

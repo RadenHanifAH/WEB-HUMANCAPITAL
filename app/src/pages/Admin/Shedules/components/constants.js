@@ -3,7 +3,7 @@ export const ITEMS_PER_PAGE = 3;
 export const interviewTypes = [
   { value: "InterviewHC", label: "Interview HC" },
   { value: "FinalInterview", label: "Final Interview" },
-  { value: "Psikotes", label: "Psikotes" },
+  { value: "Psikotes", label: "Psikotes/Technical Test" }, // ✅ diubah
 ];
 
 export function getColorsForType(type) {
@@ -25,7 +25,7 @@ export function typeLabel(type) {
   const m = {
     InterviewHC: "Interview HC",
     FinalInterview: "Final Interview",
-    Psikotes: "Psikotes",
+    Psikotes: "Psikotes/Technical Test", // ✅ diubah
   };
   return m[type] || type;
 }

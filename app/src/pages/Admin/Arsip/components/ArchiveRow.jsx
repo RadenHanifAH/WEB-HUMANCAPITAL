@@ -37,13 +37,25 @@ export default function ArchiveRow({ item, onDelete }) {
   const user = item?.user;
   const profile = user?.profile;
 
-  const displayName = user?.name || item?.name || item?.applicantName || "-";
-  const displayEmail = user?.email || item?.email || "-";
+  // ✅ PRIORITAS NAMA: profile.fullName -> item.name -> user.name -> snapshot archive
+  const displayName =
+    profile?.fullName ||
+    item?.name ||
+    user?.name ||
+    item?.applicantName ||
+    "-";
 
-  // ✅ Ambil foto dari profile user (utama), fallback ke item
-  const fotoProfile = profile?.fotoProfile || item?.fotoProfile || null;
+  // ✅ PRIORITAS EMAIL: user.email -> item.email -> snapshot archive
+  const displayEmail =
+    user?.email || item?.email || item?.applicantEmail || "-";
 
-  const positionText = item?.job?.title || item?.position || "-";
+  // ✅ foto dari profile
+  const fotoProfile =
+    profile?.fotoProfile || item?.fotoProfile || null;
+
+  const positionText =
+    item?.job?.title || item?.position || "-";
+
   const decisionDate =
     item?.decisionDate || item?.archivedDate || item?.appliedAt || null;
 

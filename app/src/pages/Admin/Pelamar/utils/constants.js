@@ -3,19 +3,20 @@ export const API_URL_JOBS = "http://localhost:4000/api/jobs";
 
 export const statusOptions = [
   { value: "", label: "Status" },
-  { value: "under-review", label: "Under-Review" },
+  { value: "screaning", label: "Screaning" },
   { value: "interview-hc", label: "Interview HC" },
-  { value: "psikotes", label: "Psikotes" },
+  { value: "psikotes", label: "Psikotes/Technical Test" }, // ✅ label baru
   { value: "final-interview", label: "Final Interview" },
   { value: "accepted", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
 ];
 
 export const stageFlow = [
-  { status: "Under-Review", stage: "under-review" },
-  { status: "interview-hc", stage: "Interview HC" },
-  { status: "psikotes", stage: "Psikotes" },
-  { status: "final-interview", stage: "Final Interview" },
+  { stage: "Screaning" },
+  { stage: "Interview HC" },
+  { stage: "Psikotes/Technical Test" }, // ✅ stage baru di UI
+  { stage: "Final Interview" },
 ];
 
-export const blockedScoreStages = ["under-review", "interview-hc"];
+// ✅ tahap yang tidak boleh isi score
+export const blockedScoreStages = ["screaning", "interview-hc"];

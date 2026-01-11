@@ -1,6 +1,10 @@
 const service = require("./application.service");
 
 module.exports = {
+  // =========================
+  // PELAMAR APPLY
+  // POST /api/applications/job
+  // =========================
   async apply(req, res) {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -18,18 +22,33 @@ module.exports = {
         ? `/uploads/portfolios/${req.files["portfolio"][0].filename}`
         : null;
 
-      const created = await service.applyJob(userId, jobId, cvUrl, portfolioUrl);
+      const result = await service.applyJob(userId, jobId, cvUrl, portfolioUrl);
 
-      res.status(201).json({
+      return res.status(201).json({
         message: "Lamaran berhasil dikirim",
-        data: created,
+        data: result,
       });
     } catch (err) {
       console.error("Apply Error:", err);
-      res.status(500).json({ message: "Gagal mengirim lamaran", error: err.message });
+
+      if (err.code === "ACTIVE_APPLICATION_EXISTS") {
+        return res.status(400).json({
+          message: err.message,
+          active: err.active || null,
+        });
+      }
+
+      return res.status(500).json({
+        message: "Gagal mengirim lamaran",
+        error: err.message,
+      });
     }
   },
 
+  // =========================
+  // ADMIN GET ALL
+  // GET /api/applications
+  // =========================
   async getAll(req, res) {
     try {
       const applications = await service.getAllApplications();
@@ -37,16 +56,13 @@ module.exports = {
       const formattedApplications = applications.map((app) => ({
         id: app.id,
 
-        // User
-        name: app.user.name,
+        name: app.user.profile?.fullName || app.user.name,
         email: app.user.email,
         experience: app.user.experience,
         avatar: app.user.profile?.fotoProfile,
 
-        // Job
         position: app.job.title,
 
-        // Application
         status: app.status,
         stage: app.stage,
         score: app.score,
@@ -57,17 +73,21 @@ module.exports = {
         profile: app.user.profile || null,
       }));
 
-      res.json({ message: "Daftar lamaran", data: formattedApplications });
+      return res.json({ message: "Daftar lamaran", data: formattedApplications });
     } catch (err) {
       console.error("GetAll Error:", err);
-      res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: err.message });
     }
   },
 
-  // ✅ stage akan otomatis ikut status (controller cukup terima status saja)
+  // =========================
+  // ADMIN UPDATE STATUS
+  // PUT /api/applications/:id/status
+  // ✅ stage otomatis mengikuti status di service
+  // =========================
   async updateStatus(req, res) {
     try {
-      const { status } = req.body; // ✅ HANYA status
+      const { status } = req.body;
       const { id } = req.params;
 
       if (!status) {
@@ -76,16 +96,20 @@ module.exports = {
 
       const updated = await service.updateApplicationStatus(id, status);
 
-      res.json({
-        message: "Status lamaran diperbarui",
+      return res.json({
+        message: "Status & stage lamaran diperbarui",
         data: updated,
       });
     } catch (err) {
       console.error("UpdateStatus Error:", err);
-      res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: err.message });
     }
   },
 
+  // =========================
+  // ADMIN UPDATE SCORE
+  // PUT /api/applications/:id/score
+  // =========================
   async updateScore(req, res) {
     try {
       const { score } = req.body;
@@ -93,16 +117,20 @@ module.exports = {
 
       const updated = await service.updateApplicationScore(id, score);
 
-      res.json({
+      return res.json({
         message: "Score lamaran diperbarui",
         data: updated,
       });
     } catch (err) {
       console.error("UpdateScore Error:", err);
-      res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: err.message });
     }
   },
 
+  // =========================
+  // USER TIMELINE
+  // GET /api/applications/me/latest
+  // =========================
   async getMyLatest(req, res) {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -112,11 +140,32 @@ module.exports = {
 
       return res.json({
         message: "Timeline application",
-        data,
+        data: data || null,
       });
     } catch (err) {
       console.error("getMyLatest Error:", err);
-      res.status(500).json({ message: err.message });
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // =========================
+  // USER LIST LAMARAN
+  // GET /api/applications/me
+  // =========================
+  async getMyApplications(req, res) {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+      const userId = req.user.id;
+      const items = await service.getMyApplications(userId);
+
+      return res.json({
+        message: "My applications",
+        data: items,
+      });
+    } catch (err) {
+      console.error("getMyApplications Error:", err);
+      return res.status(500).json({ message: err.message });
     }
   },
 };

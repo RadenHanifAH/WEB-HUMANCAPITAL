@@ -1,20 +1,42 @@
-// src/api/axiosInstance.js
 import axios from "axios";
-import useAuthStore from "../store/useAuthStore";
 
 const axiosInstance = axios.create({
   baseURL: "http://localhost:4000/api",
   withCredentials: true,
-  headers: { "Content-Type": "application/json" },
 });
 
-// Tambahkan interceptor request untuk token
-axiosInstance.interceptors.request.use((config) => {
-  const { user } = useAuthStore.getState(); // ambil user dari store
-  if (user?.token) {
-    config.headers.Authorization = `Bearer ${user.token}`;
+const isExpectedError = (err) => {
+  const status = err?.response?.status;
+  const msg = err?.response?.data?.message;
+
+  // ✅ auth "expected"
+  if (status === 401 && msg === "Unauthorized - No access token provided") return true;
+  if (status === 401 && msg === "Unauthorized - Access token expired") return true;
+  if (status === 401 && msg === "Unauthorized - Invalid access token") return true;
+
+  // ✅ refresh "expected"
+  if (status === 400 && msg === "No refresh token provided") return true;
+
+  // ✅ reset password: email tidak ditemukan (sesuaikan jika message backend beda)
+  if (status === 404 && (msg || "").toLowerCase().includes("email")) return true;
+  if (status === 400 && (msg || "").toLowerCase().includes("email")) return true;
+
+  return false;
+};
+
+axiosInstance.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    // ✅ hanya log error yang benar-benar "unexpected"
+    if (!isExpectedError(err)) {
+      console.log(
+        "API Error:",
+        err?.response?.status,
+        err?.response?.data?.message || err?.message
+      );
+    }
+    return Promise.reject(err);
   }
-  return config;
-});
+);
 
 export default axiosInstance;

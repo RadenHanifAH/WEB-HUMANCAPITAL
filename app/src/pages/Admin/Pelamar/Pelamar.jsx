@@ -20,9 +20,12 @@ import MessageModal from "./components/MessageModal";
 // PENTING: backend akan set stage mengikuti status.
 // Jadi untuk proses seleksi, kirim nama stage persis seperti timeline user.
 const STATUS_TO_BACKEND = {
-  "under-review": "Under Review",
+  screaning: "Screaning",
   "interview-hc": "Interview HC",
+
+  // ✅ walau UI tampil "Psikotes/Technical Test", backend tetap terima "Psikotes"
   psikotes: "Psikotes",
+
   "final-interview": "Final Interview",
   offering: "Offering/Final Result",
   accepted: "Accepted",
@@ -30,8 +33,14 @@ const STATUS_TO_BACKEND = {
 };
 
 function Pelamar() {
-  const { applicants, setApplicants, jobPositions, loading, error, fetchApplicants } =
-    usePelamar();
+  const {
+    applicants,
+    setApplicants,
+    jobPositions,
+    loading,
+    error,
+    fetchApplicants,
+  } = usePelamar();
 
   // Filter
   const [search, setSearch] = useState("");
@@ -62,7 +71,9 @@ function Pelamar() {
         ? a.status === filterStatus.value
         : true;
 
-    const matchPosisi = filterPosisi.value ? a.position === filterPosisi.value : true;
+    const matchPosisi = filterPosisi.value
+      ? a.position === filterPosisi.value
+      : true;
 
     return matchName && matchStatus && matchPosisi;
   });
@@ -71,31 +82,45 @@ function Pelamar() {
   const totalPages = Math.ceil(filteredApplicants.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentApplicants = filteredApplicants.slice(indexOfFirstItem, indexOfLastItem);
+  const currentApplicants = filteredApplicants.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
 
   useEffect(() => {
     setCurrentPage(1);
   }, [search, filterStatus, filterPosisi]);
 
   // ✅ helper update status (tanpa kirim stage!)
-  const updateApplicantStatus = async (applicantId, newStatusForBackend, applicantName) => {
-    const loadingToast = toast.loading(`Memperbarui status ${applicantName}...`);
+  const updateApplicantStatus = async (
+    applicantId,
+    newStatusForBackend,
+    applicantName
+  ) => {
+    const loadingToast = toast.loading(
+      `Memperbarui status ${applicantName}...`
+    );
 
     try {
-      const response = await fetch(`${API_URL_APPLICANTS}/${applicantId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        // ✅ HANYA KIRIM status
-        body: JSON.stringify({ status: newStatusForBackend }),
-      });
+      const response = await fetch(
+        `${API_URL_APPLICANTS}/${applicantId}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          // ✅ HANYA KIRIM status
+          body: JSON.stringify({ status: newStatusForBackend }),
+        }
+      );
 
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`${response.status} - ${text}`);
       }
 
-      toast.success(`Status ${applicantName} berhasil diubah`, { id: loadingToast });
+      toast.success(`Status ${applicantName} berhasil diubah`, {
+        id: loadingToast,
+      });
       fetchApplicants();
     } catch (e) {
       toast.error(`Gagal update status: ${e.message}`, { id: loadingToast });
@@ -107,23 +132,36 @@ function Pelamar() {
     if (!applicant || applicant.status === newStatusValue) return;
 
     // ✅ Konversi value dropdown -> status untuk backend
-    const newStatusForBackend = STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
+    const newStatusForBackend =
+      STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
 
     // accepted/rejected tetap pakai modal (kirim pesan)
     if (newStatusValue === "accepted") {
-      setModalData({ applicant, action: "accept", status: newStatusForBackend });
+      setModalData({
+        applicant,
+        action: "accept",
+        status: newStatusForBackend,
+      });
       setIsMessageModalOpen(true);
       return;
     }
 
     if (newStatusValue === "rejected") {
-      setModalData({ applicant, action: "reject", status: newStatusForBackend });
+      setModalData({
+        applicant,
+        action: "reject",
+        status: newStatusForBackend,
+      });
       setIsMessageModalOpen(true);
       return;
     }
 
     // ✅ status proses langsung update (backend akan set stage = status -> sesuai mapping service)
-    await updateApplicantStatus(applicant.id, newStatusForBackend, applicant.name);
+    await updateApplicantStatus(
+      applicant.id,
+      newStatusForBackend,
+      applicant.name
+    );
   };
 
   // 4) Download Portfolio
@@ -201,7 +239,8 @@ function Pelamar() {
                   const pageNum = i + 1;
                   if (
                     totalPages <= 5 ||
-                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1) ||
+                    (pageNum >= currentPage - 1 &&
+                      pageNum <= currentPage + 1) ||
                     pageNum === 1 ||
                     pageNum === totalPages
                   ) {
@@ -219,7 +258,10 @@ function Pelamar() {
                       </button>
                     );
                   }
-                  if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                  if (
+                    pageNum === currentPage - 2 ||
+                    pageNum === currentPage + 2
+                  ) {
                     return (
                       <span key={pageNum} className="text-gray-400 px-1">
                         ...
@@ -231,7 +273,9 @@ function Pelamar() {
               </div>
 
               <button
-                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
                 disabled={currentPage === totalPages}
                 className="p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sky-900"
               >
