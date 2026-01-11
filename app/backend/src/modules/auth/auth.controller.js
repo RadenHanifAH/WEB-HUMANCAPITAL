@@ -20,7 +20,7 @@ const baseCookieOptions = {
 const setCookies = (res, accessToken, refreshToken) => {
   res.cookie("accessToken", accessToken, {
     ...baseCookieOptions,
-    maxAge: 15 * 60 * 1000,
+    maxAge: 2 * 60 * 60 * 1000,
   });
 
   res.cookie("refreshToken", refreshToken, {
