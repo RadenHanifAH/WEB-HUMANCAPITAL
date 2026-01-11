@@ -1,19 +1,31 @@
-const { parseAstAsync } = require("vite");
 const authService = require("./auth.service");
 
+const isProd = process.env.NODE_ENV === "production";
+
+/**
+ * ✅ Cookie options harus konsisten untuk:
+ * - set cookie (login/register/refresh)
+ * - clear cookie (logout)
+ */
+const baseCookieOptions = {
+  httpOnly: true,
+  secure: isProd, // DEV: false | PROD: true
+  sameSite: isProd ? "none" : "lax",
+  path: "/",
+};
+
+/**
+ * ✅ SATU pintu untuk set cookie
+ */
 const setCookies = (res, accessToken, refreshToken) => {
   res.cookie("accessToken", accessToken, {
-    httpOnly: true, // prevent XSS attacks
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict", // prevent CSRF attacks
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...baseCookieOptions,
+    maxAge: 15 * 60 * 1000,
   });
 
   res.cookie("refreshToken", refreshToken, {
-    httpOnly: true, // prevent XSS attacks
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict", // prevent CSRF attacks
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 15 minutes
+    ...baseCookieOptions,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
@@ -26,19 +38,17 @@ const register = async (req, res) => {
       email,
       password,
       NIK,
-      nomorHp,
+      nomorHp
     );
 
     setCookies(res, accessToken, refreshToken);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "User created successfully",
       user,
     });
   } catch (error) {
-    res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 };
 
@@ -53,71 +63,77 @@ const login = async (req, res) => {
 
     setCookies(res, accessToken, refreshToken);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Login Success",
       user,
     });
   } catch (error) {
-    res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 };
 
 const logout = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     await authService.logout(refreshToken);
 
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+    res.clearCookie("accessToken", baseCookieOptions);
+    res.clearCookie("refreshToken", baseCookieOptions);
 
-    res.json({
+    return res.status(200).json({
       message: "Logged Out Successfully",
     });
   } catch (error) {
-    res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 };
 
 const refreshAccessToken = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
-    const accessToken = await authService.refreshAccessToken(refreshToken);
+    const result = await authService.refreshAccessToken(refreshToken);
+
+    const accessToken =
+      typeof result === "string" ? result : result?.accessToken;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        message: "Failed to refresh access token",
+      });
+    }
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      ...baseCookieOptions,
       maxAge: 15 * 60 * 1000,
     });
 
-    res.json({
+    return res.status(200).json({
       message: "Token refreshed successfully",
     });
   } catch (error) {
-    res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 };
 
 const getProfile = async (req, res) => {
   try {
-    const userId = (req).user.id;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const profile = await authService.getProfile(userId);
+
     return res.status(200).json({
       status: "success",
       message: "Profile fetched successfully",
       data: profile,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "error",
       message: "Failed to fetched profile",
       error: error.message,
@@ -127,18 +143,14 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const data = req.body;
-
-
-    if (data.tanggalLahir) {
-      data.tanggalLahir = new Date(data.tanggalLahir); 
-    }
+    if (data.tanggalLahir) data.tanggalLahir = new Date(data.tanggalLahir);
 
     const updatedProfile = await authService.updateProfile(userId, data);
 
@@ -156,11 +168,50 @@ const updateProfile = async (req, res) => {
   }
 };
 
+/* =========================
+   RESET PASSWORD (UPDATED)
+   ========================= */
+const requestReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email wajib diisi" });
+
+    const result = await authService.requestPasswordReset(email);
+    return res.status(200).json(result);
+  } catch (error) {
+    // ✅ email tidak ada -> 404 (agar frontend masuk catch dan tampil toast merah)
+    if (error.message === "Email tidak ditemukan") {
+      return res.status(404).json({ message: error.message });
+    }
+
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const confirmReset = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Token & password baru wajib diisi" });
+    }
+
+    const result = await authService.confirmPasswordReset(token, newPassword);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
-  refreshAccessToken,
   logout,
+  refreshAccessToken,
   getProfile,
-  updateProfile
+  updateProfile,
+  requestReset,
+  confirmReset,
 };

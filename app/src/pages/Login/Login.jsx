@@ -153,7 +153,7 @@ const handleSubmit = async (e) => {
 
                 <div className="-mt-3 text-right">
                   <Link
-                    to="/reset-password"
+                    to="/reset"
                     className="text-sm font-medium text-sky-800 hover:underline"
                   >
                     Lupa Password?

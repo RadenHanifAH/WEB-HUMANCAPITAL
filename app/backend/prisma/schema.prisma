@@ -43,6 +43,35 @@ enum EducationLevel {
   S3
 }
 
+enum MessageStatus {
+  queued
+  sent
+  failed
+}
+
+enum MessageDirection {
+  outgoing
+  incoming
+}
+
+enum InterviewType {
+  InterviewHC
+  FinalInterview
+  Psikotes
+}
+
+enum ScheduleStatus {
+  scheduled
+  completed
+  canceled
+}
+
+enum ArchiveFinalStatus {
+  hired
+  rejected
+}
+
+
 model User {
   id           Int           @id @default(autoincrement())
   name         String
@@ -50,9 +79,15 @@ model User {
   password     String
   role         Role          @default(pelamar)
   createdAt    DateTime      @default(now())
-
-  profile      Profile?
   applications Application[]
+  profile      Profile?
+
+  messages     Message[]
+  interviewSchedulesCreated InterviewSchedule[] @relation("ScheduleCreatedBy")
+  archives     Archive[]
+
+  resetPasswordTokenHash String?  // simpan hash token
+  resetPasswordExpires   DateTime?
 }
 
 
@@ -66,7 +101,7 @@ model Profile {
   tempatLahir   String?
   tanggalLahir  DateTime?
   alamat        String?
-  fotoProfile   String?
+  fotoProfile   String? @db.LongText
   about         String?
 
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -74,29 +109,145 @@ model Profile {
 
 
 model Job {
-  id             Int             @id @default(autoincrement())
-  title          String
-  department     String?
-  location       String?
-  type           JobType?
-  experience     ExperienceLevel?
-  education      EducationLevel?
-  description    String?
-  requirements   String?
-  deadline       DateTime?
-  status         String          @default("open")
-  createdAt      DateTime        @default(now())
-  applications   Application[]
-}
+  id           Int           @id @default(autoincrement())
+  title        String
+  department   String?
+  location     String?
+  type         JobType?
+  experience   ExperienceLevel?
+  education    EducationLevel?
+  // Gunakan atribut @db.Text agar kapasitasnya besar (65,535 karakter)
+  description  String?       @db.Text 
+  requirements String?       @db.Text
+  deadline     DateTime?
+  status       String        @default("active")
+  createdAt    DateTime      @default(now())
+  applications Application[]
 
+  archives     Archive[]
+}
 model Application {
   id            Int       @id @default(autoincrement())
   userId        Int
   jobId         Int
   cvUrl         String
   portfolioUrl  String?
-  status        String    @default("Under Review")
+  status        String    @default("screaning")
+  stage         String    @default("Screaning")
+  score         Int?
   appliedAt     DateTime  @default(now())
+
   user          User      @relation(fields: [userId], references: [id])
   job           Job       @relation(fields: [jobId], references: [id])
+
+  interviewSchedules InterviewSchedule[]
+  archive       Archive?
+}
+
+model Reports {
+  id                Int       @id @default(autoincrement())
+  period            String
+  startDate         DateTime
+  endDate           DateTime
+  totalApplications Int       @default(0)
+  accepted          Int       @default(0)
+  rejected          Int       @default(0)
+  averageProcessTime Float?
+  conversionRate    Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  positionDetails   Json?
+  chartTrend        Json?
+  chartAcceptance   Json?
+  dashboardMeta     Json?
+}
+
+model Message {
+  id             Int              @id @default(autoincrement())
+
+  userId         Int?
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  recipientName  String?
+  recipientEmail String
+  subject        String
+  body           String           @db.Text
+
+  status         MessageStatus    @default(queued)
+  direction      MessageDirection @default(outgoing)
+
+  provider       String?
+  providerId     String?
+  errorMessage   String?          @db.Text
+
+  sentAt         DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([recipientEmail])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model InterviewSchedule {
+  id            Int            @id @default(autoincrement())
+
+  applicationId Int?
+  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  applicantName String
+  position      String
+
+  type          InterviewType
+  status        ScheduleStatus @default(scheduled)
+
+  dateTime      DateTime
+  durationMin   Int            @default(60)
+  location      String
+  notes         String?        @db.Text
+
+  createdById   Int?
+  createdBy     User?          @relation("ScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  isCompleted   Boolean        @default(false)
+  completedAt   DateTime?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([dateTime])
+  @@index([type])
+  @@index([status])
+  @@index([applicationId])
+}
+
+model Archive {
+  id            Int               @id @default(autoincrement())
+
+  // Relasi ke Application (1 aplikasi maksimal punya 1 arsip)
+  applicationId Int               @unique
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  // Snapshot data (biar arsip tetap tampil walau data lain berubah)
+  userId        Int?
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  jobId         Int?
+  job           Job?              @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  applicantName String
+  applicantEmail String
+  position      String
+
+  finalStatus   String
+  decisionDate  DateTime          @default(now()) // tanggal keputusan/diarsipkan
+
+  notes         String?           @db.Text
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([finalStatus])
+  @@index([decisionDate])
 }
