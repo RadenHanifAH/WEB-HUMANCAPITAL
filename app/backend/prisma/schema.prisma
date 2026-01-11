@@ -251,3 +251,24 @@ model Archive {
   @@index([finalStatus])
   @@index([decisionDate])
 }
+
+model AppSettings {
+  id                       Int      @id @default(autoincrement())
+
+  companyName              String?
+  website                  String?
+  location                 String?
+  timezone                 String?
+
+  systemUpdateEmailEnabled Boolean  @default(true)
+
+  systemVersion            String?  @default("v2.1.0")
+  database                 String?  @default("MySQL")
+
+  lastBackupAt             DateTime?
+  lastBackupFile           String?
+  lastUpdate               String?
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}

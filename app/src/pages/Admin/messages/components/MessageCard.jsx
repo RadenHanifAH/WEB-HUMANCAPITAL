@@ -86,11 +86,6 @@ export default function MessageCard({ msg, onDelete }) {
           <h5 className="font-semibold mb-1">{msg.subject}</h5>
           <p className="text-sm text-gray-600 whitespace-pre-wrap">{msg.body}</p>
 
-          {msg.status === "failed" && msg.errorMessage && (
-            <div className="mt-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md p-2">
-              Error: {msg.errorMessage}
-            </div>
-          )}
         </div>
       </div>
     </div>

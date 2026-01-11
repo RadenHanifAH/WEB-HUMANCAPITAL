@@ -114,16 +114,13 @@ const logout = async (refreshToken) => {
 const refreshAccessToken = async (refreshToken) => {
   if (!refreshToken) throw new Error("No refresh token provided");
 
-  // verify refresh token
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-  // cek token tersimpan di redis
   const storedToken = await redisClient.get(`refresh_token:${decoded.id}`);
   if (!storedToken || storedToken !== refreshToken) {
     throw new Error("Invalid refresh token");
   }
 
-  // ✅ ambil user dari DB supaya email & role valid
   const user = await authRepository.findUserById(decoded.id);
   if (!user) throw new Error("User not found");
 
@@ -155,14 +152,39 @@ const updateProfile = async (userId, data) => {
   return updatedProfile;
 };
 
+/* =========================
+   ✅ CHANGE PASSWORD (LOGIN)
+   ========================= */
+const changePassword = async (userId, currentPassword, newPassword) => {
+  if (!currentPassword || !newPassword) {
+    throw new Error("Password saat ini & password baru wajib diisi");
+  }
+
+  if (newPassword.length < 6) {
+    throw new Error("Password baru minimal 6 karakter");
+  }
+
+  const user = await authRepository.findUserById(userId);
+  if (!user) throw new Error("User tidak ditemukan");
+
+  const ok = await bcrypt.compare(currentPassword, user.password);
+  if (!ok) throw new Error("Password saat ini salah");
+
+  const sameAsOld = await bcrypt.compare(newPassword, user.password);
+  if (sameAsOld) throw new Error("Password baru tidak boleh sama dengan password lama");
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await authRepository.updateUserPassword(userId, hashedPassword);
+
+  return { message: "Password berhasil diganti" };
+};
+
 /* =========================================================
    ✅ RESET PASSWORD (UPDATED)
-   - kalau email tidak ada -> THROW "Email tidak ditemukan"
    ========================================================= */
 const requestPasswordReset = async (email) => {
   const user = await authRepository.findUserByEmail(email);
 
-  // ✅ kamu minta dibedakan:
   if (!user) {
     throw new Error("Email tidak ditemukan");
   }
@@ -182,7 +204,6 @@ const requestPasswordReset = async (email) => {
 const confirmPasswordReset = async (rawToken, newPassword) => {
   if (!rawToken) throw new Error("Token reset wajib diisi");
 
-  // ✅ samakan rule kamu (8 char + uppercase + number + symbol) jika mau
   if (!newPassword || newPassword.length < 6)
     throw new Error("Password minimal 6 karakter");
 
@@ -205,6 +226,11 @@ module.exports = {
   logout,
   getProfile,
   updateProfile,
+
+  // ✅ change password
+  changePassword,
+
+  // reset password
   requestPasswordReset,
   confirmPasswordReset,
 };

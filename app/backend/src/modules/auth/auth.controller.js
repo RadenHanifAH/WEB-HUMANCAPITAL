@@ -169,6 +169,28 @@ const updateProfile = async (req, res) => {
 };
 
 /* =========================
+   ✅ CHANGE PASSWORD (LOGIN)
+   ========================= */
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { currentPassword, newPassword } = req.body;
+
+    const result = await authService.changePassword(
+      userId,
+      currentPassword,
+      newPassword
+    );
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+/* =========================
    RESET PASSWORD (UPDATED)
    ========================= */
 const requestReset = async (req, res) => {
@@ -179,7 +201,6 @@ const requestReset = async (req, res) => {
     const result = await authService.requestPasswordReset(email);
     return res.status(200).json(result);
   } catch (error) {
-    // ✅ email tidak ada -> 404 (agar frontend masuk catch dan tampil toast merah)
     if (error.message === "Email tidak ditemukan") {
       return res.status(404).json({ message: error.message });
     }
@@ -212,6 +233,10 @@ module.exports = {
   refreshAccessToken,
   getProfile,
   updateProfile,
+
+  // ✅ add this
+  changePassword,
+
   requestReset,
   confirmReset,
 };

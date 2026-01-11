@@ -2,10 +2,28 @@ import React, { useEffect, useRef, useState } from "react";
 import { X, Send } from "lucide-react";
 import toast from "react-hot-toast";
 
+const DEFAULT_FORM = { recipientEmail: "", subject: "", body: "" };
+
+// helper: timeout promise
+function withTimeout(promise, ms, timeoutMessage = "Timeout mengirim pesan") {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export default function ComposeDialog({ open, onClose, onSend }) {
-  const [form, setForm] = useState({ recipientEmail: "", subject: "", body: "" });
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [sending, setSending] = useState(false);
   const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // reset ketika dialog dibuka biar bersih
+    setForm(DEFAULT_FORM);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -17,6 +35,11 @@ export default function ComposeDialog({ open, onClose, onSend }) {
 
   if (!open) return null;
 
+  const resetAndClose = () => {
+    setForm(DEFAULT_FORM);
+    onClose?.();
+  };
+
   const submit = async () => {
     if (sending) return;
 
@@ -26,12 +49,27 @@ export default function ComposeDialog({ open, onClose, onSend }) {
     }
 
     setSending(true);
+
     try {
-      await onSend(form);
-      toast.success("Pesan terkirim & tersimpan!");
-      setForm({ recipientEmail: "", subject: "", body: "" });
-      onClose();
+      // ✅ timeout 10 detik (ubah sesuai kebutuhan)
+      const res = await withTimeout(
+        onSend(form),
+        10000,
+        "Gagal mengirim: koneksi terlalu lama (timeout)"
+      );
+
+      // ✅ apapun hasilnya, form harus bersih & dialog ditutup
+      resetAndClose();
+
+      if (res?.ok) {
+        toast.success("Pesan terkirim & tersimpan!");
+      } else {
+        // jika backend return ok:false + data failed
+        toast.error(res?.error || res?.message || "Email tidak ditemukan / gagal terkirim");
+      }
     } catch (e) {
+      // ✅ timeout / error jaringan / error server
+      resetAndClose();
       toast.error(e?.message || "Gagal mengirim pesan");
     } finally {
       setSending(false);
@@ -43,12 +81,14 @@ export default function ComposeDialog({ open, onClose, onSend }) {
       <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-lg font-bold">Tulis Pesan Baru</h2>
-          <button onClick={onClose}>
+          <button onClick={resetAndClose} type="button" disabled={sending}>
             <X className="h-5 w-5 text-gray-500 hover:text-gray-800" />
           </button>
         </div>
 
-        <p className="text-sm text-gray-500 mb-4">Pesan akan disimpan ke database & dikirim ke email.</p>
+        <p className="text-sm text-gray-500 mb-4">
+          Pesan akan disimpan ke database & dikirim ke email.
+        </p>
 
         <div className="space-y-4">
           <div>
@@ -58,9 +98,12 @@ export default function ComposeDialog({ open, onClose, onSend }) {
             <input
               type="email"
               value={form.recipientEmail}
-              onChange={(e) => setForm((p) => ({ ...p, recipientEmail: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, recipientEmail: e.target.value }))
+              }
               placeholder="email@example.com"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+              disabled={sending}
             />
           </div>
 
@@ -74,6 +117,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
               placeholder="Subjek pesan"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+              disabled={sending}
             />
           </div>
 
@@ -87,14 +131,16 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))}
               placeholder="Tulis pesan..."
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none overflow-hidden min-h-20"
+              disabled={sending}
             />
           </div>
 
           <div className="flex justify-end gap-2">
             <button
-              onClick={onClose}
+              onClick={resetAndClose}
               disabled={sending}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-100 transition"
+              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-100 transition disabled:opacity-60"
+              type="button"
             >
               Batal
             </button>
@@ -103,6 +149,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               onClick={submit}
               disabled={sending}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition shadow-lg shadow-gray-400/50 bg-gradient-to-tr from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 disabled:opacity-60"
+              type="button"
             >
               <Send className="h-4 w-4" />
               {sending ? "Mengirim..." : "Kirim"}

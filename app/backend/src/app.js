@@ -15,6 +15,7 @@ const messagesRoutes = require("./modules/messages/messages.routes");
 const schedulesRoutes = require("./modules/schedules/schedules.routes");
 const archivesRoutes = require("./modules/archives/archives.routes");
 const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
+const settingsRoutes = require("./modules/settings/settings.routes");
 
 const app = express();
 
@@ -45,6 +46,8 @@ app.use("/api/messages", messagesRoutes);
 app.use("/api/schedules", schedulesRoutes);
 app.use("/api/archives", archivesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/settings", settingsRoutes); // ✅ DIGABUNG DI SINI
+
 
 app.get("/", (req, res) => {
   res.status(200).send("✅ HR Backend Service Running");

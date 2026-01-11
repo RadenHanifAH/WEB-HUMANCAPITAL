@@ -28,7 +28,8 @@ const normalizeStage = (stage) => {
   if (!s) return null;
 
   // legacy -> new
-  if (s === "under review" || s === "under-review" || s === "screening") return "Screaning";
+  if (s === "under review" || s === "under-review" || s === "screening")
+    return "Screaning";
   if (s === "psikotes") return "Psikotes/technical test";
   if (s.includes("technical")) return "Psikotes/technical test";
 
@@ -88,10 +89,7 @@ const rejectedFinalInterviewGoesToFinalResult = (statusRaw, stageRaw) => {
   const s = String(statusRaw || "").toLowerCase();
   const stage = normalizeStage(stageRaw);
 
-  // jika status reject-at-final-interview
   if (s.startsWith("rejected-at-") && s.includes("final-interview")) return true;
-
-  // fallback kalau backend belum pakai rejected-at tapi stage-nya final interview dan status reject
   if (s.includes("reject") && stage === "Final Interview") return true;
 
   return false;
@@ -130,11 +128,17 @@ const ProfilePage = () => {
   const [myApplications, setMyApplications] = useState([]);
   const [loadingMyApps, setLoadingMyApps] = useState(true);
 
-  // account settings
+  // =========================
+  // ✅ ACCOUNT SETTINGS (FIX)
+  // =========================
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [passwordError, setPasswordError] = useState(null);
 
   // toast
@@ -183,7 +187,10 @@ const ProfilePage = () => {
    *  --------------------------- */
   useEffect(() => {
     if (toast.message) {
-      const timer = setTimeout(() => setToast({ message: null, type: null }), 4500);
+      const timer = setTimeout(
+        () => setToast({ message: null, type: null }),
+        4500
+      );
       return () => clearTimeout(timer);
     }
   }, [toast]);
@@ -288,16 +295,13 @@ const ProfilePage = () => {
   const derivedCurrentStep = useMemo(() => {
     if (!application) return null;
 
-    // ✅ RULE KHUSUS: ditolak di Final Interview -> masuk Final Result
     if (rejectedFinalInterviewGoesToFinalResult(application?.status, application?.stage)) {
       return "Offering/Final Result";
     }
 
-    // ✅ PRIORITAS: kalau status rejected-at-xxx => stop di stage itu
     const rejectedStage = stageFromRejectedStatus(application?.status);
     if (rejectedStage) return rejectedStage;
 
-    // fallback: pakai stage dari backend
     return normalizeStage(application?.stage) || "Screaning";
   }, [application]);
 
@@ -355,9 +359,16 @@ const ProfilePage = () => {
     }
 
     setIsDataPribadiEditable(false);
+
+    // reset pengaturan akun
     setPasswordError(null);
+    setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+
     setError(null);
   };
 
@@ -445,52 +456,75 @@ const ProfilePage = () => {
   };
 
   /** ---------------------------
-   *  Pengaturan Akun
+   *  Pengaturan Akun ✅ FIX: benar-benar ganti password
+   *  Rule: min 8, 1 uppercase, 1 number, 1 symbol
    *  --------------------------- */
   const handleSaveAkun = async () => {
     setPasswordError(null);
     setError(null);
 
-    if (newPassword || confirmPassword) {
-      if (newPassword.length < 6) {
-        setPasswordError("Password minimal 6 karakter!");
-        return;
-      }
+    const wantsChangePassword =
+      currentPassword || newPassword || confirmPassword;
 
-      const hasUpperCase = /[A-Z]/.test(newPassword);
-      const hasNumber = /[0-9]/.test(newPassword);
-      const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-
-      if (!hasUpperCase || !hasNumber || !hasSymbol) {
-        setPasswordError("Password harus mengandung huruf besar, angka, dan simbol!");
-        return;
-      }
-
-      if (newPassword !== confirmPassword) {
-        setPasswordError("Konfirmasi password tidak sama!");
-        return;
-      }
+    if (!wantsChangePassword) {
+      showToast("Tidak ada perubahan yang terdeteksi untuk disimpan.", "error");
+      return;
     }
 
-    const changes = [];
-    if (newPassword) changes.push("Password berhasil diubah.");
-    if (uploadedPhoto) changes.push("Foto Profil berhasil diganti.");
+    // wajib isi current + new + confirm
+    if (!currentPassword) {
+      setPasswordError("Password saat ini wajib diisi!");
+      return;
+    }
 
-    if (changes.length === 0) {
-      showToast("Tidak ada perubahan yang terdeteksi untuk disimpan.", "error");
+    if (!newPassword) {
+      setPasswordError("Password baru wajib diisi!");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError("Password minimal 8 karakter!");
+      return;
+    }
+
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+
+    if (!hasUpperCase || !hasNumber || !hasSymbol) {
+      setPasswordError(
+        "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol."
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Konfirmasi password tidak sama!");
       return;
     }
 
     try {
       setSaving(true);
-      showToast(changes, "success");
+
+      // ✅ PANGGIL BACKEND
+      await axios.put("/auth/change-password", {
+        currentPassword,
+        newPassword,
+      });
+
+      showToast("Password berhasil diubah.", "success");
+
+      // reset form
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setShowCurrentPassword(false);
       setShowNewPassword(false);
       setShowConfirmPassword(false);
+      setPasswordError(null);
     } catch (err) {
-      const msg = err?.response?.data?.message || "Gagal menyimpan Pengaturan Akun.";
-      setError(msg);
+      const msg = err?.response?.data?.message || "Gagal mengubah password.";
+      setPasswordError(msg);
       showToast(msg, "error");
     } finally {
       setSaving(false);
@@ -540,12 +574,17 @@ const ProfilePage = () => {
     if (activeMenu === "Pengaturan Akun") {
       return (
         <PengaturanAkunSection
+          // ✅ NEW PROPS
+          currentPassword={currentPassword}
           newPassword={newPassword}
           confirmPassword={confirmPassword}
+          setCurrentPassword={setCurrentPassword}
           setNewPassword={setNewPassword}
           setConfirmPassword={setConfirmPassword}
+          showCurrentPassword={showCurrentPassword}
           showNewPassword={showNewPassword}
           showConfirmPassword={showConfirmPassword}
+          setShowCurrentPassword={setShowCurrentPassword}
           setShowNewPassword={setShowNewPassword}
           setShowConfirmPassword={setShowConfirmPassword}
           passwordError={passwordError}

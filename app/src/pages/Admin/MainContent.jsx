@@ -6,7 +6,7 @@ import Arsip from "./Arsip/index";
 import Reports from "./Reports/index";
 import Messages from "./messages/index";
 import Schedule from "./Shedules/index";
-import SettingsPage from "../Users/Settings";
+import SettingsPage from "./Settings/Index";
 
 const MainContent = forwardRef(({ activeTab, sidebarWidth }, ref) => (
   <main

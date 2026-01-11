@@ -30,6 +30,16 @@ const updateProfile = async (userId, data) => {
   });
 };
 
+/* =========================
+   ✅ CHANGE PASSWORD helpers
+   ========================= */
+const updateUserPassword = async (userId, hashedPassword) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+};
+
 // reset password helpers
 const saveResetToken = async (userId, tokenHash, expiresAt) => {
   return prisma.user.update({
@@ -68,6 +78,11 @@ module.exports = {
   createUser,
   findUserById,
   updateProfile,
+
+  // ✅ change password
+  updateUserPassword,
+
+  // reset password
   saveResetToken,
   findUserByValidResetTokenHash,
   updatePasswordAndClearReset,

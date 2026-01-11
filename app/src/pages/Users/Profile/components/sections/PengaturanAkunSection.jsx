@@ -1,78 +1,110 @@
-import React from "react";
-import { Save } from "lucide-react";
-import SettingsInput from "../SettingsInput";
+import React, { memo } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
-const PengaturanAkunSection = ({
-  newPassword,
-  confirmPassword,
-  setNewPassword,
-  setConfirmPassword,
-  showNewPassword,
-  showConfirmPassword,
-  setShowNewPassword,
-  setShowConfirmPassword,
-  passwordError,
-  setPasswordError,
-  onSave,
-}) => {
-  const isDisabled =
-    (newPassword === "" && confirmPassword === "") ||
-    (!!newPassword && newPassword !== confirmPassword);
-
+// ✅ letakkan component di luar agar tidak remount tiap ketik
+const PasswordInput = memo(function PasswordInput({
+  label,
+  value,
+  onChange,
+  visible,
+  onToggleVisible,
+}) {
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-      <h3 className="text-xl font-bold text-gray-900">Pengaturan Akun</h3>
-      <p className="text-sm text-gray-500 mt-1 mb-6">Atur password akun</p>
+    <div>
+      <label className="block text-sm font-medium text-gray-600">{label}</label>
 
-      <h4 className="text-lg font-bold text-gray-800 mt-6 mb-4 border-t border-gray-300 pt-4">
-        Ubah Password
-      </h4>
+      <div className="relative mt-1">
+        <input
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="block w-full p-2 pr-10 border border-gray-300 rounded-md"
+          autoComplete="off"
+        />
 
-      {passwordError && (
-        <div className="mb-4 -mt-2 text-red-600 text-sm font-medium p-2 bg-red-50 rounded-lg border border-red-200">
-          {passwordError}
-        </div>
-      )}
-
-      <SettingsInput
-        label="Password Baru"
-        value={newPassword}
-        onChange={(e) => {
-          setNewPassword(e.target.value);
-          if (passwordError) setPasswordError(null);
-        }}
-        customType="password"
-        isPasswordVisible={showNewPassword}
-        showToggle={true}
-        onToggleVisibility={() => setShowNewPassword((prev) => !prev)}
-        readOnly={false}
-      />
-
-      <SettingsInput
-        label="Konfirmasi Password Baru"
-        value={confirmPassword}
-        onChange={(e) => {
-          setConfirmPassword(e.target.value);
-          if (passwordError) setPasswordError(null);
-        }}
-        customType="password"
-        isPasswordVisible={showConfirmPassword}
-        showToggle={true}
-        onToggleVisibility={() => setShowConfirmPassword((prev) => !prev)}
-        readOnly={false}
-      />
-
-      <div className="mt-8 pt-4 border-t border-gray-300">
         <button
-          onClick={onSave}
-          className="w-full sm:w-auto px-6 py-3 text-white font-semibold rounded-lg shadow-xl bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 transition flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
-          disabled={isDisabled}
+          type="button"
+          onClick={onToggleVisible}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+          aria-label={visible ? "Sembunyikan password" : "Tampilkan password"}
         >
-          <Save size={20} className="mr-2" /> Simpan Password
+          {visible ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
       </div>
     </div>
   );
-};
+});
 
-export default PengaturanAkunSection;
+export default function PengaturanAkunSection({
+  currentPassword,
+  newPassword,
+  confirmPassword,
+  setCurrentPassword,
+  setNewPassword,
+  setConfirmPassword,
+  showCurrentPassword,
+  showNewPassword,
+  showConfirmPassword,
+  setShowCurrentPassword,
+  setShowNewPassword,
+  setShowConfirmPassword,
+  passwordError,
+  onSave,
+}) {
+  return (
+    <div className="bg-white rounded-xl shadow-xl p-6 sm:p-8 border border-gray-100">
+      <h2 className="text-lg font-semibold text-gray-800 mb-1">Pengaturan Akun</h2>
+      <p className="text-sm text-gray-500 mb-6">Ubah password akun kamu.</p>
+
+      <div className="space-y-4">
+        <PasswordInput
+          label="Password Saat Ini"
+          value={currentPassword}
+          onChange={setCurrentPassword}
+          visible={showCurrentPassword}
+          onToggleVisible={() => setShowCurrentPassword((v) => !v)}
+        />
+
+        <PasswordInput
+          label="Password Baru"
+          value={newPassword}
+          onChange={setNewPassword}
+          visible={showNewPassword}
+          onToggleVisible={() => setShowNewPassword((v) => !v)}
+        />
+
+        <PasswordInput
+          label="Konfirmasi Password Baru"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          visible={showConfirmPassword}
+          onToggleVisible={() => setShowConfirmPassword((v) => !v)}
+        />
+
+        <div className="text-xs text-gray-500 bg-gray-50 border rounded-md p-3">
+          Password harus mengandung:
+          <ul className="list-disc ml-5 mt-1">
+            <li>Minimal 8 karakter</li>
+            <li>Minimal 1 huruf besar</li>
+            <li>Minimal 1 angka</li>
+            <li>Minimal 1 simbol</li>
+          </ul>
+        </div>
+
+        {passwordError && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+            {passwordError}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onSave}
+          className="mt-2 px-5 py-2 rounded-lg text-white bg-gradient-to-tr from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 shadow"
+        >
+          Simpan Password
+        </button>
+      </div>
+    </div>
+  );
+}

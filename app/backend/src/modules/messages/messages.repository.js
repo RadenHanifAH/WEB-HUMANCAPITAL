@@ -2,7 +2,6 @@ const prisma = require("../../config/prisma");
 
 function buildWhere({ q, status, direction }) {
   const where = {};
-
   if (status) where.status = status;
   if (direction) where.direction = direction;
 
@@ -14,14 +13,12 @@ function buildWhere({ q, status, direction }) {
       { body: { contains: q } },
     ];
   }
-
   return where;
 }
 
 module.exports = {
-  async findMany({ q, status, direction, page, pageSize }) {
+  findMany({ q, status, direction, page, pageSize }) {
     const where = buildWhere({ q, status, direction });
-
     return prisma.message.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -30,28 +27,24 @@ module.exports = {
     });
   },
 
-  async count({ q, status, direction }) {
+  count({ q, status, direction }) {
     const where = buildWhere({ q, status, direction });
     return prisma.message.count({ where });
   },
 
-  async create(data) {
+  create(data) {
     return prisma.message.create({ data });
   },
 
-  async update(id, data) {
-    return prisma.message.update({
-      where: { id },
-      data,
-    });
+  update(id, data) {
+    return prisma.message.update({ where: { id }, data });
   },
 
-  // ✅ tambahan untuk delete
-  async findById(id) {
+  findById(id) {
     return prisma.message.findUnique({ where: { id } });
   },
 
-  async deleteById(id) {
+  deleteById(id) {
     return prisma.message.delete({ where: { id } });
   },
 

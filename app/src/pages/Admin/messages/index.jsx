@@ -2,13 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Search, Send, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
-import {
-  fetchMessages,
-  sendMessage,
-  deleteMessage,
-  deleteAllMessages,
-} from "./services/messages.api";
-
+import { fetchMessages, sendMessage, deleteMessage, deleteAllMessages } from "./services/messages.api";
 import StatusFilter from "./components/StatusFilter";
 import ComposeDialog from "./components/ComposeDialog";
 import MessageCard from "./components/MessageCard";
@@ -21,20 +15,9 @@ export default function MessagesPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
 
-  const [data, setData] = useState({
-    items: [],
-    total: 0,
-    page: 1,
-    pageSize: 4,
-  });
+  const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 4 });
 
-  // ✅ state modal delete
-  const [confirm, setConfirm] = useState({
-    open: false,
-    type: null, // "one" | "all"
-    payload: null, // msg (one) atau {q, status} (all)
-    loading: false,
-  });
+  const [confirm, setConfirm] = useState({ open: false, type: null, payload: null, loading: false });
 
   const load = async ({ page = data.page, pageSize = data.pageSize } = {}) => {
     try {
@@ -59,38 +42,24 @@ export default function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, status]);
 
+  // ✅ reload list setelah send (baik sukses maupun gagal)
   const handleSend = async (form) => {
     const res = await sendMessage(form);
     await load({ page: 1 });
     return res;
   };
 
-  // ✅ buka modal hapus 1
   const handleDeleteOne = (msg) => {
-    setConfirm({
-      open: true,
-      type: "one",
-      payload: msg,
-      loading: false,
-    });
+    setConfirm({ open: true, type: "one", payload: msg, loading: false });
   };
 
-  // ✅ buka modal hapus semua
   const handleDeleteAll = () => {
     if (!data.total) return;
-
-    setConfirm({
-      open: true,
-      type: "all",
-      payload: { q, status },
-      loading: false,
-    });
+    setConfirm({ open: true, type: "all", payload: { q, status }, loading: false });
   };
 
-  // ✅ aksi ketika klik "Hapus" pada modal
   const confirmDelete = async () => {
     setConfirm((s) => ({ ...s, loading: true }));
-
     try {
       if (confirm.type === "one") {
         await deleteMessage(confirm.payload.id);
@@ -99,7 +68,6 @@ export default function MessagesPage() {
         await deleteAllMessages(confirm.payload);
         toast.success("Semua pesan berhasil dihapus");
       }
-
       await load({ page: 1 });
       setConfirm({ open: false, type: null, payload: null, loading: false });
     } catch (e) {
@@ -121,16 +89,11 @@ export default function MessagesPage() {
     }
 
     if (confirm.type === "all") {
-      const filterInfo = [
-        q ? `keyword: "${q}"` : null,
-        status !== "all" ? `status: ${status}` : null,
-      ]
+      const filterInfo = [q ? `keyword: "${q}"` : null, status !== "all" ? `status: ${status}` : null]
         .filter(Boolean)
         .join(", ");
 
-      return `Semua pesan${
-        filterInfo ? ` (${filterInfo})` : ""
-      } akan dihapus permanen.\n\nTindakan ini tidak bisa dibatalkan.`;
+      return `Semua pesan${filterInfo ? ` (${filterInfo})` : ""} akan dihapus permanen.\n\nTindakan ini tidak bisa dibatalkan.`;
     }
 
     return "";
@@ -140,14 +103,10 @@ export default function MessagesPage() {
     <div className="flex flex-col h-full p-6 bg-gray-50">
       <Toaster position="top-center" />
 
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-sky-900 mb-3">
-          Manajemen Pesan
-        </h1>
+        <h1 className="text-2xl font-semibold text-sky-900 mb-3">Manajemen Pesan</h1>
 
         <div className="flex items-center gap-3">
-          {/* ✅ Hapus All */}
           <button
             onClick={handleDeleteAll}
             disabled={loading || data.total === 0}
@@ -169,7 +128,6 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* Search & Filter */}
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -185,14 +143,11 @@ export default function MessagesPage() {
         <StatusFilter value={status} onChange={(v) => setStatus(v)} />
       </div>
 
-      {/* List */}
       <div className="space-y-4 overflow-y-auto flex-1 pb-4">
         {loading ? (
           <div className="p-12 text-center text-gray-500">Loading...</div>
         ) : data.items.length > 0 ? (
-          data.items.map((msg) => (
-            <MessageCard key={msg.id} msg={msg} onDelete={handleDeleteOne} />
-          ))
+          data.items.map((msg) => <MessageCard key={msg.id} msg={msg} onDelete={handleDeleteOne} />)
         ) : (
           <div className="flex flex-col items-center justify-center p-12 text-gray-500">
             <Send className="h-10 w-10 mb-2 text-gray-400" />
@@ -201,7 +156,6 @@ export default function MessagesPage() {
         )}
       </div>
 
-      {/* Pagination simple */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-gray-600">
           Total: <b>{data.total}</b>
@@ -217,9 +171,7 @@ export default function MessagesPage() {
             Prev
           </button>
 
-          <div className="px-3 py-2 text-sm text-gray-700">
-            Page {data.page}
-          </div>
+          <div className="px-3 py-2 text-sm text-gray-700">Page {data.page}</div>
 
           <button
             disabled={data.page * data.pageSize >= data.total || loading}
@@ -232,13 +184,8 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      <ComposeDialog
-        open={composeOpen}
-        onClose={() => setComposeOpen(false)}
-        onSend={handleSend}
-      />
+      <ComposeDialog open={composeOpen} onClose={() => setComposeOpen(false)} onSend={handleSend} />
 
-      {/* ✅ Modal confirm delete */}
       <ConfirmDeleteDialog
         open={confirm.open}
         loading={confirm.loading}
