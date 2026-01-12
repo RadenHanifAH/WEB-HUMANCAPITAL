@@ -13,11 +13,12 @@ import ScrollToTop from "./components/ScrollToTop";
 
 import Home from "./pages/Home";
 import Lowongan from "./pages/Lowongan/Index.jsx";
+import Kontak from "./components/Kontak.jsx";
 
 import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
-import ResetPasswordNew from "./pages/Login/ResetPasswordNew"; // ✅ TAMBAH
+import ResetPasswordNew from "./pages/Login/ResetPasswordNew"; 
 import Admin from "./pages/Admin/Sidebar/Admin.jsx";
 
 import Profile from "./pages/Users/Profile/index.jsx";
@@ -67,6 +68,8 @@ function Layout() {
         {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Home />} />
         <Route path="/lowongan" element={<Lowongan />} />
+        <Route path="/kontak" element={<Kontak />} />
+        
 
         {/* ================= AUTH ================= */}
         <Route

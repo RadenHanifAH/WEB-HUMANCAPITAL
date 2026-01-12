@@ -6,16 +6,15 @@ import {
   FaInstagram,
   FaLinkedin,
 } from "react-icons/fa";
-import Logo from "../assets/logo.png"; // ganti path sesuai lokasi logo kamu
+import { Link } from "react-router-dom"; // ✅ TAMBAH
+import Logo from "../assets/logo.png";
 
 function Footer() {
   return (
-    // Gradien dari Putih ke Biru Muda (blue-200) agar lebih terlihat
     <footer className="bg-gradient-to-b from-white to-blue-300 text-gray-800">
       <div className="container mx-auto px-4 py-12">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          
-          {/* KOLOM 1: Company Info */}
+          {/* KOLOM 1 */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <img src={Logo} alt="Syaamil Group" className="h-10" />
@@ -25,47 +24,61 @@ function Footer() {
             </p>
           </div>
 
-          {/* KOLOM 2: Quick Links */}
+          {/* KOLOM 2 */}
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Tautan Cepat</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#" className="hover:text-sky-600 transition-colors">
+                <Link
+                  to="/lowongan"
+                  className="hover:text-sky-600 transition-colors"
+                >
                   Lowongan Kerja
-                </a>
+                </Link>
               </li>
+
+              {/* ✅ TENTANG KAMI (SCROLL KE ABOUT) */}
               <li>
-                <a href="#" className="hover:text-sky-600 transition-colors">
+                <Link
+                  to="/"
+                  state={{ scrollTo: "about", key: Date.now() }}
+                  className="hover:text-sky-600 transition-colors"
+                >
                   Tentang Kami
-                </a>
+                </Link>
               </li>
+
+              {/* CORE VALUE */}
               <li>
-                <a href="#" className="hover:text-sky-600 transition-colors">
+                <Link
+                  to="/"
+                  state={{ scrollTo: "culture", key: Date.now() }}
+                  className="hover:text-sky-600 transition-colors"
+                >
                   Budaya Kerja
-                </a>
+                </Link>
               </li>
+
               <li>
-                <a href="#" className="hover:text-sky-600 transition-colors">
-                  FAQ
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-sky-600 transition-colors">
+                <a
+                  href="/kontak"
+                  className="hover:text-sky-600 transition-colors"
+                >
                   Kontak
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* KOLOM 3: Contact Info (Head Office) */}
+          {/* KOLOM 3 */}
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Head Office</h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-sky-600 mt-0.5 flex-shrink-0" />
+                <MapPin className="h-4 w-4 text-sky-600 mt-0.5" />
                 <span>
                   Jl. Babakan Sari 1 No.71 <br />
-                  Kiaracondong, Bandung 40283, Jawa Barat, Indonesia
+                  Kiaracondong, Bandung 40283
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -78,49 +91,50 @@ function Footer() {
               </div>
             </div>
           </div>
-          
-          {/* KOLOM 4: Ikon Media Sosial (Rata Kanan) */}
-          <div className="space-y-4 pt-4 lg:pt-0">
-            <h3 className="font-semibold text-lg hidden lg:block invisible">Placeholder</h3> 
-            
-            <div className="flex justify-start lg:justify-end gap-4"> 
-              <a
-                href="#"
-                className="p-2 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors" 
-              >
-                <FaFacebookF className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-2 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
-              >
-                <FaYoutube className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-2 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
-              >
-                <FaInstagram className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-2 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
-              >
-                <FaLinkedin className="h-5 w-5" />
-              </a>
-            </div>
+
+          {/* KOLOM 4 */}
+          {/* KOLOM 4 */}
+          <div className="flex items-center justify-start lg:justify-end gap-4 pt-4">
+            <a
+              href="https://www.facebook.com/SyaamilQuranOfficial/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
+            >
+              <FaFacebookF className="h-5 w-5" />
+            </a>
+
+            <a
+              href="https://www.youtube.com/syaamilquran"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
+            >
+              <FaYoutube className="h-5 w-5" />
+            </a>
+
+            <a
+              href="https://www.instagram.com/syaamil_quran/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
+            >
+              <FaInstagram className="h-5 w-5" />
+            </a>
+
+            <a
+              href="https://www.linkedin.com/company/syaamil-group/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gray-500/50 hover:bg-sky-600 hover:text-white transition-colors"
+            >
+              <FaLinkedin className="h-5 w-5" />
+            </a>
           </div>
-          
         </div>
 
-        {/* Bottom Bar */}
-        <div className="mt-10 pt-10">
-          <div className="flex justify-center items-center text-sm w-full">
-            <p className="text-center text-gray-800">
-              © 2025 <span className="font-semibold">syaamilgroup.id</span> All
-              Rights Reserved.
-            </p>
-          </div>
+        <div className="mt-10 pt-10 text-center text-sm">
+          © 2026 <strong>syaamilgroup.id</strong> All Rights Reserved.
         </div>
       </div>
     </footer>

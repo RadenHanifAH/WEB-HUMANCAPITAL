@@ -16,10 +16,10 @@ function Home() {
       scroller.scrollTo(location.state.scrollTo, {
         smooth: true,
         duration: 500,
-        offset: -80,
+        offset: -80, // sesuaikan tinggi navbar
       });
     }
-  }, [location.state]);
+  }, [location.state?.key]); // ✅ PENTING
 
   return (
     <div id="top">
