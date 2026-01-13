@@ -25,7 +25,7 @@ app.use(cookieParser());
 // ✅ 2) cors untuk credentials
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://web-humancapital.vercel.app/",
     credentials: true,
   })
 );
