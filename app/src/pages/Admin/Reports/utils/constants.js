@@ -1,4 +1,4 @@
-export const API_BASE_URL = "web-humancapital.railway.internal/api/reports";
+export const API_BASE_URL = "web-humancapital-production.up.railway.app/api/reports";
 
 export const periodOptions = [
   { id: "daily", label: "Harian" },

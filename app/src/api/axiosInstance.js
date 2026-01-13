@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "web-humancapital.railway.internal/api",
+  baseURL: "web-humancapital-production.up.railway.app/api",
   withCredentials: true,
 });
 
