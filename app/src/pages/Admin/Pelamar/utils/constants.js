@@ -1,5 +1,5 @@
-export const API_URL_APPLICANTS = "https://web-humancapital-production.up.railway.app/api/applications";
-export const API_URL_JOBS = "https://web-humancapital-production.up.railway.app/api/jobs";
+export const API_URL_APPLICANTS = "http://localhost:4000/api/applications";
+export const API_URL_JOBS = "http://localhost:4000/api/jobs";
 
 export const statusOptions = [
   { value: "", label: "Status" },
