@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "web-humancapital-production.up.railway.app/api/schedules";
+const API = "https://web-humancapital-production.up.railway.app/api/schedules";
 
 export async function fetchSchedules({ date = "", type = "all", page = 1, pageSize = 3 }) {
   const res = await axios.get(API, { params: { date, type, page, pageSize }, withCredentials: true });

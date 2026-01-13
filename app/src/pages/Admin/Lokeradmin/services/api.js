@@ -1,4 +1,4 @@
-const API_URL = "web-humancapital-production.up.railway.app/api/jobs";
+const API_URL = "https://web-humancapital-production.up.railway.app/api/jobs";
 
 export const fetchJobs = async () => {
   try {

@@ -54,7 +54,7 @@ export default function SystemSettings({ showToast }) {
       return;
     }
 
-    const url = `web-humancapital-production.up.railway.app/api/settings/backup/${encodeURIComponent(
+    const url = `https://web-humancapital-production.up.railway.app/api/settings/backup/${encodeURIComponent(
       filename
     )}`;
 

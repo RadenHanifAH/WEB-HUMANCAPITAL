@@ -1,7 +1,7 @@
 // src/services/archives.api.js
 import axios from "axios";
 
-const API_BASE_URL = "web-humancapital-production.up.railway.app/api/archives";
+const API_BASE_URL = "https://web-humancapital-production.up.railway.app/api/archives";
 
 export async function fetchArchives({ q = "", status = "all", page = 1, pageSize = 10 }) {
   const res = await axios.get(API_BASE_URL, {
