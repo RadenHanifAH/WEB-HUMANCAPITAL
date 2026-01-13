@@ -25,10 +25,14 @@ app.use(cookieParser());
 // ✅ 2) cors untuk credentials
 app.use(
   cors({
-    origin: "https://web-humancapital.vercel.app",
+    origin: [
+      "https://web-humancapital.vercel.app",
+      "http://localhost:5173",
+    ],
     credentials: true,
   })
 );
+
 
 // ✅ 3) body parser
 app.use(express.json({ limit: "10mb" }));
