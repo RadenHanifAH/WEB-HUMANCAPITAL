@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://localhost:4000/api/reports";
+export const API_BASE_URL = "web-humancapital.railway.internal/api/reports";
 
 export const periodOptions = [
   { id: "daily", label: "Harian" },
