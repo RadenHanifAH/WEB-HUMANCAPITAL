@@ -5,7 +5,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
     { key: "general", label: "Umum" },
     { key: "profile", label: "Profile" },
     { key: "notifications", label: "Notifikasi" },
-    { key: "system", label: "Sistem" },
   ];
 
   return (
@@ -14,11 +13,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`flex-1 px-4 py-3 transition-colors focus:outline-none ${
-              activeTab === t.key ? "border-b-2 border-sky-600 text-sky-600" : "hover:bg-gray-50"
-            }`}
-            onClick={() => setActiveTab(t.key)}
             type="button"
+            onClick={() => setActiveTab(t.key)}
+            className={`flex-1 px-4 py-3 transition-colors focus:outline-none ${
+              activeTab === t.key
+                ? "border-b-2 border-sky-600 text-sky-600"
+                : "hover:bg-gray-50"
+            }`}
           >
             {t.label}
           </button>

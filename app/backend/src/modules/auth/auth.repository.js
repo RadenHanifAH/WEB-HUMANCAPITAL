@@ -1,3 +1,4 @@
+// src/modules/auth/auth.repository.js
 const prisma = require("../../config/prisma");
 
 const getAllUser = async (filter = {}) => prisma.user.findMany(filter);
@@ -31,8 +32,15 @@ const updateProfile = async (userId, data) => {
 };
 
 /* =========================
-   ✅ CHANGE PASSWORD helpers
+   ✅ SYNC name dari fullName
    ========================= */
+const updateUserName = async (userId, name) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { name },
+  });
+};
+
 const updateUserPassword = async (userId, hashedPassword) => {
   return prisma.user.update({
     where: { id: userId },
@@ -72,18 +80,50 @@ const updatePasswordAndClearReset = async (userId, hashedPassword) => {
   });
 };
 
+/* =========================
+   ✅ OTP Register (Pending)
+   ========================= */
+const upsertPendingRegistration = async (email, data) => {
+  return prisma.pendingRegistration.upsert({
+    where: { email },
+    update: data,
+    create: { email, ...data },
+  });
+};
+
+const findPendingByEmail = async (email) => {
+  return prisma.pendingRegistration.findUnique({ where: { email } });
+};
+
+const incrementPendingAttempt = async (email) => {
+  return prisma.pendingRegistration.update({
+    where: { email },
+    data: { attempts: { increment: 1 } },
+  });
+};
+
+const deletePendingByEmail = async (email) => {
+  return prisma.pendingRegistration.delete({ where: { email } });
+};
+
 module.exports = {
   getAllUser,
   findUserByEmail,
   createUser,
   findUserById,
-  updateProfile,
 
-  // ✅ change password
+  updateProfile,
+  updateUserName, // ✅ TAMBAHAN INI (buat sinkron user.name)
+
   updateUserPassword,
 
-  // reset password
   saveResetToken,
   findUserByValidResetTokenHash,
   updatePasswordAndClearReset,
+
+  // ✅ OTP
+  upsertPendingRegistration,
+  findPendingByEmail,
+  incrementPendingAttempt,
+  deletePendingByEmail,
 };

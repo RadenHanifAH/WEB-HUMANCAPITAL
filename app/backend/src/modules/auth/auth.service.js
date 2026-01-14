@@ -149,6 +149,12 @@ const updateProfile = async (userId, data) => {
   if (!existingUser) throw new Error("Profile not found");
 
   const updatedProfile = await authRepository.updateProfile(userId, data);
+
+  // ✅ AUTO SINKRON NAME
+  if (data.fullName && data.fullName.trim() !== "") {
+    await authRepository.updateUserName(userId, data.fullName.trim());
+  }
+
   return updatedProfile;
 };
 
@@ -171,7 +177,8 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   if (!ok) throw new Error("Password saat ini salah");
 
   const sameAsOld = await bcrypt.compare(newPassword, user.password);
-  if (sameAsOld) throw new Error("Password baru tidak boleh sama dengan password lama");
+  if (sameAsOld)
+    throw new Error("Password baru tidak boleh sama dengan password lama");
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   await authRepository.updateUserPassword(userId, hashedPassword);

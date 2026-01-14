@@ -14,15 +14,31 @@ module.exports = {
 
       if (!jobId) return res.status(400).json({ message: "Job ID wajib dikirim" });
 
-      const cvUrl = req.files?.["cv"]?.[0]
-        ? `/uploads/cvs/${req.files["cv"][0].filename}`
+      // ✅ ambil file dari memory (buffer)
+      const cvFile = req.files?.["cv"]?.[0] || null;
+      const portfolioFile = req.files?.["portfolio"]?.[0] || null;
+
+      if (!cvFile) {
+        return res.status(400).json({ message: "CV wajib diupload (PDF)" });
+      }
+
+      const cvPayload = {
+        data: cvFile.buffer,
+        name: cvFile.originalname,
+        mime: cvFile.mimetype,
+        size: cvFile.size,
+      };
+
+      const portfolioPayload = portfolioFile
+        ? {
+            data: portfolioFile.buffer,
+            name: portfolioFile.originalname,
+            mime: portfolioFile.mimetype,
+            size: portfolioFile.size,
+          }
         : null;
 
-      const portfolioUrl = req.files?.["portfolio"]?.[0]
-        ? `/uploads/portfolios/${req.files["portfolio"][0].filename}`
-        : null;
-
-      const result = await service.applyJob(userId, jobId, cvUrl, portfolioUrl);
+      const result = await service.applyJob(userId, jobId, cvPayload, portfolioPayload);
 
       return res.status(201).json({
         message: "Lamaran berhasil dikirim",
@@ -36,6 +52,10 @@ module.exports = {
           message: err.message,
           active: err.active || null,
         });
+      }
+
+      if (err.code === "CV_REQUIRED") {
+        return res.status(400).json({ message: err.message });
       }
 
       return res.status(500).json({
@@ -67,8 +87,14 @@ module.exports = {
         stage: app.stage,
         score: app.score,
         appliedDate: app.appliedAt,
-        cvUrl: app.cvUrl,
-        portfolioUrl: app.portfolioUrl,
+
+        // ✅ endpoint download
+        cvName: app.cvName || null,
+        portfolioName: app.portfolioName || null,
+        cvDownloadUrl: app.cvName ? `/api/applications/${app.id}/file?type=cv` : null,
+        portfolioDownloadUrl: app.portfolioName
+          ? `/api/applications/${app.id}/file?type=portfolio`
+          : null,
 
         profile: app.user.profile || null,
       }));
@@ -81,18 +107,52 @@ module.exports = {
   },
 
   // =========================
+  // ADMIN DOWNLOAD FILE
+  // GET /api/applications/:id/file?type=cv|portfolio
+  // =========================
+  async downloadFile(req, res) {
+    try {
+      const { id } = req.params;
+      const { type = "cv" } = req.query;
+
+      const app = await service.getApplicationFileById(id);
+      if (!app) return res.status(404).json({ message: "Lamaran tidak ditemukan" });
+
+      let base64, name, mime;
+
+      if (type === "portfolio") {
+        base64 = app.portfolioData;
+        name = app.portfolioName || "portfolio.pdf";
+        mime = app.portfolioMime || "application/pdf";
+      } else {
+        base64 = app.cvData;
+        name = app.cvName || "cv.pdf";
+        mime = app.cvMime || "application/pdf";
+      }
+
+      if (!base64) return res.status(404).json({ message: `File ${type} tidak tersedia` });
+
+      const buffer = Buffer.from(base64, "base64");
+
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+      return res.status(200).send(buffer);
+    } catch (err) {
+      console.error("downloadFile Error:", err);
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // =========================
   // ADMIN UPDATE STATUS
   // PUT /api/applications/:id/status
-  // ✅ stage otomatis mengikuti status di service
   // =========================
   async updateStatus(req, res) {
     try {
       const { status } = req.body;
       const { id } = req.params;
 
-      if (!status) {
-        return res.status(400).json({ message: "status wajib dikirim" });
-      }
+      if (!status) return res.status(400).json({ message: "status wajib dikirim" });
 
       const updated = await service.updateApplicationStatus(id, status);
 

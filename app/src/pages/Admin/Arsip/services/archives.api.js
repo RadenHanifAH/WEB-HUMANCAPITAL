@@ -1,26 +1,28 @@
 // src/services/archives.api.js
-import axios from "axios";
+import axiosInstance from "../../../../api/axiosInstance"; // ✅ sesuaikan path kalau berbeda
 
-const API_BASE_URL = "https://web-humancapital-production.up.railway.app/api/archives";
-
-export async function fetchArchives({ q = "", status = "all", page = 1, pageSize = 10 }) {
-  const res = await axios.get(API_BASE_URL, {
+export async function fetchArchives({
+  q = "",
+  status = "all",
+  page = 1,
+  pageSize = 10,
+}) {
+  const res = await axiosInstance.get("/archives", {
     params: { q, status, page, pageSize },
-    withCredentials: true,
   });
   return res.data;
 }
 
 export async function exportArchivesCSV({ q = "", status = "all" }) {
-  const res = await axios.get(`${API_BASE_URL}/export`, {
+  // ✅ responseType blob untuk download file
+  const res = await axiosInstance.get("/archives/export", {
     params: { q, status },
     responseType: "blob",
-    withCredentials: true,
   });
-  return res;
+  return res; // kamu sebelumnya return res (bukan res.data) -> tetap sama
 }
 
 export async function deleteArchive(id) {
-  const res = await axios.delete(`${API_BASE_URL}/${id}`, { withCredentials: true });
+  const res = await axiosInstance.delete(`/archives/${id}`);
   return res.data;
 }

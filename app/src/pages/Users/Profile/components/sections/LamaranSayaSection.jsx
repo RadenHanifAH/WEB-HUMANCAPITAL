@@ -20,21 +20,19 @@ const getFinalBadge = (statusRaw) => {
   const s = String(statusRaw || "").trim().toLowerCase();
   if (!s) return null;
 
-  // ✅ backend kamu punya rejected-at-xxx -> tetap ditolak
   if (s.includes("reject")) return { text: "DITOLAK", cls: "bg-red-100 text-red-700" };
 
   if (s.includes("accept") || s.includes("hired"))
     return { text: "DITERIMA", cls: "bg-green-100 text-green-700" };
 
-  return null; // belum final
+  return null;
 };
 
 const stageBadgeClass = (stage) => {
   const s = String(stage || "").toLowerCase();
   if (s.includes("screaning")) return "bg-yellow-100 text-yellow-700";
   if (s.includes("interview")) return "bg-blue-100 text-blue-700";
-  if (s.includes("psikotes") || s.includes("technical"))
-    return "bg-purple-100 text-purple-700";
+  if (s.includes("psikotes") || s.includes("technical")) return "bg-purple-100 text-purple-700";
   if (s.includes("final")) return "bg-sky-100 text-sky-700";
   if (s.includes("offering")) return "bg-green-100 text-green-700";
   return "bg-gray-100 text-gray-700";
@@ -69,9 +67,12 @@ export default function LamaranSayaSection({ applications = [] }) {
             const stage = normalizeStage(app?.stage);
             const finalBadge = getFinalBadge(app?.status);
 
-            // ✅ tampilkan DITOLAK/DITERIMA kalau final, kalau tidak final tampilkan stage
             const badgeText = finalBadge?.text ?? stage;
             const badgeClass = finalBadge?.cls ?? stageBadgeClass(stage);
+
+            // ✅ pakai field yang benar dari backend
+            const cvExists = !!(app?.cvDownloadUrl || app?.cvName);
+            const portfolioExists = !!(app?.portfolioDownloadUrl || app?.portfolioName);
 
             return (
               <div
@@ -88,17 +89,55 @@ export default function LamaranSayaSection({ applications = [] }) {
                   </p>
 
                   <div className="mt-3 text-sm text-gray-700 flex gap-6 flex-wrap">
+                    {/* ✅ CV */}
                     <div>
                       <span className="font-semibold">CV:</span>{" "}
-                      {app?.cvUrl ? "Tersimpan" : "—"}
+                      {cvExists ? (
+                        app?.cvDownloadUrl ? (
+                          <a
+                            href={app.cvDownloadUrl}
+                            className="text-sky-700 font-semibold hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Tersimpan
+                          </a>
+                        ) : (
+                          <span className="text-green-700 font-semibold">Tersimpan</span>
+                        )
+                      ) : (
+                        "—"
+                      )}
+                      {app?.cvName ? (
+                        <span className="text-xs text-gray-500 ml-2">({app.cvName})</span>
+                      ) : null}
                     </div>
+
+                    {/* ✅ Portfolio (opsional) */}
                     <div>
                       <span className="font-semibold">Portfolio:</span>{" "}
-                      {app?.portfolioUrl ? "Tersimpan" : "—"}
+                      {portfolioExists ? (
+                        app?.portfolioDownloadUrl ? (
+                          <a
+                            href={app.portfolioDownloadUrl}
+                            className="text-sky-700 font-semibold hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Tersimpan
+                          </a>
+                        ) : (
+                          <span className="text-green-700 font-semibold">Tersimpan</span>
+                        )
+                      ) : (
+                        "—"
+                      )}
+                      {app?.portfolioName ? (
+                        <span className="text-xs text-gray-500 ml-2">({app.portfolioName})</span>
+                      ) : null}
                     </div>
                   </div>
 
-                  {/* opsional: tampilkan stage terakhir kalau ditolak */}
                   {finalBadge?.text === "DITOLAK" && stage !== "-" && (
                     <p className="text-xs text-gray-500 mt-2">
                       Ditolak pada tahap: <span className="font-semibold">{stage}</span>

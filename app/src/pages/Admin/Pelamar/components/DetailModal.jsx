@@ -19,6 +19,26 @@ const toKebab = (val) =>
     .toLowerCase()
     .replace(/\s+/g, "-");
 
+// ✅ helper: cek string ada isi
+const hasValue = (v) => String(v ?? "").trim().length > 0;
+
+// ✅ helper: cek data pribadi lengkap (silakan tambah/kurangi field wajib)
+const isProfileComplete = (p) => {
+  if (!p) return false;
+
+  const required = [
+    p.fullName,
+    p.NIK,
+    p.gender,
+    p.nomorHp,
+    p.tempatLahir,
+    p.tanggalLahir,
+    p.alamat,
+  ];
+
+  return required.every((x) => (x instanceof Date ? !isNaN(x) : hasValue(x)));
+};
+
 const DetailModal = ({ applicant, profile, onClose }) => {
   if (!applicant) return null;
 
@@ -57,7 +77,8 @@ const DetailModal = ({ applicant, profile, onClose }) => {
     : -1;
 
   const blockedScoreStages = ["screaning", "interview-hc"];
-  const shouldDisplayScore = !blockedScoreStages.includes(status) && !isRejected;
+  const shouldDisplayScore =
+    !blockedScoreStages.includes(status) && !isRejected;
 
   const stageLabel = (k) => {
     if (k === "screaning") return "Screaning";
@@ -80,7 +101,6 @@ const DetailModal = ({ applicant, profile, onClose }) => {
     if (isRejected) {
       // kalau rejected-at-xxx tidak ketemu, fallback: tidak usah bikin kacau
       if (rejectedIndex === -1) {
-        // fallback: tampilkan sampai stage terakhir yg ada (pakai currentIndex kalau ketemu)
         if (currentIndex !== -1 && idx <= currentIndex) {
           return <CheckCircle className="h-5 w-5 text-green-500" />;
         }
@@ -170,6 +190,7 @@ const DetailModal = ({ applicant, profile, onClose }) => {
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100"
+              type="button"
             >
               <X className="h-6 w-6" />
             </button>
@@ -189,11 +210,21 @@ const DetailModal = ({ applicant, profile, onClose }) => {
         </div>
 
         {/* INFORMASI PRIBADI */}
-        <h3 className="text-xl font-bold text-gray-900 mt-6">Informasi Pribadi</h3>
+        <h3 className="text-xl font-bold text-gray-900 mt-6">
+          Informasi Pribadi
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <DetailField label="NIK" value={profile?.NIK} icon={Hash} />
-          <DetailField label="Jenis Kelamin" value={profile?.gender} icon={UserCheck} />
-          <DetailField label="Tempat Lahir" value={profile?.tempatLahir} icon={MapPin} />
+          <DetailField
+            label="Jenis Kelamin"
+            value={profile?.gender}
+            icon={UserCheck}
+          />
+          <DetailField
+            label="Tempat Lahir"
+            value={profile?.tempatLahir}
+            icon={MapPin}
+          />
           <DetailField
             label="Tanggal Lahir"
             value={
@@ -203,14 +234,20 @@ const DetailModal = ({ applicant, profile, onClose }) => {
             }
             icon={CalendarDays}
           />
-          <DetailField label="No Handphone" value={profile?.nomorHp} icon={Phone} />
+          <DetailField
+            label="No Handphone"
+            value={profile?.nomorHp}
+            icon={Phone}
+          />
           <DetailField label="Email" value={applicant.email} icon={Mail} />
         </div>
 
         {/* PROGRESS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-200">
           <div>
-            <h3 className="text-md font-bold text-gray-900 mb-4">Progress Seleksi</h3>
+            <h3 className="text-md font-bold text-gray-900 mb-4">
+              Progress Seleksi
+            </h3>
             <div className="space-y-3">
               {stageFlow.map((k) => (
                 <div key={k} className="flex items-center gap-3">
@@ -223,10 +260,14 @@ const DetailModal = ({ applicant, profile, onClose }) => {
 
           {/* DOKUMEN */}
           <div>
-            <h3 className="text-md font-bold text-gray-900 mb-4">Kelengkapan Dokumen</h3>
+            <h3 className="text-md font-bold text-gray-900 mb-4">
+              Kelengkapan Dokumen
+            </h3>
+
             <div className="space-y-3">
+              {/* ✅ DATA PRIBADI */}
               <div className="flex items-center gap-3">
-                {profile?.NIK ? (
+                {isProfileComplete(profile) ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />
                 ) : (
                   <XCircle className="h-5 w-5 text-red-500" />
@@ -234,8 +275,9 @@ const DetailModal = ({ applicant, profile, onClose }) => {
                 <span>Data Pribadi Lengkap</span>
               </div>
 
+              {/* ✅ CV (WAJIB) */}
               <div className="flex items-center gap-3">
-                {applicant?.cvUrl ? (
+                {applicant?.cvDownloadUrl ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />
                 ) : (
                   <XCircle className="h-5 w-5 text-red-500" />
@@ -243,20 +285,23 @@ const DetailModal = ({ applicant, profile, onClose }) => {
                 <span>CV Terupload</span>
               </div>
 
+              {/* ✅ PORTOFOLIO (OPSIONAL) */}
               <div className="flex items-center gap-3">
-                {applicant?.portfolioUrl ? (
-                  <CheckCircle className="h-5 w-5 text-green-500" />
+                {applicant?.portfolioDownloadUrl ? (
+                  <>
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Portofolio Terupload</span>
+                  </>
                 ) : (
-                  <XCircle className="h-5 w-5 text-gray-400" />
+                  <>
+                    <XCircle className="h-5 w-5 text-gray-400" />
+                    <span>Belum ada portofolio</span>
+                  </>
                 )}
-                <span>
-                  {applicant?.portfolioUrl ? "Portofolio Terupload" : "Belum ada portofolio"}
-                </span>
               </div>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

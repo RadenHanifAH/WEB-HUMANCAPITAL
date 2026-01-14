@@ -1,19 +1,25 @@
-const API_URL = "https://web-humancapital-production.up.railway.app/api/jobs";
+// src/services/jobs.api.js
+import axiosInstance from "../../../../api/axiosInstance"; 
+// ⬆️ sesuaikan path jika file ini ada di folder berbeda
 
+/**
+ * GET jobs
+ * ADMIN: isPublic=false supaya tidak difilter status=active
+ */
 export const fetchJobs = async () => {
   try {
-    // ✅ ADMIN harus isPublic=false agar tidak difilter status=active
-    const res = await fetch(`${API_URL}?limit=9999&isPublic=false`, {
-      credentials: "include",
+    const res = await axiosInstance.get("/jobs", {
+      params: {
+        limit: 9999,
+        isPublic: false,
+      },
     });
 
-    if (!res.ok) return [];
+    const data = res.data?.data || [];
 
-    const data = await res.json();
-
-    return (data.data || []).map((job) => ({
+    return data.map((job) => ({
       ...job,
-      applicants: job.applicants ?? 0, // ✅ ini harusnya sudah dikirim backend
+      applicants: job.applicants ?? 0, // fallback aman
     }));
   } catch (err) {
     console.error("Fetch Error:", err);
@@ -21,28 +27,23 @@ export const fetchJobs = async () => {
   }
 };
 
+/**
+ * CREATE / UPDATE job
+ * - POST jika id null
+ * - PUT jika id ada
+ */
 export const saveJob = async (jobData, id = null) => {
-  const url = id ? `${API_URL}/${id}` : API_URL;
-  const method = id ? "PUT" : "POST";
+  const res = id
+    ? await axiosInstance.put(`/jobs/${id}`, jobData)
+    : await axiosInstance.post("/jobs", jobData);
 
-  const res = await fetch(url, {
-    method,
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(jobData),
-  });
-
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return res.data;
 };
 
+/**
+ * DELETE job
+ */
 export const deleteJob = async (id) => {
-  const res = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  if (!res.ok) throw new Error("Gagal menghapus lowongan.");
-  return res.json();
+  const res = await axiosInstance.delete(`/jobs/${id}`);
+  return res.data;
 };

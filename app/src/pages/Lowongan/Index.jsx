@@ -9,7 +9,7 @@ import { ChevronDown, Briefcase } from "lucide-react";
 import Pagination from "./components/Pagination";
 import JobCard from "./components/JobCard";
 import JobDetail from "./components/JobDetail";
-import ToastAlert from "./components/Alert"; // ✅ NEW
+import ToastAlert from "./components/Alert";
 
 // Integrasi Backend
 import useAuthStore from "../../store/useAuthStore";
@@ -34,7 +34,7 @@ function Lowongan() {
   const [portfolioFile, setPortfolioFile] = useState(null);
 
   const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // tetap dipakai internal (buat disable tombol dll kalau mau)
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,6 +67,8 @@ function Lowongan() {
     const loadJobs = async () => {
       try {
         setLoading(true);
+        setError(null);
+
         const response = await fetchJobs();
 
         let data = [];
@@ -74,7 +76,7 @@ function Lowongan() {
         else if (response && Array.isArray(response.data)) data = response.data;
 
         // urutkan terbaru
-        const sortedData = data.sort((a, b) => b.id - a.id);
+        const sortedData = [...data].sort((a, b) => Number(b.id) - Number(a.id));
         setJobs(sortedData);
       } catch (err) {
         console.error("Fetch Error:", err);
@@ -83,6 +85,7 @@ function Lowongan() {
         setLoading(false);
       }
     };
+
     loadJobs();
   }, []);
 
@@ -136,11 +139,9 @@ function Lowongan() {
     });
   }, [jobs, department, location, jobType, searchTerm]);
 
-  const totalPages = Math.ceil(filteredJobs.length / jobsPerPage);
-  const safeCurrentPage = Math.min(
-    Math.max(1, currentPage),
-    totalPages > 0 ? totalPages : 1
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / jobsPerPage));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
   const currentJobs = filteredJobs.slice(
     (safeCurrentPage - 1) * jobsPerPage,
     safeCurrentPage * jobsPerPage
@@ -148,6 +149,9 @@ function Lowongan() {
 
   // pilih job dari URL
   useEffect(() => {
+    // saat masih loading dan jobs kosong, jangan ubah2 selectedJob
+    if (loading) return;
+
     if (!filteredJobs.length) {
       setSelectedJob(null);
       setShowDetail(false);
@@ -161,9 +165,7 @@ function Lowongan() {
         setSelectedJob(found);
         setShowDetail(true);
 
-        const idx = filteredJobs.findIndex(
-          (j) => String(j.id) === jobIdFromUrl
-        );
+        const idx = filteredJobs.findIndex((j) => String(j.id) === jobIdFromUrl);
         if (idx >= 0) {
           const page = Math.floor(idx / jobsPerPage) + 1;
           setCurrentPage(page);
@@ -181,7 +183,7 @@ function Lowongan() {
       if (window.innerWidth >= 1024 || !selectedJob) setShowDetail(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredJobs, jobIdFromUrl]);
+  }, [filteredJobs, jobIdFromUrl, loading]);
 
   const handleCardClick = (job) => {
     setSelectedJob(job);
@@ -210,7 +212,11 @@ function Lowongan() {
     }
 
     if (!cvFile) {
-      showAlert("warning", "CV belum diupload", "Harap upload CV (PDF) terlebih dahulu.");
+      showAlert(
+        "warning",
+        "CV belum diupload",
+        "Harap upload CV (PDF) terlebih dahulu."
+      );
       return;
     }
 
@@ -314,12 +320,7 @@ function Lowongan() {
     </Listbox>
   );
 
-  if (loading)
-    return (
-      <div className="px-4 lg:px-[7rem] py-10 text-center text-gray-500 font-inter">
-        Memuat data lowongan...
-      </div>
-    );
+  // ✅ ERROR (kalau error, tetap tampilkan error)
   if (error)
     return (
       <div className="px-4 lg:px-[7rem] py-10 text-center text-red-500 font-inter">
@@ -375,7 +376,8 @@ function Lowongan() {
             showDetail ? "hidden lg:block" : "block"
           }`}
         >
-          {filteredJobs.length > 0 ? (
+          {/* ✅ Tanpa loading: kalau data belum masuk, tampil kosong / placeholder */}
+          {currentJobs.length > 0 ? (
             currentJobs.map((job) => (
               <JobCard
                 key={job.id}
@@ -386,7 +388,7 @@ function Lowongan() {
             ))
           ) : (
             <div className="p-6 bg-white rounded-2xl shadow border-gray-200 text-center text-gray-500">
-              Tidak ada lowongan ditemukan.
+              {loading ? " " : "Tidak ada lowongan ditemukan."}
             </div>
           )}
 
@@ -418,7 +420,9 @@ function Lowongan() {
             <div className="flex flex-col items-center justify-center h-64 text-gray-500">
               <Briefcase size={48} className="mb-4 text-gray-300 opacity-20" />
               <p className="font-medium">
-                Pilih lowongan di sebelah kiri untuk melihat detail.
+                {loading
+                  ? " "
+                  : "Pilih lowongan di sebelah kiri untuk melihat detail."}
               </p>
             </div>
           )}

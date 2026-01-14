@@ -101,7 +101,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               onChange={(e) =>
                 setForm((p) => ({ ...p, recipientEmail: e.target.value }))
               }
-              placeholder="email@example.com"
+              placeholder="admin@egmail.com"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
               disabled={sending}
             />

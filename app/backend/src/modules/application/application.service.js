@@ -18,9 +18,6 @@ function toKebab(val) {
   return normalizeText(val).toLowerCase().replace(/\s+/g, "-");
 }
 
-/**
- * ✅ Deteksi status final (diterima/ditolak/hired)
- */
 function isFinalStatus(status = "") {
   const s = normalizeText(status).toLowerCase();
   return (
@@ -32,24 +29,28 @@ function isFinalStatus(status = "") {
   );
 }
 
-/**
- * ✅ Ambil stage dari status "rejected-at-<stage>"
- * contoh: rejected-at-final-interview -> "Final Interview"
- */
 function stageFromRejectedAt(statusRaw = "") {
   const s = normalizeText(statusRaw).toLowerCase();
   if (!s.startsWith("rejected-at-")) return null;
 
   const slug = s.replace("rejected-at-", "").trim();
 
-  // mapping slug -> stage
-  if (slug === "screaning" || slug === "screening" || slug === "under-review" || slug === "under_review")
+  if (
+    slug === "screaning" ||
+    slug === "screening" ||
+    slug === "under-review" ||
+    slug === "under_review"
+  )
     return "Screaning";
 
-  if (slug === "interview-hc" || slug === "interviewhc" || slug === "interview-hc-")
-    return "Interview HC";
+  if (slug === "interview-hc" || slug === "interviewhc") return "Interview HC";
 
-  if (slug === "psikotes" || slug === "psychotest" || slug === "psycho-test" || slug.includes("technical"))
+  if (
+    slug === "psikotes" ||
+    slug === "psychotest" ||
+    slug === "psycho-test" ||
+    slug.includes("technical")
+  )
     return "Psikotes/technical test";
 
   if (slug === "final-interview" || slug === "finalinterview")
@@ -57,77 +58,57 @@ function stageFromRejectedAt(statusRaw = "") {
 
   if (slug.includes("offering")) return "Offering/Final Result";
 
-  // fallback aman
   return "Screaning";
 }
 
-/**
- * ✅ mapping status normal -> stage
- * (kamu bebas tambah variasi status di sini)
- */
 function mapStatusToStage(statusRaw = "") {
   const raw = normalizeText(statusRaw);
   const low = raw.toLowerCase();
 
-  // kalau status berformat rejected-at-xxx
   const rejectedAtStage = stageFromRejectedAt(raw);
   if (rejectedAtStage) return rejectedAtStage;
 
-  // kalau admin ngirim stage langsung
   if (VALID_STAGES.includes(raw)) return raw;
 
-  // base mapping
   if (
     low === "screaning" ||
     low === "screening" ||
     low === "under-review" ||
     low === "under review" ||
     low === "under_review"
-  ) {
+  )
     return "Screaning";
-  }
 
-  if (low === "interview hc" || low === "interview-hc" || low === "interviewhc") {
+  if (low === "interview hc" || low === "interview-hc" || low === "interviewhc")
     return "Interview HC";
-  }
 
   if (
     low === "psikotes" ||
     low === "psychotest" ||
     low === "psycho test" ||
     low.includes("technical")
-  ) {
+  )
     return "Psikotes/technical test";
-  }
 
-  if (low === "final interview" || low === "final-interview" || low === "finalinterview") {
+  if (low === "final interview" || low === "final-interview" || low === "finalinterview")
     return "Final Interview";
-  }
 
-  if (low.includes("offering")) {
+  if (low.includes("offering")) return "Offering/Final Result";
+
+  if (low === "accepted" || low.includes("accept") || low.includes("hired"))
     return "Offering/Final Result";
-  }
 
-  // ✅ Accepted / Rejected selalu masuk final stage (kalau kamu mau beda, ubah di sini)
-  if (low === "accepted" || low.includes("accept") || low.includes("hired")) {
-    return "Offering/Final Result";
-  }
+  if (low === "rejected" || low.includes("reject")) return "Screaning";
 
-  if (low === "rejected" || low.includes("reject")) {
-    // kalau ditolak tanpa format rejected-at-xxx, kita set ke stage terakhir user (biar akurat)
-    // tapi default tetap "Screaning"
-    return "Screaning";
-  }
-
-  // fallback
   return "Screaning";
 }
 
 module.exports = {
   /**
    * ✅ apply job: BLOCK kalau masih ada lamaran aktif (belum final)
+   * ✅ simpan file CV/portfolio ke DB (Base64)
    */
-  async applyJob(userId, jobId, cvUrl, portfolioUrl) {
+  async applyJob(userId, jobId, cvPayload, portfolioPayload) {
     const active = await repo.findActiveByUserId(userId);
 
     if (active && !isFinalStatus(active.status)) {
@@ -139,11 +120,37 @@ module.exports = {
       throw err;
     }
 
+    // ✅ CV wajib
+    if (!cvPayload?.data) {
+      const err = new Error("CV wajib diupload (PDF)");
+      err.code = "CV_REQUIRED";
+      throw err;
+    }
+
+    // Buffer -> base64
+    const cvBase64 = Buffer.isBuffer(cvPayload.data)
+      ? cvPayload.data.toString("base64")
+      : null;
+
+    const portfolioBase64 =
+      portfolioPayload?.data && Buffer.isBuffer(portfolioPayload.data)
+        ? portfolioPayload.data.toString("base64")
+        : null;
+
     return repo.create({
       userId: Number(userId),
       jobId: Number(jobId),
-      cvUrl,
-      portfolioUrl,
+
+      cvData: cvBase64,
+      cvName: cvPayload?.name || null,
+      cvMime: cvPayload?.mime || "application/pdf",
+      cvSize: cvPayload?.size || null,
+
+      portfolioData: portfolioBase64,
+      portfolioName: portfolioPayload?.name || null,
+      portfolioMime: portfolioPayload?.mime || null,
+      portfolioSize: portfolioPayload?.size || null,
+
       status: "Screaning",
       stage: "Screaning",
     });
@@ -157,9 +164,6 @@ module.exports = {
     return repo.findManyByUserId(userId);
   },
 
-  /**
-   * ✅ timeline: kalau ada active pakai itu, kalau tidak ada ambil latest
-   */
   async getMyTimelineApplication(userId) {
     const active = await repo.findActiveByUserId(userId);
     if (active) return active;
@@ -168,13 +172,6 @@ module.exports = {
     return latest || null;
   },
 
-  /**
-   * ✅ ADMIN UPDATE STATUS:
-   * - stage selalu ikut status
-   * - rejected akan otomatis menjadi "rejected-at-<lastStage>" supaya UI bisa tampil stop di stage terakhir
-   * - accepted/hired -> final stage
-   * - optional: upsert archive ketika final
-   */
   async updateApplicationStatus(id, status) {
     const rawStatus = normalizeText(status);
     const low = rawStatus.toLowerCase();
@@ -182,22 +179,18 @@ module.exports = {
     const current = await repo.findById(id);
     if (!current) throw new Error("Application tidak ditemukan");
 
-    // ✅ REJECTED: simpan "rejected-at-<lastStage>" dan stage tetap stage terakhir
     if (low === "rejected" || low.includes("reject")) {
       const lastStage = current.stage || "Screaning";
       const rejectedStatus = `rejected-at-${toKebab(lastStage)}`;
 
       const updated = await repo.updateStatusAndStage(id, rejectedStatus, lastStage);
 
-      // final -> archive
       if (archivesRepo?.upsertArchiveFromApplication) {
         await archivesRepo.upsertArchiveFromApplication(Number(id));
       }
-
       return updated;
     }
 
-    // ✅ ACCEPTED/Hired: final stage
     if (low === "accepted" || low.includes("accept") || low.includes("hired")) {
       const finalStage = "Offering/Final Result";
       const updated = await repo.updateStatusAndStage(id, "Accepted", finalStage);
@@ -205,17 +198,19 @@ module.exports = {
       if (archivesRepo?.upsertArchiveFromApplication) {
         await archivesRepo.upsertArchiveFromApplication(Number(id));
       }
-
       return updated;
     }
 
-    // ✅ selain final: stage mengikuti mapping status
     const stage = mapStatusToStage(rawStatus);
-
     return repo.updateStatusAndStage(id, rawStatus, stage);
   },
 
   async updateApplicationScore(id, score) {
     return repo.updateScore(id, score);
+  },
+
+  // ✅ untuk download file admin
+  async getApplicationFileById(id) {
+    return repo.findFileById(id);
   },
 };

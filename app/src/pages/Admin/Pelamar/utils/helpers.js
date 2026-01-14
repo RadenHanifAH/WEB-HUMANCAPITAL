@@ -15,7 +15,7 @@ export const formatDate = (dateStr) => {
 
 export const downloadFileFromUrl = (url, filename) => {
   if (!url) return;
-  const finalUrl = url.startsWith("/") ? `http://web-humancapital-production.up.railway.app${url}` : url;
+  const finalUrl = url.startsWith("/") ? `http://localhost:4000${url}` : url;
 
   if (finalUrl.startsWith("data:")) {
     const link = document.createElement("a");

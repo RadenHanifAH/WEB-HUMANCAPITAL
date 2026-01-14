@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { usePelamar } from "./hooks/usePelamar";
 import { statusOptions, API_URL_APPLICANTS } from "./utils/constants";
-import { downloadFileFromUrl } from "./utils/helpers";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,7 +17,6 @@ import MessageModal from "./components/MessageModal";
 
 // ✅ mapping dari value dropdown -> status yang dikirim ke backend
 // PENTING: backend akan set stage mengikuti status.
-// Jadi untuk proses seleksi, kirim nama stage persis seperti timeline user.
 const STATUS_TO_BACKEND = {
   screaning: "Screaning",
   "interview-hc": "Interview HC",
@@ -51,8 +49,10 @@ function Pelamar() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Modal
+  // Modal detail
   const [selectedDetail, setSelectedDetail] = useState(null);
+
+  // Modal accept/reject + pesan
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [modalData, setModalData] = useState({
     applicant: null,
@@ -60,19 +60,28 @@ function Pelamar() {
     status: "",
   });
 
+  // reset page kalau filter/search berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterStatus, filterPosisi]);
+
   // 1) Filter
-  const filteredApplicants = applicants.filter((a) => {
-    const matchName = a.name.toLowerCase().includes(search.toLowerCase());
+  const filteredApplicants = (applicants || []).filter((a) => {
+    const name = String(a?.name || "");
+    const status = String(a?.status || "");
+    const position = String(a?.position || "");
+
+    const matchName = name.toLowerCase().includes(search.toLowerCase());
 
     const matchStatus =
       filterStatus.value === "rejected"
-        ? a.status?.toLowerCase().startsWith("rejected")
+        ? status.toLowerCase().startsWith("rejected")
         : filterStatus.value
-        ? a.status === filterStatus.value
+        ? status === filterStatus.value
         : true;
 
     const matchPosisi = filterPosisi.value
-      ? a.position === filterPosisi.value
+      ? position === filterPosisi.value
       : true;
 
     return matchName && matchStatus && matchPosisi;
@@ -87,90 +96,79 @@ function Pelamar() {
     indexOfLastItem
   );
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, filterStatus, filterPosisi]);
-
   // ✅ helper update status (tanpa kirim stage!)
   const updateApplicantStatus = async (
     applicantId,
     newStatusForBackend,
     applicantName
   ) => {
-    const loadingToast = toast.loading(
-      `Memperbarui status ${applicantName}...`
-    );
+    const loadingToast = toast.loading(`Memperbarui status ${applicantName}...`);
 
     try {
-      const response = await fetch(
-        `${API_URL_APPLICANTS}/${applicantId}/status`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          // ✅ HANYA KIRIM status
-          body: JSON.stringify({ status: newStatusForBackend }),
-        }
-      );
+      const response = await fetch(`${API_URL_APPLICANTS}/${applicantId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatusForBackend }),
+      });
 
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`${response.status} - ${text}`);
       }
 
-      toast.success(`Status ${applicantName} berhasil diubah`, {
-        id: loadingToast,
-      });
+      toast.success(`Status ${applicantName} berhasil diubah`, { id: loadingToast });
       fetchApplicants();
     } catch (e) {
       toast.error(`Gagal update status: ${e.message}`, { id: loadingToast });
     }
   };
 
-  // 3) Update Status
+  // 3) Update Status (trigger dari dropdown di table)
   const handleStatusUpdate = async (applicant, newStatusValue) => {
-    if (!applicant || applicant.status === newStatusValue) return;
+    if (!applicant) return;
 
-    // ✅ Konversi value dropdown -> status untuk backend
-    const newStatusForBackend =
-      STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
+    // ✅ Konversi dropdown value -> status untuk backend
+    const newStatusForBackend = STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
 
-    // accepted/rejected tetap pakai modal (kirim pesan)
+    // accepted/rejected pakai modal (kirim pesan)
     if (newStatusValue === "accepted") {
-      setModalData({
-        applicant,
-        action: "accept",
-        status: newStatusForBackend,
-      });
+      setModalData({ applicant, action: "accept", status: newStatusForBackend });
       setIsMessageModalOpen(true);
       return;
     }
 
     if (newStatusValue === "rejected") {
-      setModalData({
-        applicant,
-        action: "reject",
-        status: newStatusForBackend,
-      });
+      setModalData({ applicant, action: "reject", status: newStatusForBackend });
       setIsMessageModalOpen(true);
       return;
     }
 
-    // ✅ status proses langsung update (backend akan set stage = status -> sesuai mapping service)
-    await updateApplicantStatus(
-      applicant.id,
-      newStatusForBackend,
-      applicant.name
-    );
+    // status proses langsung update
+    await updateApplicantStatus(applicant.id, newStatusForBackend, applicant.name);
   };
 
-  // 4) Download Portfolio
+  // ✅ Download CV dari DB (endpoint /file?type=cv)
+  const handleDownloadCV = (a) => {
+    if (!a?.cvDownloadUrl) return toast.error(`CV ${a?.name} tidak ditemukan`);
+
+    const finalUrl = a.cvDownloadUrl.startsWith("http")
+      ? a.cvDownloadUrl
+      : `http://localhost:4000${a.cvDownloadUrl}`;
+
+    window.open(finalUrl, "_blank");
+  };
+
+  // ✅ Download Portofolio dari DB (endpoint /file?type=portfolio)
   const handleDownloadPortfolio = (a) => {
-    if (!a.portfolioUrl) {
-      return toast.error(`Portofolio untuk ${a.name} tidak tersedia.`);
-    }
-    const safeName = a.name.replace(/\s+/g, "_").toLowerCase();
-    downloadFileFromUrl(a.portfolioUrl, `portofolio_${safeName}.pdf`);
+    if (!a?.portfolioDownloadUrl)
+      return toast.error(`Portofolio ${a?.name} tidak tersedia.`);
+
+    const finalUrl = a.portfolioDownloadUrl.startsWith("http")
+      ? a.portfolioDownloadUrl
+      : `http://localhost:4000${a.portfolioDownloadUrl}`;
+
+    window.open(finalUrl, "_blank");
   };
 
   return (
@@ -197,6 +195,7 @@ function Pelamar() {
         setFilterPosisi={setFilterPosisi}
         jobPositions={jobPositions}
         filteredApplicants={filteredApplicants}
+        loading={loading}
       />
 
       <div className="border border-gray-300 rounded-xl bg-white shadow-sm overflow-visible">
@@ -204,13 +203,8 @@ function Pelamar() {
           loading={loading}
           applicants={currentApplicants}
           setApplicants={setApplicants}
-          fetchApplicants={fetchApplicants}
           onDetail={setSelectedDetail}
-          onDownloadCV={(a) => {
-            if (!a.cvUrl) return toast.error(`CV ${a.name} tidak ditemukan`);
-            const safeName = a.name.replace(/\s+/g, "_").toLowerCase();
-            downloadFileFromUrl(a.cvUrl, `cv_${safeName}.pdf`);
-          }}
+          onDownloadCV={handleDownloadCV}
           onDownloadPortofolio={handleDownloadPortfolio}
           onOpenStatusModal={handleStatusUpdate}
         />
@@ -239,8 +233,7 @@ function Pelamar() {
                   const pageNum = i + 1;
                   if (
                     totalPages <= 5 ||
-                    (pageNum >= currentPage - 1 &&
-                      pageNum <= currentPage + 1) ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1) ||
                     pageNum === 1 ||
                     pageNum === totalPages
                   ) {
@@ -258,10 +251,7 @@ function Pelamar() {
                       </button>
                     );
                   }
-                  if (
-                    pageNum === currentPage - 2 ||
-                    pageNum === currentPage + 2
-                  ) {
+                  if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
                     return (
                       <span key={pageNum} className="text-gray-400 px-1">
                         ...
@@ -273,9 +263,7 @@ function Pelamar() {
               </div>
 
               <button
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                }
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
                 className="p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sky-900"
               >

@@ -4,6 +4,100 @@ const reportsRepository = require("./reports.repository");
 const ExcelJS = require("exceljs");
 
 class ReportsService {
+  // =========================
+  // Helpers tanggal
+  // =========================
+  startOfDay(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
+
+  endOfDay(d) {
+    const x = new Date(d);
+    x.setHours(23, 59, 59, 999);
+    return x;
+  }
+
+  addDays(date, days) {
+    const x = new Date(date);
+    x.setDate(x.getDate() + days);
+    return x;
+  }
+
+  addMonths(date, months) {
+    const x = new Date(date);
+    x.setMonth(x.getMonth() + months);
+    return x;
+  }
+
+  pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  // key: YYYY-MM-DD
+  keyYMD(d) {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${this.pad2(x.getMonth() + 1)}-${this.pad2(x.getDate())}`;
+  }
+
+  // label: DD/MM/YYYY
+  labelDMY(d) {
+    const x = new Date(d);
+    return `${this.pad2(x.getDate())}/${this.pad2(x.getMonth() + 1)}/${x.getFullYear()}`;
+  }
+
+  // key: YYYY-MM
+  keyYM(d) {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${this.pad2(x.getMonth() + 1)}`;
+  }
+
+  monthLabel(d) {
+    const x = new Date(d);
+    const names = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    return `${names[x.getMonth()]} ${x.getFullYear()}`;
+  }
+
+  // =========================
+  // Weekly custom rule:
+  // Minggu 1: 1-7
+  // Minggu 2: 8-14
+  // Minggu 3: 15-21
+  // Minggu 4: 22-28
+  // Tanggal 29-31 => dianggap Minggu 1 bulan berikutnya
+  // =========================
+  getCustomWeeklyBucket(d) {
+    const x = new Date(d);
+    const day = x.getDate(); // 1..31
+
+    // default: bulan yang sama
+    let bucketMonthDate = new Date(x.getFullYear(), x.getMonth(), 1);
+
+    let week;
+    if (day >= 1 && day <= 7) week = 1;
+    else if (day <= 14) week = 2;
+    else if (day <= 21) week = 3;
+    else if (day <= 28) week = 4;
+    else {
+      // 29-31 => pindah bulan, minggu 1
+      bucketMonthDate = new Date(x.getFullYear(), x.getMonth() + 1, 1);
+      week = 1;
+    }
+
+    const ym = this.keyYM(bucketMonthDate); // YYYY-MM
+    const label = `${this.monthLabel(bucketMonthDate)} - Minggu ${week}`;
+    const key = `${ym}|W${week}`;
+
+    // sortKey: gunakan start bulan bucket + offset minggu (agar urut)
+    const sortKey = bucketMonthDate.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000;
+
+    return { key, label, sortKey };
+  }
+
+  // =========================
+  // Period & Date Range
+  // =========================
   normalizePeriod(period = "monthly") {
     const allowed = ["daily", "weekly", "monthly", "yearly"];
     return allowed.includes(period) ? period : "monthly";
@@ -11,38 +105,43 @@ class ReportsService {
 
   getDateRange(period) {
     const now = new Date();
-    const endDate = new Date(now);
-    endDate.setHours(23, 59, 59, 999);
+    const endDate = this.endOfDay(now);
 
     let startDate;
+
     switch (period) {
       case "daily":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 6);
-        startDate.setHours(0, 0, 0, 0);
+        // 7 hari terakhir
+        startDate = this.startOfDay(this.addDays(now, -6));
         break;
+
       case "weekly":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7 * 8);
-        startDate.setHours(0, 0, 0, 0);
+        // 8 minggu terakhir kira-kira (biar cukup data)
+        // tapi bucket weekly tetap per-bulan (custom rule) saat agregasi
+        startDate = this.startOfDay(this.addDays(now, -7 * 8));
         break;
+
       case "monthly":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-        startDate.setHours(0, 0, 0, 0);
+        // 12 bulan terakhir
+        startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth() - 11, 1));
         break;
+
       case "yearly":
-        startDate = new Date(now.getFullYear() - 4, 0, 1);
-        startDate.setHours(0, 0, 0, 0);
+        // 5 tahun terakhir
+        startDate = this.startOfDay(new Date(now.getFullYear() - 4, 0, 1));
         break;
+
       default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        startDate.setHours(0, 0, 0, 0);
+        startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
         break;
     }
 
     return { startDate, endDate };
   }
 
+  // =========================
+  // Fetch applications
+  // =========================
   async getApplicationsByPeriod(period) {
     const p = this.normalizePeriod(period);
     const { startDate, endDate } = this.getDateRange(p);
@@ -54,6 +153,9 @@ class ReportsService {
     });
   }
 
+  // =========================
+  // Final status bucket
+  // =========================
   getFinalBucket(app) {
     const stage = String(app.stage || "").toLowerCase().trim();
     const status = String(app.status || "").toLowerCase().trim();
@@ -77,96 +179,74 @@ class ReportsService {
     return "in_progress";
   }
 
+  // =========================
+  // MAIN: Trend + Status chart
+  // (HANYA tampil yang ada datanya)
+  // =========================
   async getReportsByPeriod(period = "monthly") {
     const p = this.normalizePeriod(period);
     const applications = await this.getApplicationsByPeriod(p);
 
-    const monthNames = [
-      "Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"
-    ];
-
-    const keyYMD = (d) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-        d.getDate()
-      ).padStart(2, "0")}`;
-
-    const labelDMY = (d) =>
-      `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}/${d.getFullYear()}`;
-
-    const keyYM = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const labelMY = (d) => `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-    const keyY = (d) => String(d.getFullYear());
-
+    /**
+     * trendMap:
+     * key -> { label, count, sortKey }
+     */
     const trendMap = new Map();
 
     for (const app of applications) {
       const d = new Date(app.appliedAt);
       if (Number.isNaN(d.getTime())) continue;
 
+      let key, label, sortKey;
+
       if (p === "daily") {
-        const key = keyYMD(d);
-        const label = labelDMY(d);
-        if (!trendMap.has(key))
-          trendMap.set(key, { label, count: 0, sortKey: d.getTime() });
-        trendMap.get(key).count += 1;
+        key = this.keyYMD(d);
+        label = this.labelDMY(d);
+        // sortKey by timestamp day start
+        sortKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       }
 
       if (p === "weekly") {
-        const { startDate } = this.getDateRange("weekly");
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-
-        const diffDays = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        const weekIndex = Math.floor(diffDays / 7);
-
-        if (weekIndex >= 0 && weekIndex < 8) {
-          const key = `week-${weekIndex + 1}`;
-          const label = `Minggu ${weekIndex + 1}`;
-          if (!trendMap.has(key)) {
-            const wkStart = new Date(start);
-            wkStart.setDate(start.getDate() + weekIndex * 7);
-            trendMap.set(key, { label, count: 0, sortKey: wkStart.getTime() });
-          }
-          trendMap.get(key).count += 1;
-        }
+        const wk = this.getCustomWeeklyBucket(d);
+        key = wk.key;
+        label = wk.label;
+        sortKey = wk.sortKey;
       }
 
       if (p === "monthly") {
-        const key = keyYM(d);
-        const label = labelMY(d);
-        if (!trendMap.has(key)) {
-          const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
-          trendMap.set(key, { label, count: 0, sortKey: monthStart.getTime() });
-        }
-        trendMap.get(key).count += 1;
+        key = this.keyYM(d);
+        label = this.monthLabel(d);
+        sortKey = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
       }
 
       if (p === "yearly") {
-        const key = keyY(d);
-        const label = key;
-        if (!trendMap.has(key)) {
-          const yearStart = new Date(d.getFullYear(), 0, 1);
-          trendMap.set(key, { label, count: 0, sortKey: yearStart.getTime() });
-        }
-        trendMap.get(key).count += 1;
+        key = String(d.getFullYear());
+        label = key;
+        sortKey = new Date(d.getFullYear(), 0, 1).getTime();
       }
+
+      if (!key) continue;
+
+      if (!trendMap.has(key)) {
+        trendMap.set(key, { label, count: 0, sortKey });
+      }
+      trendMap.get(key).count += 1;
     }
 
+    // urutkan
     const sorted = Array.from(trendMap.values()).sort((a, b) => a.sortKey - b.sortKey);
     const trendLabels = sorted.map((x) => x.label);
     const trendValues = sorted.map((x) => x.count);
 
+    // acceptance status (tetap)
     let accepted = 0;
     let rejected = 0;
     let inProgress = 0;
 
     for (const a of applications) {
-      const bucket = this.getFinalBucket(a);
-      if (bucket === "accepted") accepted++;
-      else if (bucket === "rejected") rejected++;
+      const b = this.getFinalBucket(a);
+      if (b === "accepted") accepted++;
+      else if (b === "rejected") rejected++;
       else inProgress++;
     }
 
@@ -180,6 +260,9 @@ class ReportsService {
     };
   }
 
+  // =========================
+  // Metrics
+  // =========================
   async getOverallMetrics(period = "monthly") {
     const p = this.normalizePeriod(period);
     const apps = await this.getApplicationsByPeriod(p);
@@ -219,7 +302,9 @@ class ReportsService {
     };
   }
 
-  // DASHBOARD EXPORT: trend ikut dropdown, posisi+status bisa tetap
+  // =========================
+  // Export builders (punya kamu)
+  // =========================
   async buildDashboardExportData({ trendPeriod, positionPeriod, statusPeriod }) {
     const tp = this.normalizePeriod(trendPeriod);
     const pp = this.normalizePeriod(positionPeriod);

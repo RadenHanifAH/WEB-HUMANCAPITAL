@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Menu, X, User, ChevronDown, LogOut, LayoutDashboard } from "lucide-react";
+import { Menu, X, User, ChevronDown, LogOut } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { scroller } from "react-scroll";
 import Logo from "../assets/logo.png";
@@ -51,18 +51,24 @@ function Navbar() {
     { name: "Core Value", onClick: () => handleScrollTo("culture") },
   ];
 
-  // LOGIKA PENGAMBILAN FOTO:
-  // Cek user.profile.fotoProfile (sesuai Profile.jsx)
-  // Jika tidak ada, cek user.profile_picture (fallback)
-  // Jika tidak ada, null.
   const userPhoto = user?.profile?.fotoProfile || user?.profile_picture || null;
+
+  // ✅ Klik profile: admin => dashboard, user => profile
+  const handleProfileClick = () => {
+    if (!user) return;
+    setIsOpen(false);
+    setIsDropdownOpen(false);
+
+    if (user?.role === "admin") navigate("/admin/dashboard");
+    else navigate("/profile");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white shadow-sm">
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-0">
         {/* Logo */}
         <div className="flex items-center gap-2 ml-0 md:ml-26">
-          <Link to="/">
+          <Link to="/" onClick={() => setIsOpen(false)}>
             <img src={Logo} alt="Logo" className="h-12 w-auto" />
           </Link>
         </div>
@@ -90,7 +96,7 @@ function Navbar() {
           )}
         </nav>
 
-        {/* Auth & Mobile */}
+        {/* Auth & Mobile Button */}
         <div className="flex items-center gap-3 mr-0 md:mr-26">
           {!user ? (
             <>
@@ -115,12 +121,11 @@ function Navbar() {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-2 focus:outline-none"
               >
-                {/* FOTO PROFILE */}
                 <div className="h-11 w-11 flex items-center justify-center rounded-full bg-gray-200 border border-gray-300 overflow-hidden">
                   {userPhoto ? (
-                    <img 
-                      src={userPhoto} 
-                      alt="Profile" 
+                    <img
+                      src={userPhoto}
+                      alt="Profile"
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -137,28 +142,17 @@ function Navbar() {
 
               {isDropdownOpen && (
                 <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-gray-300 rounded-lg shadow-lg py-2">
-                  {/* Admin akan lihat Dashboard */}
-                  {user?.role === "admin" ? (
-                    <Link
-                      to="/admin/dashboard"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition"
-                    >
-                      <LayoutDashboard className="h-4 w-4" />
-                      Dashboard Admin
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/profile"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
-                    >
-                      <User className="h-4 w-4 text-gray-500" />
-                      Profil
-                    </Link>
-                  )}
+                  {/* ✅ TIDAK ADA MENU DASHBOARD */}
+                  {/* Profil menu: admin pun klik ke dashboard via profileClick */}
+                  <button
+                    type="button"
+                    onClick={handleProfileClick}
+                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    <User className="h-4 w-4 text-gray-500" />
+                    {user?.role === "admin" ? "Dashboard" : "Profil"}
+                  </button>
 
-                  {/* Logout */}
                   <button
                     onClick={() => {
                       logout();
@@ -212,18 +206,8 @@ function Navbar() {
               )
             )}
 
-            {/* Admin Mobile */}
-            {user?.role === "admin" ? (
-              <Link
-                to="/admin/dashboard"
-                className="flex items-center justify-center px-3 py-2 rounded-lg bg-orange-500 text-white text-sm hover:bg-orange-400 transition"
-                onClick={() => setIsOpen(false)}
-              >
-                Dashboard Admin
-              </Link>
-            ) : null}
+            {/* ✅ HILANGKAN tombol dashboard admin di mobile */}
 
-            {/* Auth Mobile */}
             {!user ? (
               <>
                 <Link
@@ -243,15 +227,47 @@ function Navbar() {
                 </Link>
               </>
             ) : (
-              <button
-                onClick={() => {
-                  logout();
-                  setIsOpen(false);
-                }}
-                className="flex items-center justify-center px-3 py-2 rounded-lg bg-red-500 text-white text-sm hover:bg-red-400 transition"
-              >
-                Logout
-              </button>
+              <div className="flex flex-col gap-2 pt-2 border-t">
+                {/* Klik area profile: admin => dashboard, user => profile */}
+                <button
+                  type="button"
+                  onClick={handleProfileClick}
+                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition text-left"
+                >
+                  <div className="h-10 w-10 flex items-center justify-center rounded-full bg-gray-200 border border-gray-300 overflow-hidden">
+                    {userPhoto ? (
+                      <img
+                        src={userPhoto}
+                        alt="Profile"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-5 w-5 text-gray-600" />
+                    )}
+                  </div>
+
+                  <div className="leading-tight">
+                    <p className="text-sm font-semibold text-gray-800">
+                      {user?.name || "User"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {user?.role === "admin" ? "Klik untuk Dashboard" : user?.email || "Klik untuk Profil"}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Logout kecil (tidak melebar) */}
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsOpen(false);
+                  }}
+                  className="inline-flex self-start items-center gap-1 px-2 py-1 rounded-md bg-red-600 text-white text-xs hover:bg-red-500 transition"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Logout
+                </button>
+              </div>
             )}
           </nav>
         </div>
