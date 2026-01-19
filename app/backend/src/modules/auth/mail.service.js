@@ -4,7 +4,6 @@ const nodemailer = require("nodemailer");
 const port = Number(process.env.SMTP_PORT || 587);
 const secure = port === 465;
 
-// ✅ transporter dengan timeout supaya tidak menggantung lama di Railway
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port,
@@ -14,14 +13,13 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 
-  // ✅ penting: biar gak lama banget
-  connectionTimeout: 4000,
-  greetingTimeout: 4000,
-  socketTimeout: 6000,
+  // ✅ biar request daftar tidak lama
+  connectionTimeout: 5000,
+  greetingTimeout: 5000,
+  socketTimeout: 8000,
 });
 
-// ✅ verify sekali saat start (bukan per request)
-async function verifySmtpOnce() {
+async function verifySmtp() {
   try {
     await transporter.verify();
     console.log("[SMTP] READY", process.env.SMTP_HOST, port, "secure:", secure);
@@ -29,7 +27,7 @@ async function verifySmtpOnce() {
     console.error("[SMTP] VERIFY ERROR:", e?.message || e);
   }
 }
-verifySmtpOnce();
+verifySmtp();
 
 function getFrom() {
   const name = process.env.MAIL_FROM_NAME || "Human Capital";
@@ -57,7 +55,6 @@ async function sendOtpEmail(to, otp) {
   });
 }
 
-// ✅ kalau kamu sudah punya sebelumnya, tetap export juga
 async function sendResetPasswordEmail(to, resetLink) {
   const subject = "Reset Password";
   const html = `
@@ -66,7 +63,6 @@ async function sendResetPasswordEmail(to, resetLink) {
       <p>Klik link berikut untuk reset password:</p>
       <p><a href="${resetLink}">${resetLink}</a></p>
       <p>Link berlaku <b>15 menit</b>.</p>
-      <p>Jika kamu tidak meminta reset password, abaikan email ini.</p>
     </div>
   `;
 
@@ -78,7 +74,4 @@ async function sendResetPasswordEmail(to, resetLink) {
   });
 }
 
-module.exports = {
-  sendOtpEmail,
-  sendResetPasswordEmail,
-};
+module.exports = { sendOtpEmail, sendResetPasswordEmail };
