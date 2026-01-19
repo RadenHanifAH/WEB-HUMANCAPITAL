@@ -4,16 +4,6 @@ import toast from "react-hot-toast";
 
 const DEFAULT_FORM = { recipientEmail: "", subject: "", body: "" };
 
-// helper: timeout promise
-function withTimeout(promise, ms, timeoutMessage = "Timeout mengirim pesan") {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
 export default function ComposeDialog({ open, onClose, onSend }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [sending, setSending] = useState(false);
@@ -21,7 +11,6 @@ export default function ComposeDialog({ open, onClose, onSend }) {
 
   useEffect(() => {
     if (!open) return;
-    // reset ketika dialog dibuka biar bersih
     setForm(DEFAULT_FORM);
   }, [open]);
 
@@ -40,40 +29,49 @@ export default function ComposeDialog({ open, onClose, onSend }) {
     onClose?.();
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (sending) return;
 
-    if (!form.recipientEmail || !form.subject || !form.body) {
+    const recipientEmail = form.recipientEmail?.trim();
+    const subject = form.subject?.trim();
+    const body = form.body?.trim();
+
+    if (!recipientEmail || !subject || !body) {
       toast.error("Semua kolom wajib diisi!");
       return;
     }
 
+    // ✅ Payload yang dikunci (biar ga berubah saat state reset)
+    const payload = { recipientEmail, subject, body };
+
+    // ✅ UI dibuat cepat: langsung tutup dialog
     setSending(true);
+    resetAndClose();
 
-    try {
-      // ✅ timeout 10 detik (ubah sesuai kebutuhan)
-      const res = await withTimeout(
-        onSend(form),
-        10000,
-        "Gagal mengirim: koneksi terlalu lama (timeout)"
-      );
+    // ✅ toast progres (akan diupdate)
+    toast.loading("Pesan diproses & dikirim...", { id: "send-msg" });
 
-      // ✅ apapun hasilnya, form harus bersih & dialog ditutup
-      resetAndClose();
-
-      if (res?.ok) {
-        toast.success("Pesan terkirim & tersimpan!");
-      } else {
-        // jika backend return ok:false + data failed
-        toast.error(res?.error || res?.message || "Email tidak ditemukan / gagal terkirim");
-      }
-    } catch (e) {
-      // ✅ timeout / error jaringan / error server
-      resetAndClose();
-      toast.error(e?.message || "Gagal mengirim pesan");
-    } finally {
-      setSending(false);
-    }
+    // ✅ Jalankan request di background (tanpa menahan dialog)
+    Promise.resolve()
+      .then(() => onSend(payload))
+      .then((res) => {
+        if (res?.ok) {
+          toast.success("Pesan terkirim & tersimpan!", { id: "send-msg" });
+        } else {
+          toast.error(
+            res?.error ||
+              res?.message ||
+              "Email tidak ditemukan / gagal terkirim",
+            { id: "send-msg" }
+          );
+        }
+      })
+      .catch((e) => {
+        toast.error(e?.message || "Gagal mengirim pesan", { id: "send-msg" });
+      })
+      .finally(() => {
+        setSending(false);
+      });
   };
 
   return (
@@ -101,7 +99,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               onChange={(e) =>
                 setForm((p) => ({ ...p, recipientEmail: e.target.value }))
               }
-              placeholder="admin@egmail.com"
+              placeholder="admin@gmail.com"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
               disabled={sending}
             />
@@ -114,7 +112,9 @@ export default function ComposeDialog({ open, onClose, onSend }) {
             <input
               type="text"
               value={form.subject}
-              onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, subject: e.target.value }))
+              }
               placeholder="Subjek pesan"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
               disabled={sending}
@@ -128,7 +128,9 @@ export default function ComposeDialog({ open, onClose, onSend }) {
             <textarea
               ref={textareaRef}
               value={form.body}
-              onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, body: e.target.value }))
+              }
               placeholder="Tulis pesan..."
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none overflow-hidden min-h-20"
               disabled={sending}
@@ -152,7 +154,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
               type="button"
             >
               <Send className="h-4 w-4" />
-              {sending ? "Mengirim..." : "Kirim"}
+              Kirim
             </button>
           </div>
         </div>

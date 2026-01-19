@@ -25,7 +25,7 @@ export default function PositionsCard({
       <div className="p-6 pb-2">
         <h3 className="text-lg font-semibold text-gray-800">Posisi Lamaran</h3>
         <p className="text-sm text-gray-500">
-          Distribusi lamaran berdasarkan posisi (Bulanan)
+          Distribusi lamaran berdasarkan posisi
         </p>
       </div>
 

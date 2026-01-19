@@ -25,12 +25,6 @@ class ReportsService {
     return x;
   }
 
-  addMonths(date, months) {
-    const x = new Date(date);
-    x.setMonth(x.getMonth() + months);
-    return x;
-  }
-
   pad2(n) {
     return String(n).padStart(2, "0");
   }
@@ -59,19 +53,19 @@ class ReportsService {
     return `${names[x.getMonth()]} ${x.getFullYear()}`;
   }
 
+  isoDate(d) {
+    if (!d) return "-";
+    const x = new Date(d);
+    return x.toISOString().split("T")[0];
+  }
+
   // =========================
-  // Weekly custom rule:
-  // Minggu 1: 1-7
-  // Minggu 2: 8-14
-  // Minggu 3: 15-21
-  // Minggu 4: 22-28
-  // Tanggal 29-31 => dianggap Minggu 1 bulan berikutnya
+  // Weekly custom rule
   // =========================
   getCustomWeeklyBucket(d) {
     const x = new Date(d);
-    const day = x.getDate(); // 1..31
+    const day = x.getDate();
 
-    // default: bulan yang sama
     let bucketMonthDate = new Date(x.getFullYear(), x.getMonth(), 1);
 
     let week;
@@ -80,16 +74,13 @@ class ReportsService {
     else if (day <= 21) week = 3;
     else if (day <= 28) week = 4;
     else {
-      // 29-31 => pindah bulan, minggu 1
       bucketMonthDate = new Date(x.getFullYear(), x.getMonth() + 1, 1);
       week = 1;
     }
 
-    const ym = this.keyYM(bucketMonthDate); // YYYY-MM
+    const ym = this.keyYM(bucketMonthDate);
     const label = `${this.monthLabel(bucketMonthDate)} - Minggu ${week}`;
     const key = `${ym}|W${week}`;
-
-    // sortKey: gunakan start bulan bucket + offset minggu (agar urut)
     const sortKey = bucketMonthDate.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000;
 
     return { key, label, sortKey };
@@ -106,31 +97,21 @@ class ReportsService {
   getDateRange(period) {
     const now = new Date();
     const endDate = this.endOfDay(now);
-
     let startDate;
 
     switch (period) {
       case "daily":
-        // 7 hari terakhir
         startDate = this.startOfDay(this.addDays(now, -6));
         break;
-
       case "weekly":
-        // 8 minggu terakhir kira-kira (biar cukup data)
-        // tapi bucket weekly tetap per-bulan (custom rule) saat agregasi
         startDate = this.startOfDay(this.addDays(now, -7 * 8));
         break;
-
       case "monthly":
-        // 12 bulan terakhir
         startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth() - 11, 1));
         break;
-
       case "yearly":
-        // 5 tahun terakhir
         startDate = this.startOfDay(new Date(now.getFullYear() - 4, 0, 1));
         break;
-
       default:
         startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
         break;
@@ -142,15 +123,18 @@ class ReportsService {
   // =========================
   // Fetch applications
   // =========================
-  async getApplicationsByPeriod(period) {
-    const p = this.normalizePeriod(period);
-    const { startDate, endDate } = this.getDateRange(p);
-
+  async getApplicationsInRange(startDate, endDate) {
     return prisma.application.findMany({
       where: { appliedAt: { gte: startDate, lte: endDate } },
       include: { job: true, user: true },
       orderBy: { appliedAt: "asc" },
     });
+  }
+
+  async getApplicationsByPeriod(period) {
+    const p = this.normalizePeriod(period);
+    const { startDate, endDate } = this.getDateRange(p);
+    return this.getApplicationsInRange(startDate, endDate);
   }
 
   // =========================
@@ -180,17 +164,10 @@ class ReportsService {
   }
 
   // =========================
-  // MAIN: Trend + Status chart
-  // (HANYA tampil yang ada datanya)
+  // Aggregator trend
   // =========================
-  async getReportsByPeriod(period = "monthly") {
+  aggregateTrend(applications, period) {
     const p = this.normalizePeriod(period);
-    const applications = await this.getApplicationsByPeriod(p);
-
-    /**
-     * trendMap:
-     * key -> { label, count, sortKey }
-     */
     const trendMap = new Map();
 
     for (const app of applications) {
@@ -202,24 +179,17 @@ class ReportsService {
       if (p === "daily") {
         key = this.keyYMD(d);
         label = this.labelDMY(d);
-        // sortKey by timestamp day start
         sortKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      }
-
-      if (p === "weekly") {
+      } else if (p === "weekly") {
         const wk = this.getCustomWeeklyBucket(d);
         key = wk.key;
         label = wk.label;
         sortKey = wk.sortKey;
-      }
-
-      if (p === "monthly") {
+      } else if (p === "monthly") {
         key = this.keyYM(d);
         label = this.monthLabel(d);
         sortKey = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-      }
-
-      if (p === "yearly") {
+      } else if (p === "yearly") {
         key = String(d.getFullYear());
         label = key;
         sortKey = new Date(d.getFullYear(), 0, 1).getTime();
@@ -227,18 +197,56 @@ class ReportsService {
 
       if (!key) continue;
 
-      if (!trendMap.has(key)) {
-        trendMap.set(key, { label, count: 0, sortKey });
-      }
+      if (!trendMap.has(key)) trendMap.set(key, { label, count: 0, sortKey });
       trendMap.get(key).count += 1;
     }
 
-    // urutkan
     const sorted = Array.from(trendMap.values()).sort((a, b) => a.sortKey - b.sortKey);
-    const trendLabels = sorted.map((x) => x.label);
-    const trendValues = sorted.map((x) => x.count);
+    return {
+      labels: sorted.map((x) => x.label),
+      applications: sorted.map((x) => x.count),
+    };
+  }
 
-    // acceptance status (tetap)
+  // =========================
+  // Export breakdown rule
+  // =========================
+  getExportBreakdownPeriods(basePeriod) {
+    const p = this.normalizePeriod(basePeriod);
+    if (p === "weekly") return ["weekly", "daily"];
+    if (p === "monthly") return ["monthly", "weekly", "daily"];
+    if (p === "yearly") return ["yearly", "monthly", "weekly", "daily"];
+    return ["daily"];
+  }
+
+  async buildTrendExportData(basePeriod) {
+    const p = this.normalizePeriod(basePeriod);
+    const { startDate, endDate } = this.getDateRange(p);
+
+    const apps = await this.getApplicationsInRange(startDate, endDate);
+    const periods = this.getExportBreakdownPeriods(p);
+
+    const trends = {};
+    for (const per of periods) {
+      trends[per] = this.aggregateTrend(apps, per);
+    }
+
+    return {
+      basePeriod: p,
+      dateRange: { startDate, endDate },
+      trends,
+    };
+  }
+
+  // =========================
+  // MAIN: Trend + Status chart
+  // =========================
+  async getReportsByPeriod(period = "monthly") {
+    const p = this.normalizePeriod(period);
+    const applications = await this.getApplicationsByPeriod(p);
+
+    const chartTrend = this.aggregateTrend(applications, p);
+
     let accepted = 0;
     let rejected = 0;
     let inProgress = 0;
@@ -252,7 +260,7 @@ class ReportsService {
 
     return {
       period: p,
-      chartTrend: { labels: trendLabels, applications: trendValues },
+      chartTrend,
       chartAcceptance: {
         labels: ["Diterima", "Ditolak", "Dalam Proses"],
         values: [accepted, rejected, inProgress],
@@ -303,21 +311,22 @@ class ReportsService {
   }
 
   // =========================
-  // Export builders (punya kamu)
+  // Export builders
   // =========================
   async buildDashboardExportData({ trendPeriod, positionPeriod, statusPeriod }) {
     const tp = this.normalizePeriod(trendPeriod);
     const pp = this.normalizePeriod(positionPeriod);
     const sp = this.normalizePeriod(statusPeriod);
 
-    const trendCharts = await this.getReportsByPeriod(tp);
+    const trendExport = await this.buildTrendExportData(tp);
+
     const statusCharts = await this.getReportsByPeriod(sp);
     const metrics = await this.getOverallMetrics(pp);
 
     return {
       period: "dashboard",
       dashboardMeta: { trendPeriod: tp, positionPeriod: pp, statusPeriod: sp },
-      chartTrend: trendCharts.chartTrend,
+      trendExport,
       chartAcceptance: statusCharts.chartAcceptance,
       positionDetails: metrics.positionDetails,
     };
@@ -327,8 +336,8 @@ class ReportsService {
     const p = this.normalizePeriod(period);
 
     if (type === "trend_analytics") {
-      const charts = await this.getReportsByPeriod(p);
-      return { period: p, chartTrend: charts.chartTrend };
+      const trendExport = await this.buildTrendExportData(p);
+      return { period: p, trendExport };
     }
 
     if (type === "position_analytics") {
@@ -346,14 +355,34 @@ class ReportsService {
     return { period: p, ...charts, ...metrics };
   }
 
+  // =========================
+  // XLSX generator
+  // NOTE: Posisi & Status sheet NAMA FIX jadi "Posisi" dan "Status"
+  // =========================
   async generateXLSXBuffer(report, type = "dashboard") {
     const wb = new ExcelJS.Workbook();
     wb.creator = "HumanCapital";
     wb.created = new Date();
 
+    const PERIOD_NAME = {
+      daily: "Harian",
+      weekly: "Mingguan",
+      monthly: "Bulanan",
+      yearly: "Tahunan",
+    };
+
+    const styleTitle = (ws, titleText) => {
+      ws.getCell("A1").value = titleText;
+      ws.getCell("A1").font = { bold: true, size: 14 };
+      ws.getRow(1).height = 20;
+    };
+
     const styleHeader = (row) => {
       row.font = { bold: true };
       row.alignment = { vertical: "middle" };
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+      });
     };
 
     const autoFit = (ws) => {
@@ -370,37 +399,78 @@ class ReportsService {
 
     const safeName = (name) => String(name).slice(0, 31);
 
-    const addTrendSheet = (periodLabel) => {
-      const ws = wb.addWorksheet(safeName(`Trend_${periodLabel}`));
-      ws.addRow(["Label", "Jumlah"]);
-      styleHeader(ws.getRow(1));
+    const addTrendSheetFromSeries = ({ periodKey, series, dateRange }) => {
+      const label = PERIOD_NAME[periodKey] || periodKey;
+      const ws = wb.addWorksheet(safeName(`Trend_${label}`));
 
-      const trend = report.chartTrend || {};
-      const labels = Array.isArray(trend.labels) ? trend.labels : [];
-      const vals = Array.isArray(trend.applications) ? trend.applications : [];
+      styleTitle(ws, `Trend - ${label}`);
+      ws.addRow(["Rentang", `${this.isoDate(dateRange?.startDate)} s/d ${this.isoDate(dateRange?.endDate)}`]);
+      ws.addRow([]);
+
+      ws.addRow(["Label", "Jumlah"]);
+      styleHeader(ws.getRow(4));
+      ws.autoFilter = { from: "A4", to: "B4" };
+      ws.views = [{ state: "frozen", ySplit: 4 }];
+
+      const labels = Array.isArray(series?.labels) ? series.labels : [];
+      const vals = Array.isArray(series?.applications) ? series.applications : [];
 
       if (!labels.length) ws.addRow(["Data kosong", 0]);
-      else labels.forEach((label, i) => ws.addRow([label, vals[i] ?? 0]));
+      else labels.forEach((l, i) => ws.addRow([l, vals[i] ?? 0]));
 
       autoFit(ws);
     };
 
-    const addPositionsSheet = (periodLabel) => {
-      const ws = wb.addWorksheet(safeName(`Posisi_${periodLabel}`));
+    // ✅ FIX: Sheet name jadi "Posisi" (tanpa suffix)
+    // - jika sudah ada "Posisi", pakai "Posisi (2)" agar tidak error
+    const addPositionsSheet = () => {
+      const baseName = "Posisi";
+      let name = baseName;
+      let idx = 2;
+      while (wb.getWorksheet(name)) {
+        name = `${baseName} (${idx++})`;
+      }
+
+      const ws = wb.addWorksheet(safeName(name));
+
+      styleTitle(ws, "Analitik Posisi");
+      ws.addRow([]);
       ws.addRow(["Posisi", "Jumlah", "Persentase"]);
-      styleHeader(ws.getRow(1));
+      styleHeader(ws.getRow(3));
+      ws.autoFilter = { from: "A3", to: "C3" };
+      ws.views = [{ state: "frozen", ySplit: 3 }];
 
       const pos = Array.isArray(report.positionDetails) ? report.positionDetails : [];
-      if (!pos.length) ws.addRow(["Data kosong", 0, "0%"]);
-      else pos.forEach((p) => ws.addRow([p.position || "-", p.count ?? 0, `${p.percentage ?? 0}%`]));
+      if (!pos.length) {
+        ws.addRow(["Data kosong", 0, 0]);
+      } else {
+        pos.forEach((p) => {
+          const r = ws.addRow([p.position || "-", p.count ?? 0, (p.percentage ?? 0) / 100]);
+          r.getCell(3).numFmt = "0%";
+        });
+      }
 
       autoFit(ws);
     };
 
-    const addStatusSheet = (periodLabel) => {
-      const ws = wb.addWorksheet(safeName(`Status_${periodLabel}`));
+    // ✅ FIX: Sheet name jadi "Status" (tanpa suffix)
+    // - jika sudah ada "Status", pakai "Status (2)" agar tidak error
+    const addStatusSheet = () => {
+      const baseName = "Status";
+      let name = baseName;
+      let idx = 2;
+      while (wb.getWorksheet(name)) {
+        name = `${baseName} (${idx++})`;
+      }
+
+      const ws = wb.addWorksheet(safeName(name));
+
+      styleTitle(ws, "Status Lamaran");
+      ws.addRow([]);
       ws.addRow(["Status", "Jumlah"]);
-      styleHeader(ws.getRow(1));
+      styleHeader(ws.getRow(3));
+      ws.autoFilter = { from: "A3", to: "B3" };
+      ws.views = [{ state: "frozen", ySplit: 3 }];
 
       const acc = report.chartAcceptance || {};
       const labels = Array.isArray(acc.labels) ? acc.labels : [];
@@ -412,21 +482,62 @@ class ReportsService {
       autoFit(ws);
     };
 
+    // ====== routing export ======
     if (type === "dashboard") {
-      const meta = report.dashboardMeta || {};
-      addTrendSheet(meta.trendPeriod || "monthly");
-      addPositionsSheet(meta.positionPeriod || "monthly");
-      addStatusSheet(meta.statusPeriod || "monthly");
+      const trendExport = report.trendExport;
+
+      if (trendExport?.trends) {
+        const order = this.getExportBreakdownPeriods(trendExport.basePeriod);
+        order.forEach((per) =>
+          addTrendSheetFromSeries({
+            periodKey: per,
+            series: trendExport.trends[per],
+            dateRange: trendExport.dateRange,
+          })
+        );
+      } else {
+        // fallback
+        const meta = report.dashboardMeta || {};
+        addTrendSheetFromSeries({
+          periodKey: meta.trendPeriod || "monthly",
+          series: report.chartTrend,
+          dateRange: null,
+        });
+      }
+
+      // ✅ Posisi & Status sekarang sheet-nya tetap "Posisi" & "Status"
+      addPositionsSheet();
+      addStatusSheet();
     } else if (type === "trend_analytics") {
-      addTrendSheet(report.period || "monthly");
+      const trendExport = report.trendExport;
+      if (trendExport?.trends) {
+        const order = this.getExportBreakdownPeriods(trendExport.basePeriod);
+        order.forEach((per) =>
+          addTrendSheetFromSeries({
+            periodKey: per,
+            series: trendExport.trends[per],
+            dateRange: trendExport.dateRange,
+          })
+        );
+      } else {
+        addTrendSheetFromSeries({
+          periodKey: report.period || "monthly",
+          series: report.chartTrend,
+          dateRange: null,
+        });
+      }
     } else if (type === "position_analytics") {
-      addPositionsSheet(report.period || "monthly");
+      addPositionsSheet();
     } else if (type === "status_analytics") {
-      addStatusSheet(report.period || "monthly");
+      addStatusSheet();
     } else {
-      addTrendSheet(report.period || "monthly");
-      addPositionsSheet(report.period || "monthly");
-      addStatusSheet(report.period || "monthly");
+      addTrendSheetFromSeries({
+        periodKey: report.period || "monthly",
+        series: report.chartTrend,
+        dateRange: null,
+      });
+      addPositionsSheet();
+      addStatusSheet();
     }
 
     return wb.xlsx.writeBuffer();

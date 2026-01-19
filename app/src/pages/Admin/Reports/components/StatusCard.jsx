@@ -8,7 +8,7 @@ export default function StatusCard({ acceptanceData }) {
       <div className="p-6 pb-2">
         <h3 className="text-lg font-semibold text-gray-800">Status Kandidat</h3>
         <p className="text-sm text-gray-500">
-          Rekapitulasi status pelamar (Bulanan)
+          Rekapitulasi status pelamar
         </p>
       </div>
 
