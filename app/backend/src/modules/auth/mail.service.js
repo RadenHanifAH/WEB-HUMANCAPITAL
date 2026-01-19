@@ -1,8 +1,7 @@
-// src/modules/auth/mail.service.js
 const nodemailer = require("nodemailer");
 
 const port = Number(process.env.SMTP_PORT || 587);
-const secure = port === 465;
+const secure = port === 465; // Gmail: 465 secure true, 587 false
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -12,11 +11,6 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-
-  // ✅ biar request daftar tidak lama
-  connectionTimeout: 5000,
-  greetingTimeout: 5000,
-  socketTimeout: 8000,
 });
 
 async function verifySmtp() {
@@ -55,23 +49,4 @@ async function sendOtpEmail(to, otp) {
   });
 }
 
-async function sendResetPasswordEmail(to, resetLink) {
-  const subject = "Reset Password";
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5">
-      <h2>Reset Password</h2>
-      <p>Klik link berikut untuk reset password:</p>
-      <p><a href="${resetLink}">${resetLink}</a></p>
-      <p>Link berlaku <b>15 menit</b>.</p>
-    </div>
-  `;
-
-  return transporter.sendMail({
-    from: getFrom(),
-    to,
-    subject,
-    html,
-  });
-}
-
-module.exports = { sendOtpEmail, sendResetPasswordEmail };
+module.exports = { sendOtpEmail };

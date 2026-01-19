@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const redisClient = require("../../config/redis");
 const authRepository = require("./auth.repository");
 
+// ⚠️ pastikan mail.service export 2 function ini
 const { sendResetPasswordEmail, sendOtpEmail } = require("./mail.service");
 
 /* =========================
@@ -17,9 +18,11 @@ const generateTokens = (user) => {
     expiresIn: "15m",
   });
 
-  const refreshToken = jwt.sign({ id: user.id }, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: "7d",
-  });
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: "7d" }
+  );
 
   return { accessToken, refreshToken };
 };
@@ -31,7 +34,7 @@ const storeRefreshToken = async (userId, refreshToken) => {
 };
 
 /* =========================================================
-   ✅ OTP REGISTER FLOW (Redis) - CEPAT
+   ✅ OTP REGISTER FLOW (Redis)
    ========================================================= */
 const OTP_TTL_SEC = 5 * 60;
 
@@ -39,14 +42,6 @@ const makeOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 const otpKey = (email) => `otp_register:${String(email || "").toLowerCase()}`;
 const pendingKey = (email) =>
   `otp_register_payload:${String(email || "").toLowerCase()}`;
-
-// ✅ Kirim OTP async (agar endpoint register cepat)
-const sendOtpAsync = (email, otp) => {
-  Promise.resolve()
-    .then(() => sendOtpEmail(email, otp))
-    .then(() => console.log("[OTP] sent to:", email))
-    .catch((err) => console.error("[OTP] send failed:", email, err?.message || err));
-};
 
 // STEP 1: request OTP (belum create user)
 const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
@@ -67,8 +62,8 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
     { EX: OTP_TTL_SEC }
   );
 
-  // ✅ kirim otp tanpa await (biar cepat)
-  sendOtpAsync(email, otp);
+  // kirim OTP ke email
+  await sendOtpEmail(email, otp);
 
   return { email };
 };
@@ -127,9 +122,7 @@ const resendRegisterOtp = async (email) => {
   const otp = makeOtp();
   await redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC });
 
-  // ✅ kirim otp tanpa await
-  sendOtpAsync(email, otp);
-
+  await sendOtpEmail(email, otp);
   return true;
 };
 
@@ -251,10 +244,12 @@ const confirmPasswordReset = async (rawToken, newPassword) => {
 };
 
 module.exports = {
+  // ✅ OTP register flow (INI YANG BIKIN ERROR TADI)
   requestRegisterOtp,
   verifyRegisterOtpAndCreateUser,
   resendRegisterOtp,
 
+  // auth
   login,
   refreshAccessToken,
   logout,
@@ -262,6 +257,7 @@ module.exports = {
   updateProfile,
   changePassword,
 
+  // reset password
   requestPasswordReset,
   confirmPasswordReset,
 };
