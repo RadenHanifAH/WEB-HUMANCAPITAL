@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { API_URL_APPLICANTS, API_URL_JOBS } from "../utils/constants";
+import axiosInstance from "../../../../api/axiosInstance";
+import { API_APPLICANTS, API_JOBS } from "../utils/constants";
 
 export const usePelamar = () => {
   const [applicants, setApplicants] = useState([]);
@@ -7,27 +8,32 @@ export const usePelamar = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchJobPositions = async () => {
+  const fetchJobPositions = useCallback(async () => {
     try {
-      const response = await fetch(API_URL_JOBS, { credentials: "include" });
-      const data = await response.json();
-      const jobData = data.data || data;
-      const uniqueTitles = [...new Set(jobData.map((job) => job.title))];
+      const res = await axiosInstance.get(API_JOBS);
+      const data = res?.data?.data || res?.data || [];
+
+      const uniqueTitles = [...new Set((data || []).map((job) => job.title).filter(Boolean))];
+
       setJobPositions([
         { value: "", label: "Posisi" },
         ...uniqueTitles.map((title) => ({ value: title, label: title })),
       ]);
-    } catch (err) { console.error(err); }
-  };
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   const fetchApplicants = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
-      const response = await fetch(API_URL_APPLICANTS, { credentials: "include" });
-      const result = await response.json();
-      setApplicants(result.data || []);
+      const res = await axiosInstance.get(API_APPLICANTS);
+      const result = res?.data;
+      setApplicants(result?.data || []);
     } catch (err) {
-      setError(`Gagal memuat data: ${err.message}`);
+      setError(`Gagal memuat data: ${err?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -36,7 +42,7 @@ export const usePelamar = () => {
   useEffect(() => {
     fetchApplicants();
     fetchJobPositions();
-  }, [fetchApplicants]);
+  }, [fetchApplicants, fetchJobPositions]);
 
   return { applicants, setApplicants, jobPositions, loading, error, fetchApplicants };
 };

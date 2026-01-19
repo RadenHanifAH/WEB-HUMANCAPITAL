@@ -1,11 +1,20 @@
+import axiosInstance from "../../../../api/axiosInstance";
+
 export const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   let dateToParse = dateStr;
-  if (typeof dateStr === "string" && dateStr.length === 10 && dateStr.includes("-")) {
+
+  if (
+    typeof dateStr === "string" &&
+    dateStr.length === 10 &&
+    dateStr.includes("-")
+  ) {
     dateToParse = dateStr + "T00:00:00";
   }
+
   const date = new Date(dateToParse);
   if (isNaN(date.getTime())) return dateStr;
+
   return date.toLocaleDateString("id-ID", {
     day: "2-digit",
     month: "2-digit",
@@ -13,9 +22,23 @@ export const formatDate = (dateStr) => {
   });
 };
 
-export const downloadFileFromUrl = (url, filename) => {
+const getApiOrigin = () => {
+  const base = axiosInstance?.defaults?.baseURL || "";
+  try {
+    // base: http://localhost:4000/api  -> origin: http://localhost:4000
+    return new URL(base).origin;
+  } catch {
+    return "";
+  }
+};
+
+export const downloadFileFromUrl = (url, filename = "file") => {
   if (!url) return;
-  const finalUrl = url.startsWith("/") ? `http://localhost:4000${url}` : url;
+
+  const origin = getApiOrigin();
+
+  const finalUrl =
+    url.startsWith("/") && origin ? `${origin}${url}` : url;
 
   if (finalUrl.startsWith("data:")) {
     const link = document.createElement("a");
@@ -24,9 +47,10 @@ export const downloadFileFromUrl = (url, filename) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  } else {
-    window.open(finalUrl, "_blank");
+    return;
   }
+
+  window.open(finalUrl, "_blank", "noopener,noreferrer");
 };
 
 export const getProgress = (status) => {

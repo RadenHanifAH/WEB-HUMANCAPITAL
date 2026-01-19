@@ -1,47 +1,45 @@
 import React, { useState, useEffect } from "react";
-import { API_URL_APPLICANTS } from "../utils/constants";
 import { toast } from "react-hot-toast";
+import axiosInstance from "../../../../api/axiosInstance";
+import { API_APPLICANTS } from "../utils/constants";
 
 const MessageModal = ({ isOpen, onClose, data, onSuccess }) => {
   const { applicant, action, status, stage } = data;
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fungsi untuk generate template pesan otomatis berdasarkan aksi
   useEffect(() => {
-    if (applicant) {
-      const baseMessage = `Halo ${applicant.name}, ini adalah pesan dari tim rekrutmen.`;
-      
-      if (action === "reject") {
-        setMessage(`${baseMessage}\n\nTerima kasih atas waktu dan usaha Anda. Kami mohon maaf, saat ini kami belum bisa melanjutkan proses lamaran Anda ke tahap berikutnya.`);
-      } else if (action === "accept") {
-        setMessage(`${baseMessage}\n\nSelamat! Anda telah diterima untuk posisi ${applicant.position}. Kami akan segera menghubungi Anda untuk proses Onboarding.`);
-      }
+    if (!applicant) return;
+
+    const baseMessage = `Halo ${applicant.name}, ini adalah pesan dari tim rekrutmen.`;
+
+    if (action === "reject") {
+      setMessage(
+        `${baseMessage}\n\nTerima kasih atas waktu dan usaha Anda. Kami mohon maaf, saat ini kami belum bisa melanjutkan proses lamaran Anda ke tahap berikutnya.`
+      );
+    } else if (action === "accept") {
+      setMessage(
+        `${baseMessage}\n\nSelamat! Anda telah diterima untuk posisi ${applicant.position}. Kami akan segera menghubungi Anda untuk proses Onboarding.`
+      );
     }
   }, [applicant, action]);
 
   const handleSubmit = async () => {
     if (!message.trim()) return toast.error("Pesan tidak boleh kosong");
+    if (!applicant?.id) return toast.error("Data pelamar tidak valid");
 
     setIsSubmitting(true);
     const loadingToast = toast.loading("Mengirim pesan dan memperbarui status...");
 
     try {
-      const response = await fetch(`${API_URL_APPLICANTS}/${applicant.id}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: status, 
-          stage: stage,
-          message: message // Pesan ini bisa disimpan di DB atau dikirim via email di backend
-        }),
-        credentials: "include",
+      await axiosInstance.put(`${API_APPLICANTS}/${applicant.id}/status`, {
+        status,
+        stage,
+        message,
       });
 
-      if (!response.ok) throw new Error("Gagal memperbarui status di server");
-
       toast.success("Status berhasil diperbarui!", { id: loadingToast });
-      onSuccess(); // Panggil fungsi refresh di Pelamar.jsx
+      onSuccess?.();
     } catch (error) {
       console.error(error);
       toast.error("Terjadi kesalahan sistem", { id: loadingToast });
@@ -55,8 +53,11 @@ const MessageModal = ({ isOpen, onClose, data, onSuccess }) => {
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-        {/* Header */}
-        <div className={`p-4 text-white font-bold text-center ${action === 'accept' ? 'bg-green-600' : 'bg-red-600'}`}>
+        <div
+          className={`p-4 text-white font-bold text-center ${
+            action === "accept" ? "bg-green-600" : "bg-red-600"
+          }`}
+        >
           {action === "accept" ? "Konfirmasi Penerimaan" : "Konfirmasi Penolakan"}
         </div>
 
@@ -77,7 +78,6 @@ const MessageModal = ({ isOpen, onClose, data, onSuccess }) => {
             />
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <button
               onClick={onClose}
@@ -90,9 +90,9 @@ const MessageModal = ({ isOpen, onClose, data, onSuccess }) => {
               onClick={handleSubmit}
               disabled={isSubmitting}
               className={`flex-1 px-4 py-2.5 rounded-xl text-white font-semibold shadow-lg transition-all transform active:scale-95 disabled:opacity-50 ${
-                action === 'accept' 
-                ? 'bg-green-600 hover:bg-green-700 shadow-green-200' 
-                : 'bg-red-600 hover:bg-red-700 shadow-red-200'
+                action === "accept"
+                  ? "bg-green-600 hover:bg-green-700 shadow-green-200"
+                  : "bg-red-600 hover:bg-red-700 shadow-red-200"
               }`}
             >
               {isSubmitting ? "Memproses..." : "Kirim & Update"}

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import axiosInstance from "../../../api/axiosInstance"; // ✅ sesuaikan jika beda
 import { usePelamar } from "./hooks/usePelamar";
-import { statusOptions, API_URL_APPLICANTS } from "./utils/constants";
+import { statusOptions, API_APPLICANTS } from "./utils/constants";
+import { downloadFileFromUrl } from "./utils/helpers";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,15 +17,10 @@ import ApplicantTable from "./components/ApplicantTable";
 import DetailModal from "./components/DetailModal";
 import MessageModal from "./components/MessageModal";
 
-// ✅ mapping dari value dropdown -> status yang dikirim ke backend
-// PENTING: backend akan set stage mengikuti status.
 const STATUS_TO_BACKEND = {
   screaning: "Screaning",
   "interview-hc": "Interview HC",
-
-  // ✅ walau UI tampil "Psikotes/Technical Test", backend tetap terima "Psikotes"
   psikotes: "Psikotes",
-
   "final-interview": "Final Interview",
   offering: "Offering/Final Result",
   accepted: "Accepted",
@@ -40,32 +37,27 @@ function Pelamar() {
     fetchApplicants,
   } = usePelamar();
 
-  // Filter
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState(statusOptions[0]);
   const [filterPosisi, setFilterPosisi] = useState(jobPositions[0]);
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Modal detail
   const [selectedDetail, setSelectedDetail] = useState(null);
 
-  // Modal accept/reject + pesan
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [modalData, setModalData] = useState({
     applicant: null,
     action: null,
     status: "",
+    stage: "",
   });
 
-  // reset page kalau filter/search berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [search, filterStatus, filterPosisi]);
 
-  // 1) Filter
   const filteredApplicants = (applicants || []).filter((a) => {
     const name = String(a?.name || "");
     const status = String(a?.status || "");
@@ -80,95 +72,59 @@ function Pelamar() {
         ? status === filterStatus.value
         : true;
 
-    const matchPosisi = filterPosisi.value
-      ? position === filterPosisi.value
-      : true;
+    const matchPosisi = filterPosisi.value ? position === filterPosisi.value : true;
 
     return matchName && matchStatus && matchPosisi;
   });
 
-  // 2) Pagination
   const totalPages = Math.ceil(filteredApplicants.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentApplicants = filteredApplicants.slice(
-    indexOfFirstItem,
-    indexOfLastItem
-  );
+  const currentApplicants = filteredApplicants.slice(indexOfFirstItem, indexOfLastItem);
 
-  // ✅ helper update status (tanpa kirim stage!)
-  const updateApplicantStatus = async (
-    applicantId,
-    newStatusForBackend,
-    applicantName
-  ) => {
+  const updateApplicantStatus = async (applicantId, newStatusForBackend, applicantName) => {
     const loadingToast = toast.loading(`Memperbarui status ${applicantName}...`);
 
     try {
-      const response = await fetch(`${API_URL_APPLICANTS}/${applicantId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: newStatusForBackend }),
+      await axiosInstance.put(`${API_APPLICANTS}/${applicantId}/status`, {
+        status: newStatusForBackend,
       });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`${response.status} - ${text}`);
-      }
 
       toast.success(`Status ${applicantName} berhasil diubah`, { id: loadingToast });
       fetchApplicants();
     } catch (e) {
-      toast.error(`Gagal update status: ${e.message}`, { id: loadingToast });
+      toast.error(`Gagal update status: ${e?.message || "error"}`, { id: loadingToast });
     }
   };
 
-  // 3) Update Status (trigger dari dropdown di table)
   const handleStatusUpdate = async (applicant, newStatusValue) => {
     if (!applicant) return;
 
-    // ✅ Konversi dropdown value -> status untuk backend
     const newStatusForBackend = STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
 
-    // accepted/rejected pakai modal (kirim pesan)
     if (newStatusValue === "accepted") {
-      setModalData({ applicant, action: "accept", status: newStatusForBackend });
+      setModalData({ applicant, action: "accept", status: newStatusForBackend, stage: "accepted" });
       setIsMessageModalOpen(true);
       return;
     }
 
     if (newStatusValue === "rejected") {
-      setModalData({ applicant, action: "reject", status: newStatusForBackend });
+      setModalData({ applicant, action: "reject", status: newStatusForBackend, stage: "rejected" });
       setIsMessageModalOpen(true);
       return;
     }
 
-    // status proses langsung update
     await updateApplicantStatus(applicant.id, newStatusForBackend, applicant.name);
   };
 
-  // ✅ Download CV dari DB (endpoint /file?type=cv)
   const handleDownloadCV = (a) => {
     if (!a?.cvDownloadUrl) return toast.error(`CV ${a?.name} tidak ditemukan`);
-
-    const finalUrl = a.cvDownloadUrl.startsWith("http")
-      ? a.cvDownloadUrl
-      : `http://localhost:4000${a.cvDownloadUrl}`;
-
-    window.open(finalUrl, "_blank");
+    downloadFileFromUrl(a.cvDownloadUrl, `CV_${a?.name || "pelamar"}.pdf`);
   };
 
-  // ✅ Download Portofolio dari DB (endpoint /file?type=portfolio)
   const handleDownloadPortfolio = (a) => {
-    if (!a?.portfolioDownloadUrl)
-      return toast.error(`Portofolio ${a?.name} tidak tersedia.`);
-
-    const finalUrl = a.portfolioDownloadUrl.startsWith("http")
-      ? a.portfolioDownloadUrl
-      : `http://localhost:4000${a.portfolioDownloadUrl}`;
-
-    window.open(finalUrl, "_blank");
+    if (!a?.portfolioDownloadUrl) return toast.error(`Portofolio ${a?.name} tidak tersedia.`);
+    downloadFileFromUrl(a.portfolioDownloadUrl, `Portofolio_${a?.name || "pelamar"}.pdf`);
   };
 
   return (

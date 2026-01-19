@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import axios from "axios";
-import { API_BASE_URL, chartColors20, periodOptions } from "../utils/constants";
+import axiosInstance from "../../../../api/axiosInstance";
+import { API_REPORTS, chartColors20, periodOptions } from "../utils/constants";
 
 const LS_KEYS = { trend: "reports_period_trend" };
 const defaultMonthly = { id: "monthly", label: "Bulanan" };
@@ -24,7 +24,6 @@ export function useReportsDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // ✅ hanya trend yang punya dropdown
   const [trendPeriod, setTrendPeriod] = useState(() => getInitialTrendPeriod());
 
   const [trendData, setTrendData] = useState({ labels: [], applications: [] });
@@ -46,12 +45,11 @@ export function useReportsDashboard() {
 
       const trendId = trendPeriod?.id || "monthly";
 
-      // ✅ trend ikut dropdown
-      // ✅ status & posisi tetap monthly
+      // ✅ axiosInstance: baseURL sudah /api, jadi cukup endpoint
       const [resTrend, resStatus, resPos] = await Promise.all([
-        axios.get(`${API_BASE_URL}/charts?period=${trendId}`, { withCredentials: true }),
-        axios.get(`${API_BASE_URL}/charts?period=monthly`, { withCredentials: true }),
-        axios.get(`${API_BASE_URL}/metrics?period=monthly`, { withCredentials: true }),
+        axiosInstance.get(`${API_REPORTS}/charts`, { params: { period: trendId } }),
+        axiosInstance.get(`${API_REPORTS}/charts`, { params: { period: "monthly" } }),
+        axiosInstance.get(`${API_REPORTS}/metrics`, { params: { period: "monthly" } }),
       ]);
 
       const trend = resTrend.data?.chartTrend || { labels: [], applications: [] };
@@ -70,7 +68,9 @@ export function useReportsDashboard() {
       const safeList = Array.isArray(positionDetails) ? positionDetails : [];
 
       const colors =
-        Array.isArray(chartColors20) && chartColors20.length ? chartColors20 : ["#3B82F6"];
+        Array.isArray(chartColors20) && chartColors20.length
+          ? chartColors20
+          : ["#3B82F6"];
 
       setDetailedPositions(
         safeList.map((p, idx) => ({
@@ -111,7 +111,6 @@ export function useReportsDashboard() {
     [trendData, acceptanceData, detailedPositions, showFullPositionList]
   );
 
-  // ✅ export: trendPeriodId dipakai untuk trend saja
   const exportParams = useMemo(
     () => ({
       trendPeriodId: trendPeriod?.id || "monthly",

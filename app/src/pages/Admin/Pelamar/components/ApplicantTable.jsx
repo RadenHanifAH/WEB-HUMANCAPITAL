@@ -13,7 +13,8 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { Listbox, Transition } from "@headlessui/react";
-import { stageFlow, blockedScoreStages, API_URL_APPLICANTS } from "../utils/constants";
+import axiosInstance from "../../../../api/axiosInstance";
+import { stageFlow, blockedScoreStages, API_APPLICANTS } from "../utils/constants";
 import { formatDate, getProgress } from "../utils/helpers";
 
 const ApplicantTable = ({
@@ -25,37 +26,27 @@ const ApplicantTable = ({
   setApplicants,
   onOpenStatusModal,
 }) => {
-  // ✅ Normalisasi: semua variasi psikotes disatukan ke label UI
   const normalizeStatus = (raw) => {
     const s = String(raw || "").trim();
     const low = s.toLowerCase();
 
-    // Screening (typo + variasi)
-    if (low === "screaning") return "Screaning";
-    if (low === "screening") return "Screaning";
-    if (low === "under-review" || low === "under review" || low === "under_review")
+    if (low === "screaning" || low === "screening" || low === "under-review" || low === "under review" || low === "under_review")
       return "Screaning";
 
-    // Interview HC
     if (low === "interview hc" || low === "interview-hc" || low === "interviewhc")
       return "Interview HC";
 
-    // ✅ Psikotes -> label baru
     if (
       low === "psikotes" ||
       low === "psychotest" ||
       low === "psycho test" ||
       low === "technical test" ||
       low === "psikotes/technical test"
-    ) {
-      return "Psikotes/Technical Test";
-    }
+    ) return "Psikotes/Technical Test";
 
-    // Final Interview
     if (low === "final interview" || low === "final-interview" || low === "finalinterview")
       return "Final Interview";
 
-    // Accepted / Rejected
     if (low === "accepted" || low === "accept") return "Accepted";
     if (low.startsWith("rejected") || low === "reject") return "Rejected";
 
@@ -85,13 +76,11 @@ const ApplicantTable = ({
 
     const Icon = icons[status] || Clock;
     const color = colors[status] || "text-gray-500";
-
     return <Icon className={`h-4 w-4 ${color}`} />;
   };
 
   const getBadgeColor = (statusRaw) => {
     const status = normalizeStatus(statusRaw);
-
     const colors = {
       Screaning: "bg-orange-100 text-orange-600",
       "Interview HC": "bg-blue-100 text-blue-600",
@@ -100,7 +89,6 @@ const ApplicantTable = ({
       Accepted: "bg-green-200 text-green-700",
       Rejected: "bg-red-100 text-red-700",
     };
-
     return colors[status] || "bg-gray-100 text-gray-600";
   };
 
@@ -118,14 +106,12 @@ const ApplicantTable = ({
   const handleScoreChange = async (id, newScore) => {
     const val = newScore === "" ? null : parseInt(newScore, 10);
 
+    // optimistik UI
     setApplicants((prev) => prev.map((a) => (a.id === id ? { ...a, score: val } : a)));
 
     try {
-      await fetch(`${API_URL_APPLICANTS}/${id}/score`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ score: newScore }),
-        credentials: "include",
+      await axiosInstance.put(`${API_APPLICANTS}/${id}/score`, {
+        score: newScore === "" ? null : Number(newScore),
       });
     } catch (e) {
       console.error("Gagal update score:", e);
@@ -196,9 +182,7 @@ const ApplicantTable = ({
                 >
                   <div className="relative inline-block w-48">
                     <Listbox.Button
-                      className={`flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-semibold ${getBadgeColor(
-                        st
-                      )}`}
+                      className={`flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-semibold ${getBadgeColor(st)}`}
                     >
                       <div className="flex items-center gap-2">
                         {getStatusIcon(st)}
@@ -247,10 +231,7 @@ const ApplicantTable = ({
               <td className="p-4">
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="h-1.5 bg-gray-100 rounded-full w-20 overflow-hidden">
-                    <div
-                      className="h-full bg-sky-500"
-                      style={{ width: `${getProgress(st)}%` }}
-                    />
+                    <div className="h-full bg-sky-500" style={{ width: `${getProgress(st)}%` }} />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500">
                     {getProgress(st)}%

@@ -1,4 +1,5 @@
-export const API_BASE_URL = "http://localhost:4000/api/reports";
+// ✅ cukup endpoint path
+export const API_REPORTS = "/reports";
 
 export const periodOptions = [
   { id: "daily", label: "Harian" },

@@ -1,6 +1,6 @@
 import React from "react";
 import { FileSpreadsheet } from "lucide-react";
-import axios from "axios";
+import axiosInstance from "../../../api/axiosInstance"; // ✅ sesuaikan path kalau beda
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -19,7 +19,7 @@ import StatusCard from "./components/StatusCard";
 import ExportButtons from "./components/ExportButtons";
 
 import { useReportsDashboard } from "./hooks/useReportsDashboard";
-import { API_BASE_URL } from "./utils/constants";
+import { API_REPORTS } from "./utils/constants";
 import { downloadBlob, getFilenameFromContentDisposition } from "./utils/download";
 
 ChartJS.register(
@@ -46,13 +46,6 @@ export default function ReportsPage() {
     setShowFullPositionList,
   } = dataState;
 
-  /**
-   * ✅ FIX TOTAL:
-   * - type=dashboard: export 3 sheet (trend ikut dropdown, posisi+status tetap monthly)
-   * - type=trend_analytics: export trend saja (period ikut dropdown)
-   * - type=position_analytics: export posisi saja (monthly)
-   * - type=status_analytics: export status saja (monthly)
-   */
   const exportExcel = async (type) => {
     if (exporting) return;
 
@@ -64,32 +57,32 @@ export default function ReportsPage() {
         params = {
           ...params,
           type: "dashboard",
-          trendPeriod: exportParams.trendPeriodId, // ✅ ikut dropdown
+          trendPeriod: exportParams.trendPeriodId,
         };
       } else if (type === "trend_analytics") {
         params = {
           ...params,
           type: "trend_analytics",
-          period: exportParams.trendPeriodId, // ✅ ikut dropdown
+          period: exportParams.trendPeriodId,
         };
       } else if (type === "position_analytics") {
         params = {
           ...params,
           type: "position_analytics",
-          period: exportParams.fixedPeriod, // ✅ tetap monthly
+          period: exportParams.fixedPeriod,
         };
       } else if (type === "status_analytics") {
         params = {
           ...params,
           type: "status_analytics",
-          period: exportParams.fixedPeriod, // ✅ tetap monthly
+          period: exportParams.fixedPeriod,
         };
       } else {
         params = { ...params, type };
       }
 
-      const res = await axios.get(`${API_BASE_URL}/export`, {
-        withCredentials: true,
+      // ✅ axiosInstance, tanpa localhost
+      const res = await axiosInstance.get(`${API_REPORTS}/export`, {
         responseType: "blob",
         params,
       });
