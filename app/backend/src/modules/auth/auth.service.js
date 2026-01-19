@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const redisClient = require("../../config/redis");
 const authRepository = require("./auth.repository");
 
-// ⚠️ pastikan mail.service export 2 function ini
+// ✅ pastikan mail.service export function ini
 const { sendResetPasswordEmail, sendOtpEmail } = require("./mail.service");
 
 /* =========================
@@ -35,6 +35,7 @@ const storeRefreshToken = async (userId, refreshToken) => {
 
 /* =========================================================
    ✅ OTP REGISTER FLOW (Redis)
+   - FIX: sendOtpEmail() dibuat non-blocking biar register cepat
    ========================================================= */
 const OTP_TTL_SEC = 5 * 60;
 
@@ -55,15 +56,21 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const otp = makeOtp();
 
-  await redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC });
-  await redisClient.set(
-    pendingKey(email),
-    JSON.stringify({ name, email, password: hashedPassword, NIK, nomorHp }),
-    { EX: OTP_TTL_SEC }
-  );
+  // simpan OTP + payload (cepat)
+  await Promise.all([
+    redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC }),
+    redisClient.set(
+      pendingKey(email),
+      JSON.stringify({ name, email, password: hashedPassword, NIK, nomorHp }),
+      { EX: OTP_TTL_SEC }
+    ),
+  ]);
 
-  // kirim OTP ke email
-  await sendOtpEmail(email, otp);
+  // ✅ FIX UTAMA: kirim OTP ASYNC (tidak ditunggu)
+  // supaya response register tidak delay karena SMTP
+  sendOtpEmail(email, otp)
+    .then(() => console.log("[OTP] sent to:", email))
+    .catch((e) => console.error("[OTP] send error:", e?.message || e));
 
   return { email };
 };
@@ -85,8 +92,7 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   // double check email belum terpakai
   const existingUser = await authRepository.findUserByEmail(payload.email);
   if (existingUser) {
-    await redisClient.del(otpKey(email));
-    await redisClient.del(pendingKey(email));
+    await Promise.all([redisClient.del(otpKey(email)), redisClient.del(pendingKey(email))]);
     throw new Error("Email sudah digunakan");
   }
 
@@ -97,8 +103,7 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
     profile: { create: { NIK: payload.NIK, nomorHp: payload.nomorHp } },
   });
 
-  await redisClient.del(otpKey(email));
-  await redisClient.del(pendingKey(email));
+  await Promise.all([redisClient.del(otpKey(email)), redisClient.del(pendingKey(email))]);
 
   const safeUser = {
     id: user.id,
@@ -117,17 +122,23 @@ const resendRegisterOtp = async (email) => {
   if (!email) throw new Error("Email wajib diisi");
 
   const payloadStr = await redisClient.get(pendingKey(email));
-  if (!payloadStr) throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
+  if (!payloadStr) {
+    throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
+  }
 
   const otp = makeOtp();
   await redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC });
 
-  await sendOtpEmail(email, otp);
+  // ✅ async juga
+  sendOtpEmail(email, otp)
+    .then(() => console.log("[OTP] resent to:", email))
+    .catch((e) => console.error("[OTP] resend error:", e?.message || e));
+
   return true;
 };
 
 /* =========================================================
-   ✅ LOGIN / LOGOUT / REFRESH (tetap)
+   ✅ LOGIN / LOGOUT / REFRESH
    ========================================================= */
 const login = async (email, password) => {
   const user = await authRepository.findUserByEmail(email);
@@ -224,6 +235,9 @@ const requestPasswordReset = async (email) => {
   await authRepository.saveResetToken(user.id, tokenHash, expiresAt);
 
   const resetLink = `${process.env.FRONTEND_URL}/reset-password/${rawToken}`;
+
+  // reset email boleh tetap await (biasanya user memang menunggu),
+  // tapi kalau mau cepat bisa dibuat async juga
   await sendResetPasswordEmail(user.email, resetLink);
 
   return { message: "Link reset password telah dikirim ke email kamu." };
@@ -244,12 +258,10 @@ const confirmPasswordReset = async (rawToken, newPassword) => {
 };
 
 module.exports = {
-  // ✅ OTP register flow (INI YANG BIKIN ERROR TADI)
   requestRegisterOtp,
   verifyRegisterOtpAndCreateUser,
   resendRegisterOtp,
 
-  // auth
   login,
   refreshAccessToken,
   logout,
@@ -257,7 +269,6 @@ module.exports = {
   updateProfile,
   changePassword,
 
-  // reset password
   requestPasswordReset,
   confirmPasswordReset,
 };
