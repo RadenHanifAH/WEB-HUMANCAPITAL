@@ -1,11 +1,8 @@
-// src/modules/auth/auth.service.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const redisClient = require("../../config/redis");
 const authRepository = require("./auth.repository");
-
-// ⚠️ pastikan mail.service export 2 function ini
 const { sendResetPasswordEmail, sendOtpEmail } = require("./mail.service");
 
 /* =========================
@@ -34,14 +31,16 @@ const storeRefreshToken = async (userId, refreshToken) => {
 };
 
 /* =========================================================
-   ✅ OTP REGISTER FLOW (Redis)
+   ✅ OTP REGISTER FLOW (FAST)
+   - Hash password dipindah ke step verify (lebih cepat request OTP)
    ========================================================= */
 const OTP_TTL_SEC = 5 * 60;
 
 const makeOtp = () => String(Math.floor(100000 + Math.random() * 900000));
-const otpKey = (email) => `otp_register:${String(email || "").toLowerCase()}`;
-const pendingKey = (email) =>
-  `otp_register_payload:${String(email || "").toLowerCase()}`;
+const normEmail = (email) => String(email || "").trim().toLowerCase();
+
+const otpKey = (email) => `otp_register:${normEmail(email)}`;
+const pendingKey = (email) => `otp_register_payload:${normEmail(email)}`;
 
 // STEP 1: request OTP (belum create user)
 const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
@@ -49,35 +48,46 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
     throw new Error("Nama, email, dan password wajib diisi");
   }
 
-  const existingUser = await authRepository.findUserByEmail(email);
+  const cleanEmail = normEmail(email);
+
+  const existingUser = await authRepository.findUserByEmail(cleanEmail);
   if (existingUser) throw new Error("Email sudah digunakan");
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  // ✅ generate OTP
   const otp = makeOtp();
 
-  await redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC });
+  // ✅ simpan OTP & payload (password masih plaintext sementara) TTL 5 menit
+  await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
   await redisClient.set(
-    pendingKey(email),
-    JSON.stringify({ name, email, password: hashedPassword, NIK, nomorHp }),
+    pendingKey(cleanEmail),
+    JSON.stringify({
+      name,
+      email: cleanEmail,
+      password, // ✅ HASH NANTI SAAT VERIFY (biar request OTP cepat)
+      NIK,
+      nomorHp,
+    }),
     { EX: OTP_TTL_SEC }
   );
 
-  // kirim OTP ke email
-  await sendOtpEmail(email, otp);
+  // ✅ kirim OTP email
+  await sendOtpEmail(cleanEmail, otp);
 
-  return { email };
+  return { email: cleanEmail };
 };
 
 // STEP 2: verify OTP -> create user
 const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   if (!email || !otp) throw new Error("Email dan OTP wajib diisi");
 
-  const storedOtp = await redisClient.get(otpKey(email));
+  const cleanEmail = normEmail(email);
+
+  const storedOtp = await redisClient.get(otpKey(cleanEmail));
   if (!storedOtp) throw new Error("OTP sudah kadaluarsa. Silakan kirim ulang OTP.");
 
   if (String(storedOtp) !== String(otp)) throw new Error("OTP salah.");
 
-  const payloadStr = await redisClient.get(pendingKey(email));
+  const payloadStr = await redisClient.get(pendingKey(cleanEmail));
   if (!payloadStr) throw new Error("Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.");
 
   const payload = JSON.parse(payloadStr);
@@ -85,20 +95,23 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   // double check email belum terpakai
   const existingUser = await authRepository.findUserByEmail(payload.email);
   if (existingUser) {
-    await redisClient.del(otpKey(email));
-    await redisClient.del(pendingKey(email));
+    await redisClient.del(otpKey(cleanEmail));
+    await redisClient.del(pendingKey(cleanEmail));
     throw new Error("Email sudah digunakan");
   }
+
+  // ✅ HASH password di sini (baru dilakukan setelah OTP benar)
+  const hashedPassword = await bcrypt.hash(payload.password, 10);
 
   const user = await authRepository.createUser({
     name: payload.name,
     email: payload.email,
-    password: payload.password,
+    password: hashedPassword,
     profile: { create: { NIK: payload.NIK, nomorHp: payload.nomorHp } },
   });
 
-  await redisClient.del(otpKey(email));
-  await redisClient.del(pendingKey(email));
+  await redisClient.del(otpKey(cleanEmail));
+  await redisClient.del(pendingKey(cleanEmail));
 
   const safeUser = {
     id: user.id,
@@ -114,23 +127,24 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
 
 // resend OTP
 const resendRegisterOtp = async (email) => {
-  if (!email) throw new Error("Email wajib diisi");
+  const cleanEmail = normEmail(email);
+  if (!cleanEmail) throw new Error("Email wajib diisi");
 
-  const payloadStr = await redisClient.get(pendingKey(email));
+  const payloadStr = await redisClient.get(pendingKey(cleanEmail));
   if (!payloadStr) throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
 
   const otp = makeOtp();
-  await redisClient.set(otpKey(email), otp, { EX: OTP_TTL_SEC });
+  await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
 
-  await sendOtpEmail(email, otp);
+  await sendOtpEmail(cleanEmail, otp);
   return true;
 };
 
 /* =========================================================
-   ✅ LOGIN / LOGOUT / REFRESH (tetap)
+   ✅ LOGIN / LOGOUT / REFRESH
    ========================================================= */
 const login = async (email, password) => {
-  const user = await authRepository.findUserByEmail(email);
+  const user = await authRepository.findUserByEmail(normEmail(email));
   if (!user) throw new Error("Email tidak ditemukan");
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -214,7 +228,7 @@ const changePassword = async (userId, currentPassword, newPassword) => {
    ✅ RESET PASSWORD
    ========================================================= */
 const requestPasswordReset = async (email) => {
-  const user = await authRepository.findUserByEmail(email);
+  const user = await authRepository.findUserByEmail(normEmail(email));
   if (!user) throw new Error("Email tidak ditemukan");
 
   const rawToken = crypto.randomBytes(32).toString("hex");
@@ -244,7 +258,7 @@ const confirmPasswordReset = async (rawToken, newPassword) => {
 };
 
 module.exports = {
-  // ✅ OTP register flow (INI YANG BIKIN ERROR TADI)
+  // OTP register flow
   requestRegisterOtp,
   verifyRegisterOtpAndCreateUser,
   resendRegisterOtp,

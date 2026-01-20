@@ -1,7 +1,7 @@
 const nodemailer = require("nodemailer");
 
 const port = Number(process.env.SMTP_PORT || 587);
-const secure = port === 465; // Gmail: 465 secure true, 587 false
+const secure = port === 465;
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -11,8 +11,16 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // ✅ biar tidak menggantung lama
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 20_000,
 });
 
+/**
+ * ⚠️ Jangan auto verify di production (bisa lambat / gagal kalau provider membatasi)
+ * Kalau mau cek, panggil manual atau aktifkan hanya dev.
+ */
 async function verifySmtp() {
   try {
     await transporter.verify();
@@ -21,7 +29,11 @@ async function verifySmtp() {
     console.error("[SMTP] VERIFY ERROR:", e?.message || e);
   }
 }
-verifySmtp();
+
+// ✅ hanya dev
+if (process.env.NODE_ENV !== "production") {
+  verifySmtp();
+}
 
 function getFrom() {
   const name = process.env.MAIL_FROM_NAME || "Human Capital";
@@ -49,4 +61,26 @@ async function sendOtpEmail(to, otp) {
   });
 }
 
-module.exports = { sendOtpEmail };
+async function sendResetPasswordEmail(to, resetLink) {
+  const subject = "Reset Password";
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5">
+      <h2>Reset Password</h2>
+      <p>Klik link berikut untuk reset password:</p>
+      <p><a href="${resetLink}">${resetLink}</a></p>
+      <p>Link berlaku <b>15 menit</b>.</p>
+    </div>
+  `;
+
+  return transporter.sendMail({
+    from: getFrom(),
+    to,
+    subject,
+    html,
+  });
+}
+
+module.exports = {
+  sendOtpEmail,
+  sendResetPasswordEmail,
+};

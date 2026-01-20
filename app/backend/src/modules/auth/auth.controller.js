@@ -1,23 +1,14 @@
-// src/modules/auth/auth.controller.js
 const authService = require("./auth.service");
 
 const isProd = process.env.NODE_ENV === "production";
 
-/**
- * ✅ Cookie options harus konsisten untuk:
- * - set cookie (login/register/refresh)
- * - clear cookie (logout)
- */
 const baseCookieOptions = {
   httpOnly: true,
-  secure: isProd, // DEV: false | PROD: true
+  secure: isProd,
   sameSite: isProd ? "none" : "lax",
   path: "/",
 };
 
-/**
- * ✅ SATU pintu untuk set cookie
- */
 const setCookies = (res, accessToken, refreshToken) => {
   if (accessToken) {
     res.cookie("accessToken", accessToken, {
@@ -35,70 +26,63 @@ const setCookies = (res, accessToken, refreshToken) => {
 };
 
 /* =========================================================
-   ✅ OTP REGISTER FLOW (BARU)
-   - POST /auth/register      -> kirim OTP
-   - POST /auth/verify-otp    -> verifikasi OTP & create user
-   - POST /auth/resend-otp    -> kirim ulang OTP
+   ✅ OTP REGISTER FLOW
    ========================================================= */
-
-// STEP 1: request OTP (BELUM create user)
 const register = async (req, res) => {
   try {
     const { name, email, password, NIK, nomorHp } = req.body;
 
-    // ✅ minta OTP
-    await authService.requestRegisterOtp({ name, email, password, NIK, nomorHp });
+    const result = await authService.requestRegisterOtp({
+      name,
+      email,
+      password,
+      NIK,
+      nomorHp,
+    });
 
     return res.status(200).json({
+      success: true,
       message: "OTP sudah dikirim ke email. Silakan verifikasi OTP untuk menyelesaikan pendaftaran.",
-      data: { email },
+      data: result,
     });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// STEP 2: verify OTP -> create user
 const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
     const { user } = await authService.verifyRegisterOtpAndCreateUser({ email, otp });
 
-    // ✅ OPSIONAL: kalau kamu MAU auto-login setelah verify
-    // (wajib auth.service.js mengembalikan token juga)
-    // Jika kamu tidak auto-login, biarkan tidak set cookie.
-    // Contoh kalau kamu ubah service untuk return tokens:
-    // const { user, accessToken, refreshToken } =
-    //   await authService.verifyRegisterOtpAndCreateUser({ email, otp });
-    // setCookies(res, accessToken, refreshToken);
-
     return res.status(200).json({
+      success: true,
       message: "Email berhasil diverifikasi. Akun berhasil dibuat. Silakan login.",
       user,
     });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// resend OTP
 const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
     await authService.resendRegisterOtp(email);
 
     return res.status(200).json({
+      success: true,
       message: "OTP baru sudah dikirim ke email.",
       data: { email },
     });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 /* =========================================================
-   ✅ LOGIN FLOW (tetap)
+   ✅ LOGIN FLOW
    ========================================================= */
 const login = async (req, res) => {
   try {
@@ -109,11 +93,12 @@ const login = async (req, res) => {
     setCookies(res, accessToken, refreshToken);
 
     return res.status(200).json({
+      success: true,
       message: "Login Success",
       user,
     });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -126,11 +111,9 @@ const logout = async (req, res) => {
     res.clearCookie("accessToken", baseCookieOptions);
     res.clearCookie("refreshToken", baseCookieOptions);
 
-    return res.status(200).json({
-      message: "Logged Out Successfully",
-    });
+    return res.status(200).json({ success: true, message: "Logged Out Successfully" });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -139,10 +122,10 @@ const refreshAccessToken = async (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
 
     const result = await authService.refreshAccessToken(refreshToken);
-    const accessToken = typeof result === "string" ? result : result?.accessToken;
+    const accessToken = result?.accessToken;
 
     if (!accessToken) {
-      return res.status(400).json({ message: "Failed to refresh access token" });
+      return res.status(400).json({ success: false, message: "Failed to refresh access token" });
     }
 
     res.cookie("accessToken", accessToken, {
@@ -150,42 +133,36 @@ const refreshAccessToken = async (req, res) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    return res.status(200).json({
-      message: "Token refreshed successfully",
-    });
+    return res.status(200).json({ success: true, message: "Token refreshed successfully" });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 /* =========================================================
-   ✅ PROFILE (tetap)
+   ✅ PROFILE
    ========================================================= */
 const getProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const profile = await authService.getProfile(userId);
 
     return res.status(200).json({
-      status: "success",
+      success: true,
       message: "Profile fetched successfully",
       data: profile,
     });
   } catch (error) {
-    return res.status(400).json({
-      status: "error",
-      message: "Failed to fetched profile",
-      error: error.message,
-    });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const data = req.body;
     if (data.tanggalLahir) data.tanggalLahir = new Date(data.tanggalLahir);
@@ -193,52 +170,45 @@ const updateProfile = async (req, res) => {
     const updatedProfile = await authService.updateProfile(userId, data);
 
     return res.status(200).json({
-      status: "success",
+      success: true,
       message: "Profile updated successfully",
       data: updatedProfile,
     });
   } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      message: "Failed to update profile",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/* =========================================================
-   ✅ CHANGE PASSWORD (tetap)  <-- ini yang bikin error kalau service tidak export
-   ========================================================= */
 const changePassword = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { currentPassword, newPassword } = req.body;
 
     const result = await authService.changePassword(userId, currentPassword, newPassword);
 
-    return res.status(200).json(result);
+    return res.status(200).json({ success: true, ...result });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 /* =========================================================
-   ✅ RESET PASSWORD (tetap)
+   ✅ RESET PASSWORD
    ========================================================= */
 const requestReset = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email wajib diisi" });
+    if (!email) return res.status(400).json({ success: false, message: "Email wajib diisi" });
 
     const result = await authService.requestPasswordReset(email);
-    return res.status(200).json(result);
+    return res.status(200).json({ success: true, ...result });
   } catch (error) {
     if (error.message === "Email tidak ditemukan") {
-      return res.status(404).json({ message: error.message });
+      return res.status(404).json({ success: false, message: error.message });
     }
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -247,23 +217,20 @@ const confirmReset = async (req, res) => {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({ message: "Token & password baru wajib diisi" });
+      return res.status(400).json({ success: false, message: "Token & password baru wajib diisi" });
     }
 
     const result = await authService.confirmPasswordReset(token, newPassword);
-    return res.status(200).json(result);
+    return res.status(200).json({ success: true, ...result });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 module.exports = {
-  // OTP register
   register,
   verifyOtp,
   resendOtp,
-
-  // auth existing
   login,
   logout,
   refreshAccessToken,
