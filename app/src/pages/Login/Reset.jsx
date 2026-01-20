@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import axios from "../../api/axiosInstance";
 import toast from "react-hot-toast";
 
@@ -20,9 +21,10 @@ function Reset() {
     });
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // ✅ mencegah reload form
+    e.preventDefault();
 
-    if (!email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       toastError("Email wajib diisi.");
       return;
     }
@@ -30,17 +32,19 @@ function Reset() {
     try {
       setLoading(true);
 
-      await axios.post("/auth/password-reset/request", { email });
+      await axios.post("/auth/password-reset/request", { email: cleanEmail });
 
-      // ✅ Email ada / request sukses
       toastSuccess("Link reset password telah dikirim ke email kamu.");
       setEmail("");
     } catch (err) {
-      const msg = err?.response?.data?.message || "";
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || "";
 
-      // ✅ Email tidak ada (sesuaikan jika backend kamu pakai message lain)
-      const lower = msg.toLowerCase();
+      const lower = String(msg).toLowerCase();
+
+      // ✅ Email tidak ditemukan
       if (
+        status === 404 ||
         lower.includes("email tidak ditemukan") ||
         lower.includes("email not found") ||
         lower.includes("not found")
@@ -49,7 +53,6 @@ function Reset() {
         return;
       }
 
-      // fallback error lain
       toastError(msg || "Gagal mengirim reset.");
     } finally {
       setLoading(false);
@@ -57,10 +60,7 @@ function Reset() {
   };
 
   return (
-    <div
-      className="relative w-full overflow-hidden"
-      style={{ height: "calc(100vh)" }}
-    >
+    <div className="relative w-full overflow-hidden" style={{ height: "calc(100vh)" }}>
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
 
       <div className="relative h-full flex items-center justify-center px-4 sm:px-6">
@@ -100,12 +100,12 @@ function Reset() {
 
           <p className="text-sm text-gray-600 mt-4 text-center">
             Ingat Password?{" "}
-            <a
-              href="/login"
+            <Link
+              to="/login"
               className="text-sm font-medium text-sky-800 hover:underline"
             >
               Masuk
-            </a>
+            </Link>
           </p>
         </div>
       </div>

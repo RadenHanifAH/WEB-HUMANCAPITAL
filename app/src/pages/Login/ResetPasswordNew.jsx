@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Lock, Eye, EyeOff } from "lucide-react";
 import axios from "../../api/axiosInstance";
@@ -14,6 +14,8 @@ export default function ResetPasswordNew() {
 
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const hasToken = useMemo(() => !!String(token || "").trim(), [token]);
 
   const validatePassword = (password) => {
     // minimal 8, 1 huruf besar, 1 angka, 1 simbol
@@ -38,6 +40,11 @@ export default function ResetPasswordNew() {
   const submit = async (e) => {
     e.preventDefault();
 
+    if (!hasToken) {
+      toastError("Token reset tidak ditemukan di URL.");
+      return;
+    }
+
     const ruleMsg =
       "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol.";
 
@@ -60,10 +67,22 @@ export default function ResetPasswordNew() {
       });
 
       toastSuccess("Password berhasil direset. Silakan login.");
-
       setTimeout(() => navigate("/login"), 900);
     } catch (err) {
-      toastError(err?.response?.data?.message || "Reset gagal.");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || "Reset gagal.";
+
+      // contoh token invalid/expired
+      const lower = String(msg).toLowerCase();
+      if (
+        status === 400 &&
+        (lower.includes("token") || lower.includes("kadaluarsa") || lower.includes("expired"))
+      ) {
+        toastError("Token reset tidak valid atau sudah kadaluarsa. Silakan request ulang.");
+        return;
+      }
+
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -83,6 +102,13 @@ export default function ResetPasswordNew() {
           <p className="text-gray-700 mb-6 text-center text-sm sm:text-base">
             Masukkan password baru kamu. Pastikan sesuai aturan keamanan.
           </p>
+
+          {!hasToken && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Token reset tidak ditemukan. Pastikan URL kamu seperti:{" "}
+              <span className="font-semibold">/reset-password/:token</span>
+            </div>
+          )}
 
           <form onSubmit={submit} className="space-y-4">
             {/* Password baru */}
@@ -114,8 +140,7 @@ export default function ResetPasswordNew() {
               </div>
 
               <p className="mt-2 text-xs text-gray-600">
-                Password harus mengandung minimal 8 karakter, 1 huruf
-                besar, 1 angka, dan 1 simbol.
+                Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol.
               </p>
             </div>
 
@@ -149,7 +174,7 @@ export default function ResetPasswordNew() {
             </div>
 
             <button
-              disabled={loading}
+              disabled={loading || !hasToken}
               type="submit"
               className="w-full px-5 py-2.5 sm:px-6 sm:py-3 
                 bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
@@ -161,10 +186,7 @@ export default function ResetPasswordNew() {
 
             <p className="text-sm text-gray-700 text-center mt-3">
               Kembali ke{" "}
-              <Link
-                to="/login"
-                className="text-sky-800 font-semibold hover:underline"
-              >
+              <Link to="/login" className="text-sky-800 font-semibold hover:underline">
                 Login
               </Link>
             </p>
