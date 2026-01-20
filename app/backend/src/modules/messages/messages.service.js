@@ -1,3 +1,4 @@
+// src/modules/messages/messages.service.js
 const prisma = require("../../config/prisma");
 const repo = require("./messages.repository");
 const { sendEmail } = require("../../utils/mailer");
@@ -42,7 +43,7 @@ class MessagesService {
       select: { id: true, name: true, email: true },
     });
 
-    // ✅ kalau tidak ada -> langsung simpan FAILED (masuk manajemen pesan)
+    // ✅ kalau tidak ada -> langsung simpan FAILED (cepat juga)
     if (!user) {
       const failed = await repo.create({
         userId: null,
@@ -52,7 +53,7 @@ class MessagesService {
         body,
         status: "failed",
         direction: "outgoing",
-        provider: "nodemailer",
+        provider: "mailer",
         sentAt: null,
         providerId: null,
         errorMessage: "Email tidak ditemukan",
@@ -65,7 +66,7 @@ class MessagesService {
       };
     }
 
-    // 1) simpan dulu ke DB (queued)
+    // 1) simpan dulu ke DB (queued) -> ini yang bikin response cepat
     const created = await repo.create({
       userId: user.id,
       recipientName: user.name,
@@ -74,46 +75,65 @@ class MessagesService {
       body,
       status: "queued",
       direction: "outgoing",
-      provider: "nodemailer",
+      provider: "mailer",
+      sentAt: null,
+      providerId: null,
+      errorMessage: null,
     });
 
-    // 2) kirim email
-    try {
-      const text = body;
-      const html = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.5">
-          <h3 style="margin:0 0 12px 0;">${escapeHtml(subject)}</h3>
-          <p style="white-space: pre-wrap; margin:0;">${escapeHtml(body)}</p>
-          <hr style="margin:16px 0; border:none; border-top:1px solid #eee;" />
-          <small style="color:#666;">Pesan ini dikirim otomatis oleh sistem Human Capital.</small>
-        </div>
-      `;
+    // 2) kirim email NON-BLOCKING (tidak await)
+    setImmediate(async () => {
+      try {
+        const text = body;
+        const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.5">
+            <h3 style="margin:0 0 12px 0;">${escapeHtml(subject)}</h3>
+            <p style="white-space: pre-wrap; margin:0;">${escapeHtml(body)}</p>
+            <hr style="margin:16px 0; border:none; border-top:1px solid #eee;" />
+            <small style="color:#666;">Pesan ini dikirim otomatis oleh sistem Human Capital.</small>
+          </div>
+        `;
 
-      const info = await sendEmail({
-        to: email,
-        subject,
-        text,
-        html,
-      });
+        const info = await sendEmail({
+          to: email,
+          subject,
+          text,
+          html,
+        });
 
-      // 3) update status sent
-      const updated = await repo.update(created.id, {
-        status: "sent",
-        sentAt: new Date(),
-        providerId: info?.messageId || null,
-        errorMessage: null,
-      });
+        await repo.update(created.id, {
+          status: "sent",
+          sentAt: new Date(),
+          providerId: info?.messageId || null,
+          errorMessage: null,
+        });
 
-      return { ok: true, data: updated };
-    } catch (err) {
-      // 4) update status failed
-      const failed = await repo.update(created.id, {
-        status: "failed",
-        errorMessage: err?.message || String(err),
-      });
+        console.log("[MESSAGE] SENT", {
+          id: created.id,
+          to: email,
+          providerId: info?.messageId,
+        });
+      } catch (err) {
+        await repo.update(created.id, {
+          status: "failed",
+          errorMessage: err?.message || String(err),
+        });
 
-      return { ok: false, data: failed, error: err?.message || String(err) };
-    }
+        console.error("[MESSAGE] SEND FAILED", {
+          id: created.id,
+          to: email,
+          message: err?.message || String(err),
+        });
+      }
+    });
+
+    // ✅ 3) RETURN CEPAT (UI ga nunggu email terkirim)
+    return {
+      ok: true,
+      data: created,
+      queued: true,
+      note: "Pesan disimpan & sedang dikirim (async).",
+    };
   }
 
   async deleteMessageById(id) {

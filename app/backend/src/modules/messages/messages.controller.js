@@ -1,3 +1,4 @@
+// src/modules/messages/messages.controller.js
 const service = require("./messages.service");
 
 class MessagesController {
@@ -16,12 +17,23 @@ class MessagesController {
 
       const result = await service.sendMessage({ recipientEmail, subject, body });
 
-      // ✅ selalu 201 karena record sudah disimpan
+      // ✅ kalau user tidak ditemukan -> ok=false + status failed
+      if (!result.ok) {
+        return res.status(201).json({
+          ok: false,
+          message: "Pesan gagal dikirim, tetapi sudah disimpan",
+          data: result.data,
+          error: result.error,
+        });
+      }
+
+      // ✅ sukses: disimpan dan dikirim async (tidak loading lama)
       return res.status(201).json({
-        ok: result.ok,
-        message: result.ok ? "Pesan berhasil dikirim dan disimpan" : "Pesan gagal dikirim, tetapi sudah disimpan",
+        ok: true,
+        queued: true,
+        message: "Pesan disimpan & sedang dikirim (async).",
         data: result.data,
-        error: result.ok ? null : result.error,
+        error: null,
       });
     } catch (error) {
       return res.status(500).json({ message: "Gagal memproses pesan", error: error.message });
