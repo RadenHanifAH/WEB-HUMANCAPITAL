@@ -1,13 +1,50 @@
+// src/utils/mailer.js
 const nodemailer = require("nodemailer");
+const axios = require("axios");
 
-function getTransporter() {
+const isProd = process.env.NODE_ENV === "production";
+
+/* =====================================================
+   🟢 BREVO API (PRODUCTION – RECOMMENDED)
+   ===================================================== */
+async function sendWithBrevo({ to, subject, html, text }) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("BREVO_API_KEY belum di-set");
+
+  const senderName = process.env.MAIL_FROM_NAME || "Human Capital";
+  const senderEmail = process.env.MAIL_FROM_EMAIL;
+
+  const res = await axios.post(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    },
+    {
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      timeout: 10_000,
+    }
+  );
+
+  return {
+    messageId: res.data?.messageId || null,
+    provider: "brevo",
+  };
+}
+
+/* =====================================================
+   🟡 SMTP (DEV / LOCAL)
+   ===================================================== */
+function getSmtpTransporter() {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = String(process.env.SMTP_SECURE || "false") === "true";
-
-  if (!host) throw new Error("SMTP_HOST belum di-set di .env");
-  if (!process.env.SMTP_USER) throw new Error("SMTP_USER belum di-set di .env");
-  if (!process.env.SMTP_PASS) throw new Error("SMTP_PASS belum di-set di .env");
 
   return nodemailer.createTransport({
     host,
@@ -17,11 +54,28 @@ function getTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    pool: true,
+    maxConnections: 2,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 15000,
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
+/* =====================================================
+   ✉️ PUBLIC API
+   ===================================================== */
 async function sendEmail({ to, subject, text, html }) {
-  const transporter = getTransporter();
+  // ✅ production pakai API (CEPAT & STABIL)
+  if (isProd) {
+    return sendWithBrevo({ to, subject, text, html });
+  }
+
+  // 🧪 local dev pakai SMTP
+  const transporter = getSmtpTransporter();
 
   const fromName = process.env.MAIL_FROM_NAME || "Human Capital";
   const fromEmail = process.env.MAIL_FROM_EMAIL || process.env.SMTP_USER;
@@ -34,7 +88,10 @@ async function sendEmail({ to, subject, text, html }) {
     html,
   });
 
-  return info; // info.messageId dll
+  return {
+    messageId: info.messageId,
+    provider: "smtp",
+  };
 }
 
 module.exports = { sendEmail };
