@@ -1,5 +1,14 @@
 import React from "react";
-import { BarChart3, Briefcase, FileText, Users, MessageSquare, Calendar, Archive, Settings } from "lucide-react";
+import {
+  BarChart3,
+  Briefcase,
+  FileText,
+  Users,
+  MessageSquare,
+  Calendar,
+  Archive,
+  Settings,
+} from "lucide-react";
 
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -23,11 +32,14 @@ const SidebarMenu = ({ isCollapsed, activeTab, handleTabChange }) => {
             key={item.id}
             onClick={() => handleTabChange(item.id)}
             className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 ${
-              isActive ? "bg-blue-100 text-sky-600 font-medium shadow-sm" : "text-gray-700 hover:bg-gray-100"
+              isActive
+                ? "bg-blue-100 text-sky-600 font-medium shadow-sm"
+                : "text-gray-700 hover:bg-gray-100"
             } ${isCollapsed ? "justify-center px-2" : "justify-start"}`}
           >
-            <Icon className={`${isActive ? "w-6 h-6" : "w-5 h-5"}`} />
-            {!isCollapsed && <span>{item.label}</span>}
+            {!isCollapsed && (
+              <Icon className={`${isActive ? "w-6 h-6" : "w-5 h-5"}`} />
+            )}
           </button>
         );
       })}
