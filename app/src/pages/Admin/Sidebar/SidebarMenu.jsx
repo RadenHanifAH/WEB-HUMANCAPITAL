@@ -27,19 +27,27 @@ const SidebarMenu = ({ isCollapsed, activeTab, handleTabChange }) => {
       {menuItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
+
         return (
           <button
             key={item.id}
             onClick={() => handleTabChange(item.id)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 ${
-              isActive
-                ? "bg-blue-100 text-sky-600 font-medium shadow-sm"
-                : "text-gray-700 hover:bg-gray-100"
-            } ${isCollapsed ? "justify-center px-2" : "justify-start"}`}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200
+              ${
+                isActive
+                  ? "bg-blue-100 text-sky-600 font-medium shadow-sm"
+                  : "text-gray-700 hover:bg-gray-100"
+              }
+              ${isCollapsed ? "justify-center" : "justify-start"}
+            `}
           >
+            {/* ✅ ICON HILANG SAAT COLLAPSED */}
             {!isCollapsed && (
               <Icon className={`${isActive ? "w-6 h-6" : "w-5 h-5"}`} />
             )}
+
+            {/* LABEL */}
+            {!isCollapsed && <span>{item.label}</span>}
           </button>
         );
       })}
