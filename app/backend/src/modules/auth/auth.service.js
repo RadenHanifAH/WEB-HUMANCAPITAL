@@ -71,9 +71,26 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
 
   // ✅ 2) kirim email OTP TIDAK blocking
   // backend akan balas cepat tanpa menunggu SMTP
-  sendOtpEmail(cleanEmail, otp).catch((e) => {
-    console.error("[OTP EMAIL ERROR]", e?.message || e);
+  sendOtpEmail(cleanEmail, otp)
+  .then((info) => {
+    console.log("[OTP EMAIL] SENT", {
+      to: cleanEmail,
+      messageId: info?.messageId,
+      accepted: info?.accepted,
+      rejected: info?.rejected,
+    });
+  })
+  .catch((e) => {
+    console.error("[OTP EMAIL] FAILED", {
+      to: cleanEmail,
+      message: e?.message,
+      code: e?.code,
+      responseCode: e?.responseCode,
+      command: e?.command,
+      response: e?.response,
+    });
   });
+
 
   return { email: cleanEmail };
 };
