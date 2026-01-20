@@ -113,7 +113,7 @@ module.exports = {
   findUserById,
 
   updateProfile,
-  updateUserName, // ✅ TAMBAHAN INI (buat sinkron user.name)
+  updateUserName,
 
   updateUserPassword,
 
@@ -121,7 +121,6 @@ module.exports = {
   findUserByValidResetTokenHash,
   updatePasswordAndClearReset,
 
-  // ✅ OTP
   upsertPendingRegistration,
   findPendingByEmail,
   incrementPendingAttempt,

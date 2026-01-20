@@ -1,3 +1,4 @@
+// src/modules/auth/auth.service.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -40,11 +41,6 @@ const normEmail = (email) => String(email || "").trim().toLowerCase();
 const otpKey = (email) => `otp_register:${normEmail(email)}`;
 const pendingKey = (email) => `otp_register_payload:${normEmail(email)}`;
 
-/**
- * STEP 1: request OTP (cepat)
- * - simpan OTP + payload (Redis) -> cepat
- * - kirim email OTP: NON-BLOCKING (tidak await)
- */
 const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   if (!name || !email || !password) {
     throw new Error("Nama, email, dan password wajib diisi");
@@ -57,22 +53,20 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
 
   const otp = makeOtp();
 
-  // ✅ 1) simpan OTP + payload dulu (ini yang harus cepat)
   await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
   await redisClient.set(
     pendingKey(cleanEmail),
     JSON.stringify({
       name,
       email: cleanEmail,
-      password, // plaintext sementara (TTL 5 menit)
+      password,
       NIK,
       nomorHp,
     }),
     { EX: OTP_TTL_SEC }
   );
 
-  // ✅ 2) kirim email OTP TIDAK blocking
-  // backend akan balas cepat tanpa menunggu SMTP
+  // ✅ NON-BLOCKING
   sendOtpEmail(cleanEmail, otp)
     .then((info) => {
       console.log("[OTP EMAIL] SENT", {
@@ -97,27 +91,25 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   return { email: cleanEmail };
 };
 
-/**
- * STEP 2: verify OTP -> create user
- */
 const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   if (!email || !otp) throw new Error("Email dan OTP wajib diisi");
 
   const cleanEmail = normEmail(email);
 
   const storedOtp = await redisClient.get(otpKey(cleanEmail));
-  if (!storedOtp)
+  if (!storedOtp) {
     throw new Error("OTP sudah kadaluarsa. Silakan kirim ulang OTP.");
+  }
 
   if (String(storedOtp) !== String(otp)) throw new Error("OTP salah.");
 
   const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr)
+  if (!payloadStr) {
     throw new Error("Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.");
+  }
 
   const payload = JSON.parse(payloadStr);
 
-  // double check email belum terpakai
   const existingUser = await authRepository.findUserByEmail(payload.email);
   if (existingUser) {
     await redisClient.del(otpKey(cleanEmail));
@@ -125,7 +117,6 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
     throw new Error("Email sudah digunakan");
   }
 
-  // ✅ hash dilakukan di sini (setelah OTP benar)
   const hashedPassword = await bcrypt.hash(payload.password, 10);
 
   const user = await authRepository.createUser({
@@ -150,17 +141,14 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   return { user: safeUser };
 };
 
-/**
- * Resend OTP (tetap await biar user yakin)
- * + log error detail kalau gagal
- */
 const resendRegisterOtp = async (email) => {
   const cleanEmail = normEmail(email);
   if (!cleanEmail) throw new Error("Email wajib diisi");
 
   const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr)
+  if (!payloadStr) {
     throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
+  }
 
   const otp = makeOtp();
   await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
@@ -218,8 +206,9 @@ const refreshAccessToken = async (refreshToken) => {
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
   const storedToken = await redisClient.get(`refresh_token:${decoded.id}`);
-  if (!storedToken || storedToken !== refreshToken)
+  if (!storedToken || storedToken !== refreshToken) {
     throw new Error("Invalid refresh token");
+  }
 
   const user = await authRepository.findUserById(decoded.id);
   if (!user) throw new Error("User not found");
@@ -246,27 +235,22 @@ const updateProfile = async (userId, data) => {
   const existingUser = await authRepository.findUserById(userId);
   if (!existingUser) throw new Error("Profile not found");
 
-  // ✅ nama baru bisa datang dari "name" atau "fullName"
   const incomingName =
     (data?.name && String(data.name).trim()) ||
     (data?.fullName && String(data.fullName).trim()) ||
     null;
 
-  // ✅ payload update Profile
   const profilePayload = { ...data };
 
   // Profile tidak punya kolom "name"
   if (profilePayload?.name !== undefined) delete profilePayload.name;
 
-  // kalau ada incomingName, pastikan profile.fullName ter-update
   if (incomingName) {
     profilePayload.fullName = incomingName;
   }
 
-  // 1) update Profile
   const updatedProfile = await authRepository.updateProfile(userId, profilePayload);
 
-  // 2) sync ke User.name
   if (incomingName) {
     await authRepository.updateUserName(userId, incomingName);
   }
@@ -275,8 +259,9 @@ const updateProfile = async (userId, data) => {
 };
 
 const changePassword = async (userId, currentPassword, newPassword) => {
-  if (!currentPassword || !newPassword)
+  if (!currentPassword || !newPassword) {
     throw new Error("Password saat ini & password baru wajib diisi");
+  }
   if (newPassword.length < 6) throw new Error("Password baru minimal 6 karakter");
 
   const user = await authRepository.findUserById(userId);
@@ -304,7 +289,10 @@ const requestPasswordReset = async (email) => {
 
   await authRepository.saveResetToken(user.id, tokenHash, expiresAt);
 
-  const resetLink = `${process.env.FRONTEND_URL}/reset-password/${rawToken}`;
+  const FE = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+  if (!FE) throw new Error("FRONTEND_URL belum di-set");
+
+  const resetLink = `${FE}/reset-password/${rawToken}`;
   await sendResetPasswordEmail(user.email, resetLink);
 
   return { message: "Link reset password telah dikirim ke email kamu." };
@@ -312,8 +300,9 @@ const requestPasswordReset = async (email) => {
 
 const confirmPasswordReset = async (rawToken, newPassword) => {
   if (!rawToken) throw new Error("Token reset wajib diisi");
-  if (!newPassword || newPassword.length < 6)
+  if (!newPassword || newPassword.length < 6) {
     throw new Error("Password minimal 6 karakter");
+  }
 
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   const user = await authRepository.findUserByValidResetTokenHash(tokenHash);

@@ -1,3 +1,4 @@
+// src/modules/auth/auth.controller.js
 const authService = require("./auth.service");
 
 const isProd = process.env.NODE_ENV === "production";
@@ -27,7 +28,6 @@ const setCookies = (res, accessToken, refreshToken) => {
 
 /* =========================================================
    ✅ OTP REGISTER FLOW (FAST)
-   - Tujuan: klik "Daftar" tidak lama
    - Endpoint /register hanya menyimpan OTP + payload (cepat)
    - Pengiriman email OTP dilakukan di BACKGROUND dari service
    ========================================================= */
@@ -43,14 +43,12 @@ const register = async (req, res) => {
       nomorHp,
     });
 
-    // ✅ cepat: langsung balas 200 (frontend langsung masuk step OTP)
     return res.status(200).json({
       success: true,
       message: "OTP sedang dikirim. Silakan cek email kamu (dan folder spam).",
       data: result, // { email }
     });
   } catch (error) {
-    // ✅ validasi / user error -> 400
     return res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -59,7 +57,10 @@ const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    const { user } = await authService.verifyRegisterOtpAndCreateUser({ email, otp });
+    const { user } = await authService.verifyRegisterOtpAndCreateUser({
+      email,
+      otp,
+    });
 
     return res.status(200).json({
       success: true,
@@ -74,6 +75,7 @@ const verifyOtp = async (req, res) => {
 const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
+
     await authService.resendRegisterOtp(email);
 
     return res.status(200).json({
@@ -93,7 +95,10 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const { user, accessToken, refreshToken } = await authService.login(email, password);
+    const { user, accessToken, refreshToken } = await authService.login(
+      email,
+      password
+    );
 
     setCookies(res, accessToken, refreshToken);
 
@@ -116,7 +121,10 @@ const logout = async (req, res) => {
     res.clearCookie("accessToken", baseCookieOptions);
     res.clearCookie("refreshToken", baseCookieOptions);
 
-    return res.status(200).json({ success: true, message: "Logged Out Successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Logged Out Successfully",
+    });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -130,7 +138,9 @@ const refreshAccessToken = async (req, res) => {
     const accessToken = result?.accessToken;
 
     if (!accessToken) {
-      return res.status(400).json({ success: false, message: "Failed to refresh access token" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Failed to refresh access token" });
     }
 
     res.cookie("accessToken", accessToken, {
@@ -138,7 +148,9 @@ const refreshAccessToken = async (req, res) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    return res.status(200).json({ success: true, message: "Token refreshed successfully" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Token refreshed successfully" });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -150,7 +162,8 @@ const refreshAccessToken = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!userId)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const profile = await authService.getProfile(userId);
 
@@ -167,7 +180,8 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!userId)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const data = req.body;
     if (data.tanggalLahir) data.tanggalLahir = new Date(data.tanggalLahir);
@@ -187,11 +201,16 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!userId)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { currentPassword, newPassword } = req.body;
 
-    const result = await authService.changePassword(userId, currentPassword, newPassword);
+    const result = await authService.changePassword(
+      userId,
+      currentPassword,
+      newPassword
+    );
 
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
@@ -205,7 +224,8 @@ const changePassword = async (req, res) => {
 const requestReset = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: "Email wajib diisi" });
+    if (!email)
+      return res.status(400).json({ success: false, message: "Email wajib diisi" });
 
     const result = await authService.requestPasswordReset(email);
     return res.status(200).json({ success: true, ...result });
@@ -222,7 +242,10 @@ const confirmReset = async (req, res) => {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({ success: false, message: "Token & password baru wajib diisi" });
+      return res.status(400).json({
+        success: false,
+        message: "Token & password baru wajib diisi",
+      });
     }
 
     const result = await authService.confirmPasswordReset(token, newPassword);
