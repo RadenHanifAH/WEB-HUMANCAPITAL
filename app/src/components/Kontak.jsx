@@ -17,12 +17,6 @@ export default function Kontak() {
             {/* underline */}
             <div className="mt-6 h-[3px] w-14 bg-orange-500" />
 
-            <p className="mt-10 text-gray-900 leading-relaxed">
-              Jl. Babakan Sari 1 No. 71 Kiaracondong Bandung
-              <br />
-              40283
-            </p>
-
             {/* Detail list */}
             <div className="mt-14 space-y-7">
               <div className="flex items-start gap-4">
