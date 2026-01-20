@@ -40,7 +40,7 @@ export default function Kontak() {
                   <Phone className="h-5 w-5" />
                 </div>
                 <div className="text-gray-800 leading-relaxed">
-                  <div>Telp. 022-7208298</div>
+                  <div>Telp. +62 898-9207-324</div>
                 </div>
               </div>
 
@@ -50,7 +50,7 @@ export default function Kontak() {
                 </div>
                 <div className="text-gray-800 leading-relaxed">
                     <div className="text-gray-800 leading-relaxed"> 
-                        info@syaamilquran.com
+                        syaamilhc@gmail.com
                     </div>
                 </div>
               </div>

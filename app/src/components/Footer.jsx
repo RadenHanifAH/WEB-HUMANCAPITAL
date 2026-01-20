@@ -87,12 +87,11 @@ function Footer() {
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-sky-600" />
-                <span>info@syaamilgroup.id</span>
+                <span>syaamilhc@gmail.com</span>
               </div>
             </div>
           </div>
 
-          {/* KOLOM 4 */}
           {/* KOLOM 4 */}
           <div className="flex items-center justify-start lg:justify-end gap-4 pt-4">
             <a
