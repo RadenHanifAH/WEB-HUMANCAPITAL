@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, Send } from "lucide-react";
 import toast from "react-hot-toast";
+import axiosInstance from "../../api/axiosInstance"; // ✅ tambah ini (sesuaikan path kalau beda)
 
 const DEFAULT_FORM = { recipientEmail: "", subject: "", body: "" };
 
@@ -9,9 +10,25 @@ export default function ComposeDialog({ open, onClose, onSend }) {
   const [sending, setSending] = useState(false);
   const textareaRef = useRef(null);
 
+  // ✅ tambahan dropdown state
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [fetching, setFetching] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const emailInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
+  const debounceRef = useRef(null);
+
   useEffect(() => {
     if (!open) return;
     setForm(DEFAULT_FORM);
+
+    // reset dropdown
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setFetching(false);
+    setActiveIndex(-1);
   }, [open]);
 
   useEffect(() => {
@@ -22,11 +39,105 @@ export default function ComposeDialog({ open, onClose, onSend }) {
     }
   }, [form.body, open]);
 
+  // ✅ close dropdown kalau klik di luar
+  useEffect(() => {
+    if (!open) return;
+
+    const handler = (e) => {
+      const t = e.target;
+      const inInput = emailInputRef.current?.contains(t);
+      const inDropdown = suggestionsRef.current?.contains(t);
+      if (!inInput && !inDropdown) {
+        setShowSuggestions(false);
+        setActiveIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
   if (!open) return null;
 
   const resetAndClose = () => {
     setForm(DEFAULT_FORM);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setFetching(false);
+    setActiveIndex(-1);
     onClose?.();
+  };
+
+  // ✅ fetch email suggestions dari backend
+  const fetchSuggestions = async (q) => {
+    const keyword = String(q || "").trim();
+    if (!keyword) {
+      setSuggestions([]);
+      return;
+    }
+
+    try {
+      setFetching(true);
+      const res = await axiosInstance.get("/users/emails", {
+        params: { q: keyword },
+      });
+
+      const items = res?.data?.items;
+      setSuggestions(Array.isArray(items) ? items : []);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const onEmailChange = (val) => {
+    setForm((p) => ({ ...p, recipientEmail: val }));
+    setShowSuggestions(true);
+    setActiveIndex(-1);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
+  };
+
+  const pickEmail = (email) => {
+    setForm((p) => ({ ...p, recipientEmail: email }));
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+    setTimeout(() => emailInputRef.current?.focus(), 0);
+  };
+
+  const onEmailKeyDown = (e) => {
+    if (!showSuggestions) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = prev + 1;
+        return next >= suggestions.length ? 0 : next;
+      });
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = prev - 1;
+        return next < 0 ? Math.max(suggestions.length - 1, 0) : next;
+      });
+    }
+
+    if (e.key === "Enter") {
+      if (suggestions.length > 0 && activeIndex >= 0) {
+        e.preventDefault();
+        const picked = suggestions[activeIndex];
+        if (picked?.email) pickEmail(picked.email);
+      }
+    }
+
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
   };
 
   const submit = () => {
@@ -62,7 +173,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
             res?.error ||
               res?.message ||
               "Email tidak ditemukan / gagal terkirim",
-            { id: "send-msg" }
+            { id: "send-msg" },
           );
         }
       })
@@ -73,6 +184,9 @@ export default function ComposeDialog({ open, onClose, onSend }) {
         setSending(false);
       });
   };
+
+  const showDropdown =
+    showSuggestions && !sending && (fetching || suggestions.length > 0);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
@@ -89,20 +203,79 @@ export default function ComposeDialog({ open, onClose, onSend }) {
         </p>
 
         <div className="space-y-4">
-          <div>
+          {/* ✅ EMAIL + DROPDOWN */}
+          <div className="relative">
             <label className="text-sm font-medium">
               Email Penerima <span className="text-red-500">*</span>
             </label>
             <input
+              ref={emailInputRef}
               type="email"
               value={form.recipientEmail}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, recipientEmail: e.target.value }))
-              }
+              onChange={(e) => onEmailChange(e.target.value)}
+              onFocus={() => {
+                setShowSuggestions(true);
+                if (form.recipientEmail?.trim())
+                  fetchSuggestions(form.recipientEmail);
+              }}
+              onKeyDown={onEmailKeyDown}
               placeholder="admin@gmail.com"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
               disabled={sending}
+              autoComplete="off"
             />
+
+            {showDropdown ? (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-50 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+              >
+                <div className="max-h-56 overflow-y-auto">
+                  {fetching ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      Mencari email...
+                    </div>
+                  ) : (
+                    suggestions.map((u, idx) => {
+                      const isActive = idx === activeIndex;
+                      return (
+                        <button
+                          key={`${u.email}-${idx}`}
+                          type="button"
+                          onMouseEnter={() => setActiveIndex(idx)}
+                          onClick={() => pickEmail(u.email)}
+                          className={`w-full text-left px-3 py-2 transition ${
+                            isActive
+                              ? "bg-sky-50 text-sky-800"
+                              : "bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {u?.name || "User"}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {u.email}
+                              </p>
+                            </div>
+                            <span className="text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                              pilih
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+
+                  {!fetching && suggestions.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      Tidak ada email yang cocok.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -128,9 +301,7 @@ export default function ComposeDialog({ open, onClose, onSend }) {
             <textarea
               ref={textareaRef}
               value={form.body}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, body: e.target.value }))
-              }
+              onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))}
               placeholder="Tulis pesan..."
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none overflow-hidden min-h-20"
               disabled={sending}
