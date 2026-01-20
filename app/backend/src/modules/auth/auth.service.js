@@ -15,9 +15,11 @@ const generateTokens = (user) => {
     expiresIn: "15m",
   });
 
-  const refreshToken = jwt.sign({ id: user.id }, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: "7d",
-  });
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: "7d" }
+  );
 
   return { accessToken, refreshToken };
 };
@@ -72,25 +74,25 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   // ✅ 2) kirim email OTP TIDAK blocking
   // backend akan balas cepat tanpa menunggu SMTP
   sendOtpEmail(cleanEmail, otp)
-  .then((info) => {
-    console.log("[OTP EMAIL] SENT", {
-      to: cleanEmail,
-      messageId: info?.messageId,
-      accepted: info?.accepted,
-      rejected: info?.rejected,
+    .then((info) => {
+      console.log("[OTP EMAIL] SENT", {
+        to: cleanEmail,
+        messageId: info?.messageId,
+        accepted: info?.accepted,
+        rejected: info?.rejected,
+        response: info?.response,
+      });
+    })
+    .catch((e) => {
+      console.error("[OTP EMAIL] FAILED", {
+        to: cleanEmail,
+        message: e?.message,
+        code: e?.code,
+        responseCode: e?.responseCode,
+        command: e?.command,
+        response: e?.response,
+      });
     });
-  })
-  .catch((e) => {
-    console.error("[OTP EMAIL] FAILED", {
-      to: cleanEmail,
-      message: e?.message,
-      code: e?.code,
-      responseCode: e?.responseCode,
-      command: e?.command,
-      response: e?.response,
-    });
-  });
-
 
   return { email: cleanEmail };
 };
@@ -109,7 +111,8 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   if (String(storedOtp) !== String(otp)) throw new Error("OTP salah.");
 
   const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr) throw new Error("Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.");
+  if (!payloadStr)
+    throw new Error("Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.");
 
   const payload = JSON.parse(payloadStr);
 
@@ -147,21 +150,33 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
 };
 
 /**
- * Resend OTP (boleh tetap await biar user yakin)
- * Tapi kita kasih timeout di mail service, jadi tidak lama.
+ * Resend OTP (tetap await biar user yakin)
+ * + log error detail kalau gagal
  */
 const resendRegisterOtp = async (email) => {
   const cleanEmail = normEmail(email);
   if (!cleanEmail) throw new Error("Email wajib diisi");
 
   const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr) throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
+  if (!payloadStr)
+    throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
 
   const otp = makeOtp();
   await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
 
-  // ✅ untuk resend, kita await biar user yakin
-  await sendOtpEmail(cleanEmail, otp);
+  try {
+    await sendOtpEmail(cleanEmail, otp);
+  } catch (e) {
+    console.error("[RESEND OTP EMAIL] FAILED", {
+      to: cleanEmail,
+      message: e?.message,
+      code: e?.code,
+      responseCode: e?.responseCode,
+      command: e?.command,
+      response: e?.response,
+    });
+    throw new Error("Gagal mengirim OTP. Silakan coba lagi beberapa saat.");
+  }
 
   return true;
 };
@@ -216,7 +231,7 @@ const refreshAccessToken = async (refreshToken) => {
 };
 
 /* =========================================================
-   ✅ PROFILE / CHANGE PASSWORD / RESET PASSWORD (punyamu tetap)
+   ✅ PROFILE / CHANGE PASSWORD / RESET PASSWORD
    ========================================================= */
 const getProfile = async (userId) => authRepository.findUserById(userId);
 
@@ -227,7 +242,8 @@ const updateProfile = async (userId, data) => {
 };
 
 const changePassword = async (userId, currentPassword, newPassword) => {
-  if (!currentPassword || !newPassword) throw new Error("Password saat ini & password baru wajib diisi");
+  if (!currentPassword || !newPassword)
+    throw new Error("Password saat ini & password baru wajib diisi");
   if (newPassword.length < 6) throw new Error("Password baru minimal 6 karakter");
 
   const user = await authRepository.findUserById(userId);
