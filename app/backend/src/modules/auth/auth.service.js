@@ -106,7 +106,8 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   const cleanEmail = normEmail(email);
 
   const storedOtp = await redisClient.get(otpKey(cleanEmail));
-  if (!storedOtp) throw new Error("OTP sudah kadaluarsa. Silakan kirim ulang OTP.");
+  if (!storedOtp)
+    throw new Error("OTP sudah kadaluarsa. Silakan kirim ulang OTP.");
 
   if (String(storedOtp) !== String(otp)) throw new Error("OTP salah.");
 
@@ -217,7 +218,8 @@ const refreshAccessToken = async (refreshToken) => {
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
   const storedToken = await redisClient.get(`refresh_token:${decoded.id}`);
-  if (!storedToken || storedToken !== refreshToken) throw new Error("Invalid refresh token");
+  if (!storedToken || storedToken !== refreshToken)
+    throw new Error("Invalid refresh token");
 
   const user = await authRepository.findUserById(decoded.id);
   if (!user) throw new Error("User not found");
@@ -235,10 +237,41 @@ const refreshAccessToken = async (refreshToken) => {
    ========================================================= */
 const getProfile = async (userId) => authRepository.findUserById(userId);
 
+/**
+ * ✅ FIX: Sinkronkan Profile.fullName dengan User.name
+ * - kalau frontend kirim "fullName" => update Profile.fullName & User.name
+ * - kalau frontend kirim "name"     => update User.name & Profile.fullName
+ */
 const updateProfile = async (userId, data) => {
   const existingUser = await authRepository.findUserById(userId);
   if (!existingUser) throw new Error("Profile not found");
-  return authRepository.updateProfile(userId, data);
+
+  // ✅ nama baru bisa datang dari "name" atau "fullName"
+  const incomingName =
+    (data?.name && String(data.name).trim()) ||
+    (data?.fullName && String(data.fullName).trim()) ||
+    null;
+
+  // ✅ payload update Profile
+  const profilePayload = { ...data };
+
+  // Profile tidak punya kolom "name"
+  if (profilePayload?.name !== undefined) delete profilePayload.name;
+
+  // kalau ada incomingName, pastikan profile.fullName ter-update
+  if (incomingName) {
+    profilePayload.fullName = incomingName;
+  }
+
+  // 1) update Profile
+  const updatedProfile = await authRepository.updateProfile(userId, profilePayload);
+
+  // 2) sync ke User.name
+  if (incomingName) {
+    await authRepository.updateUserName(userId, incomingName);
+  }
+
+  return updatedProfile;
 };
 
 const changePassword = async (userId, currentPassword, newPassword) => {
@@ -279,7 +312,8 @@ const requestPasswordReset = async (email) => {
 
 const confirmPasswordReset = async (rawToken, newPassword) => {
   if (!rawToken) throw new Error("Token reset wajib diisi");
-  if (!newPassword || newPassword.length < 6) throw new Error("Password minimal 6 karakter");
+  if (!newPassword || newPassword.length < 6)
+    throw new Error("Password minimal 6 karakter");
 
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   const user = await authRepository.findUserByValidResetTokenHash(tokenHash);
