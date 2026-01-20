@@ -12,16 +12,15 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 
-  // ✅ penting: biar tidak nge-hang
+  // ✅ biar tidak nge-hang terlalu lama
   pool: true,
   maxConnections: 2,
   maxMessages: 50,
 
-  connectionTimeout: 10_000,
-  greetingTimeout: 10_000,
-  socketTimeout: 20_000,
+  connectionTimeout: 8000,
+  greetingTimeout: 8000,
+  socketTimeout: 15000,
 
-  // ✅ kadang Gmail butuh ini
   tls: {
     servername: process.env.SMTP_HOST,
   },
@@ -44,9 +43,26 @@ async function sendOtpEmail(to, otp) {
         <p>Kode OTP kamu:</p>
         <div style="font-size:26px;font-weight:800;letter-spacing:6px">${otp}</div>
         <p>OTP berlaku <b>5 menit</b>.</p>
+        <p>Jika kamu tidak meminta OTP, abaikan email ini.</p>
       </div>
     `,
   });
 }
 
-module.exports = { sendOtpEmail };
+async function sendResetPasswordEmail(to, resetLink) {
+  return transporter.sendMail({
+    from: getFrom(),
+    to,
+    subject: "Reset Password",
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5">
+        <h2>Reset Password</h2>
+        <p>Klik link berikut untuk reset password:</p>
+        <p><a href="${resetLink}">${resetLink}</a></p>
+        <p>Link berlaku <b>15 menit</b>.</p>
+      </div>
+    `,
+  });
+}
+
+module.exports = { sendOtpEmail, sendResetPasswordEmail };

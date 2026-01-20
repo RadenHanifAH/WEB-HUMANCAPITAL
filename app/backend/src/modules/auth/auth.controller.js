@@ -26,7 +26,10 @@ const setCookies = (res, accessToken, refreshToken) => {
 };
 
 /* =========================================================
-   ✅ OTP REGISTER FLOW
+   ✅ OTP REGISTER FLOW (FAST)
+   - Tujuan: klik "Daftar" tidak lama
+   - Endpoint /register hanya menyimpan OTP + payload (cepat)
+   - Pengiriman email OTP dilakukan di BACKGROUND dari service
    ========================================================= */
 const register = async (req, res) => {
   try {
@@ -40,12 +43,14 @@ const register = async (req, res) => {
       nomorHp,
     });
 
+    // ✅ cepat: langsung balas 200 (frontend langsung masuk step OTP)
     return res.status(200).json({
       success: true,
-      message: "OTP sudah dikirim ke email. Silakan verifikasi OTP untuk menyelesaikan pendaftaran.",
-      data: result,
+      message: "OTP sedang dikirim. Silakan cek email kamu (dan folder spam).",
+      data: result, // { email }
     });
   } catch (error) {
+    // ✅ validasi / user error -> 400
     return res.status(400).json({ success: false, message: error.message });
   }
 };

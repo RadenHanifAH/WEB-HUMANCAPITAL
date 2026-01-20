@@ -6,7 +6,7 @@ const authRepository = require("./auth.repository");
 const { sendResetPasswordEmail, sendOtpEmail } = require("./mail.service");
 
 /* =========================
-   Token helpers (login)
+   Token helpers
    ========================= */
 const generateTokens = (user) => {
   const payload = { id: user.id, email: user.email, role: user.role };
@@ -15,11 +15,9 @@ const generateTokens = (user) => {
     expiresIn: "15m",
   });
 
-  const refreshToken = jwt.sign(
-    { id: user.id },
-    process.env.REFRESH_TOKEN_SECRET,
-    { expiresIn: "7d" }
-  );
+  const refreshToken = jwt.sign({ id: user.id }, process.env.REFRESH_TOKEN_SECRET, {
+    expiresIn: "7d",
+  });
 
   return { accessToken, refreshToken };
 };
@@ -31,18 +29,20 @@ const storeRefreshToken = async (userId, refreshToken) => {
 };
 
 /* =========================================================
-   ✅ OTP REGISTER FLOW (FAST)
-   - Hash password dipindah ke step verify (lebih cepat request OTP)
+   ✅ OTP REGISTER FLOW (FAST + NON-BLOCKING EMAIL)
    ========================================================= */
 const OTP_TTL_SEC = 5 * 60;
-
 const makeOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 const normEmail = (email) => String(email || "").trim().toLowerCase();
 
 const otpKey = (email) => `otp_register:${normEmail(email)}`;
 const pendingKey = (email) => `otp_register_payload:${normEmail(email)}`;
 
-// STEP 1: request OTP (belum create user)
+/**
+ * STEP 1: request OTP (cepat)
+ * - simpan OTP + payload (Redis) -> cepat
+ * - kirim email OTP: NON-BLOCKING (tidak await)
+ */
 const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   if (!name || !email || !password) {
     throw new Error("Nama, email, dan password wajib diisi");
@@ -53,30 +53,34 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   const existingUser = await authRepository.findUserByEmail(cleanEmail);
   if (existingUser) throw new Error("Email sudah digunakan");
 
-  // ✅ generate OTP
   const otp = makeOtp();
 
-  // ✅ simpan OTP & payload (password masih plaintext sementara) TTL 5 menit
+  // ✅ 1) simpan OTP + payload dulu (ini yang harus cepat)
   await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
   await redisClient.set(
     pendingKey(cleanEmail),
     JSON.stringify({
       name,
       email: cleanEmail,
-      password, // ✅ HASH NANTI SAAT VERIFY (biar request OTP cepat)
+      password, // plaintext sementara (TTL 5 menit)
       NIK,
       nomorHp,
     }),
     { EX: OTP_TTL_SEC }
   );
 
-  // ✅ kirim OTP email
-  await sendOtpEmail(cleanEmail, otp);
+  // ✅ 2) kirim email OTP TIDAK blocking
+  // backend akan balas cepat tanpa menunggu SMTP
+  sendOtpEmail(cleanEmail, otp).catch((e) => {
+    console.error("[OTP EMAIL ERROR]", e?.message || e);
+  });
 
   return { email: cleanEmail };
 };
 
-// STEP 2: verify OTP -> create user
+/**
+ * STEP 2: verify OTP -> create user
+ */
 const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   if (!email || !otp) throw new Error("Email dan OTP wajib diisi");
 
@@ -100,7 +104,7 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
     throw new Error("Email sudah digunakan");
   }
 
-  // ✅ HASH password di sini (baru dilakukan setelah OTP benar)
+  // ✅ hash dilakukan di sini (setelah OTP benar)
   const hashedPassword = await bcrypt.hash(payload.password, 10);
 
   const user = await authRepository.createUser({
@@ -125,7 +129,10 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
   return { user: safeUser };
 };
 
-// resend OTP
+/**
+ * Resend OTP (boleh tetap await biar user yakin)
+ * Tapi kita kasih timeout di mail service, jadi tidak lama.
+ */
 const resendRegisterOtp = async (email) => {
   const cleanEmail = normEmail(email);
   if (!cleanEmail) throw new Error("Email wajib diisi");
@@ -136,7 +143,9 @@ const resendRegisterOtp = async (email) => {
   const otp = makeOtp();
   await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
 
+  // ✅ untuk resend, kita await biar user yakin
   await sendOtpEmail(cleanEmail, otp);
+
   return true;
 };
 
@@ -190,7 +199,7 @@ const refreshAccessToken = async (refreshToken) => {
 };
 
 /* =========================================================
-   ✅ PROFILE
+   ✅ PROFILE / CHANGE PASSWORD / RESET PASSWORD (punyamu tetap)
    ========================================================= */
 const getProfile = async (userId) => authRepository.findUserById(userId);
 
@@ -200,13 +209,8 @@ const updateProfile = async (userId, data) => {
   return authRepository.updateProfile(userId, data);
 };
 
-/* =========================================================
-   ✅ CHANGE PASSWORD
-   ========================================================= */
 const changePassword = async (userId, currentPassword, newPassword) => {
-  if (!currentPassword || !newPassword) {
-    throw new Error("Password saat ini & password baru wajib diisi");
-  }
+  if (!currentPassword || !newPassword) throw new Error("Password saat ini & password baru wajib diisi");
   if (newPassword.length < 6) throw new Error("Password baru minimal 6 karakter");
 
   const user = await authRepository.findUserById(userId);
@@ -224,9 +228,6 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   return { message: "Password berhasil diganti" };
 };
 
-/* =========================================================
-   ✅ RESET PASSWORD
-   ========================================================= */
 const requestPasswordReset = async (email) => {
   const user = await authRepository.findUserByEmail(normEmail(email));
   if (!user) throw new Error("Email tidak ditemukan");
@@ -258,12 +259,10 @@ const confirmPasswordReset = async (rawToken, newPassword) => {
 };
 
 module.exports = {
-  // OTP register flow
   requestRegisterOtp,
   verifyRegisterOtpAndCreateUser,
   resendRegisterOtp,
 
-  // auth
   login,
   refreshAccessToken,
   logout,
@@ -271,7 +270,6 @@ module.exports = {
   updateProfile,
   changePassword,
 
-  // reset password
   requestPasswordReset,
   confirmPasswordReset,
 };
