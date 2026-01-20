@@ -16,7 +16,7 @@ const schedulesRoutes = require("./modules/schedules/schedules.routes");
 const archivesRoutes = require("./modules/archives/archives.routes");
 const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
 const settingsRoutes = require("./modules/settings/settings.routes");
-const usersRoutes = require("./modules/users/users.routes");
+
 
 const app = express();
 
@@ -52,7 +52,6 @@ app.use("/api/schedules", schedulesRoutes);
 app.use("/api/archives", archivesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes); // ✅ DIGABUNG DI SINI
-app.use("/api/users", usersRoutes);
 
 
 app.get("/", (req, res) => {
