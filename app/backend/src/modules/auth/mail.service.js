@@ -11,29 +11,21 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  // ✅ biar tidak menggantung lama
+
+  // ✅ penting: biar tidak nge-hang
+  pool: true,
+  maxConnections: 2,
+  maxMessages: 50,
+
   connectionTimeout: 10_000,
   greetingTimeout: 10_000,
   socketTimeout: 20_000,
+
+  // ✅ kadang Gmail butuh ini
+  tls: {
+    servername: process.env.SMTP_HOST,
+  },
 });
-
-/**
- * ⚠️ Jangan auto verify di production (bisa lambat / gagal kalau provider membatasi)
- * Kalau mau cek, panggil manual atau aktifkan hanya dev.
- */
-async function verifySmtp() {
-  try {
-    await transporter.verify();
-    console.log("[SMTP] READY", process.env.SMTP_HOST, port, "secure:", secure);
-  } catch (e) {
-    console.error("[SMTP] VERIFY ERROR:", e?.message || e);
-  }
-}
-
-// ✅ hanya dev
-if (process.env.NODE_ENV !== "production") {
-  verifySmtp();
-}
 
 function getFrom() {
   const name = process.env.MAIL_FROM_NAME || "Human Capital";
@@ -42,45 +34,19 @@ function getFrom() {
 }
 
 async function sendOtpEmail(to, otp) {
-  const subject = "Kode OTP Verifikasi Email";
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5">
-      <h2>Verifikasi Email</h2>
-      <p>Kode OTP kamu:</p>
-      <div style="font-size:26px;font-weight:800;letter-spacing:6px">${otp}</div>
-      <p>OTP berlaku <b>5 menit</b>.</p>
-      <p>Jika kamu tidak meminta OTP, abaikan email ini.</p>
-    </div>
-  `;
-
   return transporter.sendMail({
     from: getFrom(),
     to,
-    subject,
-    html,
+    subject: "Kode OTP Verifikasi Email",
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5">
+        <h2>Verifikasi Email</h2>
+        <p>Kode OTP kamu:</p>
+        <div style="font-size:26px;font-weight:800;letter-spacing:6px">${otp}</div>
+        <p>OTP berlaku <b>5 menit</b>.</p>
+      </div>
+    `,
   });
 }
 
-async function sendResetPasswordEmail(to, resetLink) {
-  const subject = "Reset Password";
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5">
-      <h2>Reset Password</h2>
-      <p>Klik link berikut untuk reset password:</p>
-      <p><a href="${resetLink}">${resetLink}</a></p>
-      <p>Link berlaku <b>15 menit</b>.</p>
-    </div>
-  `;
-
-  return transporter.sendMail({
-    from: getFrom(),
-    to,
-    subject,
-    html,
-  });
-}
-
-module.exports = {
-  sendOtpEmail,
-  sendResetPasswordEmail,
-};
+module.exports = { sendOtpEmail };
