@@ -76,7 +76,9 @@ function Lowongan() {
         else if (response && Array.isArray(response.data)) data = response.data;
 
         // urutkan terbaru
-        const sortedData = [...data].sort((a, b) => Number(b.id) - Number(a.id));
+        const sortedData = [...data].sort(
+          (a, b) => Number(b.id) - Number(a.id),
+        );
         setJobs(sortedData);
       } catch (err) {
         console.error("Fetch Error:", err);
@@ -92,15 +94,15 @@ function Lowongan() {
   // Filter lists logic
   const departments = useMemo(
     () => [...new Set(jobs.map((job) => job.department).filter(Boolean))],
-    [jobs]
+    [jobs],
   );
   const locations = useMemo(
     () => [...new Set(jobs.map((job) => job.location).filter(Boolean))],
-    [jobs]
+    [jobs],
   );
   const jobTypes = useMemo(
     () => [...new Set(jobs.map((job) => job.type).filter(Boolean))],
-    [jobs]
+    [jobs],
   );
 
   const matchJobType = (jobTypeFilter, jobTypeData) => {
@@ -123,20 +125,29 @@ function Lowongan() {
   };
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      const title = job.title ? job.title.toLowerCase() : "";
-      const matchesSearch = title.includes(searchTerm.toLowerCase());
-      const matchesDepartment =
-        department === "all" || job.department === department;
-      const matchesLocation =
-        location === "all" ||
-        (job.location && String(job.location).includes(location));
-      const matchesJobType = matchJobType(jobType, job.type);
+    return (
+      jobs
+        // ✅ 1) hilangkan draft
+        .filter((job) => String(job.status || "").toLowerCase() !== "draft")
+        // ✅ 2) baru filter yg lain
+        .filter((job) => {
+          const title = job.title ? job.title.toLowerCase() : "";
+          const matchesSearch = title.includes(searchTerm.toLowerCase());
+          const matchesDepartment =
+            department === "all" || job.department === department;
+          const matchesLocation =
+            location === "all" ||
+            (job.location && String(job.location).includes(location));
+          const matchesJobType = matchJobType(jobType, job.type);
 
-      return (
-        matchesSearch && matchesDepartment && matchesLocation && matchesJobType
-      );
-    });
+          return (
+            matchesSearch &&
+            matchesDepartment &&
+            matchesLocation &&
+            matchesJobType
+          );
+        })
+    );
   }, [jobs, department, location, jobType, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / jobsPerPage));
@@ -144,7 +155,7 @@ function Lowongan() {
 
   const currentJobs = filteredJobs.slice(
     (safeCurrentPage - 1) * jobsPerPage,
-    safeCurrentPage * jobsPerPage
+    safeCurrentPage * jobsPerPage,
   );
 
   // pilih job dari URL
@@ -165,7 +176,9 @@ function Lowongan() {
         setSelectedJob(found);
         setShowDetail(true);
 
-        const idx = filteredJobs.findIndex((j) => String(j.id) === jobIdFromUrl);
+        const idx = filteredJobs.findIndex(
+          (j) => String(j.id) === jobIdFromUrl,
+        );
         if (idx >= 0) {
           const page = Math.floor(idx / jobsPerPage) + 1;
           setCurrentPage(page);
@@ -201,13 +214,17 @@ function Lowongan() {
       showAlert(
         "warning",
         "Peringatan",
-        "Silakan login terlebih dahulu untuk mengirim lamaran."
+        "Silakan login terlebih dahulu untuk mengirim lamaran.",
       );
       return;
     }
 
     if (selectedJob.status === "closed") {
-      showAlert("error", "Lowongan ditutup", "Maaf, lowongan ini sudah ditutup.");
+      showAlert(
+        "error",
+        "Lowongan ditutup",
+        "Maaf, lowongan ini sudah ditutup.",
+      );
       return;
     }
 
@@ -215,7 +232,7 @@ function Lowongan() {
       showAlert(
         "warning",
         "CV belum diupload",
-        "Harap upload CV (PDF) terlebih dahulu."
+        "Harap upload CV (PDF) terlebih dahulu.",
       );
       return;
     }
@@ -234,7 +251,7 @@ function Lowongan() {
       showAlert(
         "success",
         "Lamaran berhasil dikirim!",
-        `Lamaran untuk posisi "${selectedJob.title}" sudah terkirim.`
+        `Lamaran untuk posisi "${selectedJob.title}" sudah terkirim.`,
       );
 
       setCvFile(null);
