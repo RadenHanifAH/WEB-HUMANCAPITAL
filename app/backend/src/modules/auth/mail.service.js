@@ -1,148 +1,93 @@
-const nodemailer = require("nodemailer");
+const axios = require("axios");
 
 /* =========================
    Helper: From
    ========================= */
 function getFrom() {
   const name = process.env.MAIL_FROM_NAME || "Human Capital";
-  const email = process.env.MAIL_FROM_EMAIL || process.env.SMTP_USER;
+  const email = process.env.MAIL_FROM_EMAIL;
   return { name, email };
 }
 
-/* =========================================================
-   ✅ SMTP CONFIG (GMAIL)
-   ========================================================= */
-const port = Number(process.env.SMTP_PORT || 587);
-const secure = port === 465;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-const smtpEnabled =
-  !!process.env.SMTP_HOST &&
-  !!process.env.SMTP_USER &&
-  !!process.env.SMTP_PASS;
-
-if (!smtpEnabled) {
-  console.error("[MAIL] SMTP belum dikonfigurasi dengan benar");
-}
-
-const transporter = smtpEnabled
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port,
-      secure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-
-      pool: true,
-      maxConnections: 2,
-      maxMessages: 50,
-
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
-
-      requireTLS: true,
-      tls: {
-        servername: process.env.SMTP_HOST,
-        rejectUnauthorized: false,
-      },
-    })
-  : null;
-
-/* =========================================================
-   ✅ VERIFY SMTP (AMAN UNTUK GMAIL)
-   ========================================================= */
-async function verifySmtp() {
-  if (!transporter) return;
-
-  try {
-    await transporter.verify();
-    console.log("[SMTP] READY", {
-      host: process.env.SMTP_HOST,
-      port,
-      user: process.env.SMTP_USER,
-    });
-  } catch (e) {
-    console.error("[SMTP] VERIFY FAILED", {
-      message: e?.message,
-      code: e?.code,
-      response: e?.response,
-    });
-  }
-}
-
-verifySmtp();
-
-/* =========================================================
-   ✅ SEND HELPER
-   ========================================================= */
-async function sendMail({ to, subject, html }) {
-  if (!transporter) {
-    throw new Error("SMTP transporter tidak tersedia");
-  }
-
+async function sendViaBrevoApi({ to, subject, html }) {
   const from = getFrom();
 
-  // 🔐 PENTING: Gmail WAJIB from = SMTP_USER
-  const info = await transporter.sendMail({
-    from: `"${from.name}" <${process.env.SMTP_USER}>`,
-    to,
-    subject,
-    html,
-  });
+  if (!BREVO_API_KEY) {
+    throw new Error("BREVO_API_KEY belum di-set");
+  }
+  if (!from.email) {
+    throw new Error("MAIL_FROM_EMAIL belum di-set");
+  }
 
-  console.log("[SMTP] SENT", {
-    to,
-    messageId: info?.messageId,
-    accepted: info?.accepted,
-    rejected: info?.rejected,
-    response: info?.response,
-  });
+  try {
+    const res = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: { name: from.name, email: from.email },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      },
+      {
+        headers: {
+          "api-key": BREVO_API_KEY,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        timeout: 15000,
+      },
+    );
 
-  return info;
+    console.log("[BREVO API] SENT", {
+      to,
+      messageId: res?.data?.messageId,
+    });
+
+    return res.data;
+  } catch (e) {
+    console.error("[BREVO API] FAILED", {
+      to,
+      message: e?.message,
+      status: e?.response?.status,
+      data: e?.response?.data,
+    });
+    throw e;
+  }
 }
 
 /* =========================================================
-   ✅ PUBLIC FUNCTIONS
+   Public functions
    ========================================================= */
 async function sendOtpEmail(to, otp) {
   const subject = "Kode OTP Verifikasi Email";
   const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6">
+    <div style="font-family:Arial,sans-serif;line-height:1.5">
       <h2>Verifikasi Email</h2>
       <p>Kode OTP kamu:</p>
-      <div style="font-size:28px;font-weight:700;letter-spacing:6px">
-        ${otp}
-      </div>
+      <div style="font-size:26px;font-weight:800;letter-spacing:6px">${otp}</div>
       <p>OTP berlaku <b>5 menit</b>.</p>
       <p>Jika kamu tidak meminta OTP, abaikan email ini.</p>
     </div>
   `;
 
-  return sendMail({ to, subject, html });
+  return sendViaBrevoApi({ to, subject, html });
 }
 
 async function sendResetPasswordEmail(to, resetLink) {
   const subject = "Reset Password";
   const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6">
+    <div style="font-family:Arial,sans-serif;line-height:1.5">
       <h2>Reset Password</h2>
       <p>Klik link berikut untuk reset password:</p>
-      <p>
-        <a href="${resetLink}" target="_blank">
-          ${resetLink}
-        </a>
-      </p>
+      <p><a href="${resetLink}">${resetLink}</a></p>
       <p>Link berlaku <b>15 menit</b>.</p>
       <p>Jika kamu tidak merasa meminta reset password, abaikan email ini.</p>
     </div>
   `;
 
-  return sendMail({ to, subject, html });
+  return sendViaBrevoApi({ to, subject, html });
 }
 
-module.exports = {
-  sendOtpEmail,
-  sendResetPasswordEmail,
-};
+module.exports = { sendOtpEmail, sendResetPasswordEmail };
