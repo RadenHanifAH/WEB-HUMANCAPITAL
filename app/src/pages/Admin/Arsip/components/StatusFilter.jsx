@@ -5,7 +5,7 @@ import { ChevronDown, Check } from "lucide-react";
 export default function StatusFilter({ value, onChange }) {
   const options = [
     { value: "all", label: "Semua Status" },
-    { value: "hired", label: "Diterima" },
+    { value: "accepeted", label: "Diterima" },
     { value: "rejected", label: "Ditolak" },
   ];
 
