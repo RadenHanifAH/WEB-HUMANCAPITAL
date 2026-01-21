@@ -99,7 +99,7 @@ export default function SchedulesPage() {
           className="flex items-center gap-2 rounded-lg text-white font-semibold transition shadow-lg shadow-gray-400/50 bg-gradient-to-tr from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 px-4 py-2 text-sm"
         >
           <Plus className="h-4 w-4" />
-          Jadwalkan Interview
+          Buat Jadwal
         </button>
       </div>
 

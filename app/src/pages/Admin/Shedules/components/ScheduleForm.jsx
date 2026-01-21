@@ -123,13 +123,13 @@ export default function ScheduleForm({ open, onClose, onCreated }) {
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
         <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg font-bold">Jadwalkan Interview Baru</h2>
+          <h2 className="text-lg font-bold">Jadwalkan Interview/Test Baru</h2>
           <button onClick={onClose}>
             <X className="h-5 w-5 text-gray-500 hover:text-sky-800" />
           </button>
         </div>
         <p className="text-sm text-gray-500 mb-4">
-          Buat jadwal interview berdasarkan Application
+          Buat jadwal interview/test
         </p>
 
         <form onSubmit={submit} className="space-y-4">
@@ -220,7 +220,7 @@ export default function ScheduleForm({ open, onClose, onCreated }) {
           {/* Type (tetap dropdown) */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Tipe Interview <span className="text-red-500">*</span>
+              Tipe Jadwal <span className="text-red-500">*</span>
             </label>
 
             <Listbox
