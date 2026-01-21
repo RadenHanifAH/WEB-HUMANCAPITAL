@@ -18,7 +18,7 @@ import Kontak from "./components/Kontak.jsx";
 import Login from "./pages/Login/Login";
 import Daftar from "./pages/Login/Daftar";
 import Reset from "./pages/Login/Reset";
-import ResetPasswordNew from "./pages/Login/ResetPasswordNew"; 
+import ResetPasswordNew from "./pages/Login/ResetPasswordNew";
 import Admin from "./pages/Admin/Sidebar/Admin.jsx";
 
 import Profile from "./pages/Users/Profile/index.jsx";
@@ -43,7 +43,6 @@ function Layout() {
     );
   }
 
-  // ❗ pakai startsWith supaya /reset-password/:token ikut ter-handle
   const hideNavbar =
     location.pathname.startsWith("/login") ||
     location.pathname.startsWith("/daftar") ||
@@ -59,51 +58,53 @@ function Layout() {
     location.pathname.startsWith("/admin/dashboard");
 
   return (
-    <>
+    // ✅ WRAPPER INI KUNCI: bikin footer selalu di bawah
+    <div className="min-h-screen flex flex-col bg-white">
       <Toaster position="top-right" />
 
-      {!checkingAuth && !hideNavbar && <Navbar />}
+      {!hideNavbar && <Navbar />}
 
-      <Routes>
-        {/* ================= PUBLIC ================= */}
-        <Route path="/" element={<Home />} />
-        <Route path="/lowongan" element={<Lowongan />} />
-        <Route path="/kontak" element={<Kontak />} />
-        
+      {/* ✅ MAIN harus flex-1 supaya ngisi tinggi layar */}
+      <main className="flex-1">
+        <Routes>
+          {/* ================= PUBLIC ================= */}
+          <Route path="/" element={<Home />} />
+          <Route path="/lowongan" element={<Lowongan />} />
+          <Route path="/kontak" element={<Kontak />} />
 
-        {/* ================= AUTH ================= */}
-        <Route
-          path="/login"
-          element={!user ? <Login /> : <Navigate to="/" />}
-        />
+          {/* ================= AUTH ================= */}
+          <Route
+            path="/login"
+            element={!user ? <Login /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/daftar"
+            element={!user ? <Daftar /> : <Navigate to="/" />}
+          />
 
-        <Route
-          path="/daftar"
-          element={!user ? <Daftar /> : <Navigate to="/" />}
-        />
+          {/* RESET PASSWORD */}
+          <Route path="/reset" element={<Reset />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordNew />} />
 
-        {/* RESET PASSWORD */}
-        <Route path="/reset" element={<Reset />} />
-        <Route path="/reset-password/:token" element={<ResetPasswordNew />} />
+          {/* ================= ADMIN ================= */}
+          <Route
+            path="/admin/dashboard"
+            element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
+          />
 
-        {/* ================= ADMIN ================= */}
-        <Route
-          path="/admin/dashboard"
-          element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
-        />
+          {/* ================= USER ================= */}
+          <Route
+            path="/profile"
+            element={user ? <Profile /> : <Navigate to="/login" />}
+          />
 
-        {/* ================= USER ================= */}
-        <Route
-          path="/profile"
-          element={user ? <Profile /> : <Navigate to="/login" />}
-        />
+          {/* ================= FALLBACK ================= */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </main>
 
-        {/* ================= FALLBACK ================= */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-
-      {!checkingAuth && !hideFooter && <Footer />}
-    </>
+      {!hideFooter && <Footer />}
+    </div>
   );
 }
 
