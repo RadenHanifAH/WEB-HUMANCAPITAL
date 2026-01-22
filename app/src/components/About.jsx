@@ -10,8 +10,9 @@ import {
 import Syaamil1 from "../assets/perusahaan.png";
 import Syaamil2 from "../assets/perusahaan2.png";
 import Syaamil3 from "../assets/perusahaan1.png";
+import Syaamil4 from "../assets/jobfair.jpeg"
 
-const images = [Syaamil1, Syaamil2, Syaamil3];
+const images = [Syaamil1, Syaamil2, Syaamil3, Syaamil4];
 const SLIDE_DURATION = 4000;
 const FADE_DURATION = 300;
 
