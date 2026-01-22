@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { ArrowRight, Users, Award, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { scroller } from "react-scroll";
-import Hero from "../assets/hero.png";
+import Hero from "../assets/hero1.png";
 import Jobs from "./Jobs";
 import About from "../components/About";
 import Core from "../components/Corevalue";
