@@ -1,33 +1,50 @@
-const prisma = require("../../config/prisma");
+// settings.repository.js
+// ✅ Tidak ada import Prisma lagi. Data di-hardcode sesuai permintaan.
+
+const DEFAULT_SETTINGS = {
+  id: 1,
+  nama_perusahaan: "Syaamil Group",
+  website: "https://www.syaamilquran.com/",
+  lokasi: "Bandung",
+  zona_waktu: "WIB (UTC+7)",
+  email_pembaruan_sistem_aktif: true,
+  created_at: new Date(),
+  updated_at: new Date(),
+};
+
+// In-memory store — perubahan selama server jalan tetap tersimpan,
+// tapi reset ke DEFAULT kalau server restart.
+// Kalau mau benar-benar readonly (abaikan semua update), pakai langsung DEFAULT_SETTINGS.
+let settings = { ...DEFAULT_SETTINGS };
 
 module.exports = {
   async getSingleton() {
-    let row = await prisma.appSettings.findFirst();
-    if (!row) {
-      row = await prisma.appSettings.create({
-        data: {
-          companyName: "Syaamil Group",
-          website: "https://www.syaamilquran.com/",
-          location: "Bandung",
-          timezone: "WIB (UTC+7)",
-          systemUpdateEmailEnabled: true,
-          systemVersion: "v2.1.0",
-          database: "MySQL",
-          lastUpdate: "",
-        },
-      });
-    }
-    return row;
+    return { ...settings };
   },
 
   async update(data) {
-    const existing = await prisma.appSettings.findFirst();
-    if (!existing) {
-      return prisma.appSettings.create({ data });
+    // Filter field yang ada di schema hardcoded saja
+    const allowed = [
+      "nama_perusahaan",
+      "website",
+      "lokasi",
+      "zona_waktu",
+      "email_pembaruan_sistem_aktif",
+    ];
+
+    const patch = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        patch[key] = data[key];
+      }
     }
-    return prisma.appSettings.update({
-      where: { id: existing.id },
-      data,
-    });
+
+    settings = {
+      ...settings,
+      ...patch,
+      updated_at: new Date(),
+    };
+
+    return { ...settings };
   },
 };

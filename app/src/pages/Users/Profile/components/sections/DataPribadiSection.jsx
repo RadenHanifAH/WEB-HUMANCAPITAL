@@ -1,230 +1,280 @@
+// src/pages/Users/Profile/sections/DataPribadiSection.jsx
 import React from "react";
-import { Edit, Save, Calendar as CalendarIcon } from "lucide-react";
-import SettingsInput from "../SettingsInput";
-import { toDateInputFormat, toDisplayFormat } from "../../utils/profileHelpers";
+import { Edit2, Save } from "lucide-react";
 
+/* ── tiny reusable field ─────────────────────────────────── */
+const Field = ({ label, value, name, editable, onChange, type = "text" }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+      {label}
+    </label>
+    {editable ? (
+      <input
+        type={type}
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800
+                   focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100
+                   transition placeholder:text-gray-400"
+        placeholder={`Masukkan ${label.toLowerCase()}`}
+      />
+    ) : (
+      <div
+        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
+                      text-gray-800 min-h-[42px]"
+      >
+        {value || <span className="italic text-gray-400">Belum diisi</span>}
+      </div>
+    )}
+  </div>
+);
+
+const TextareaField = ({ label, value, name, editable, onChange }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+      {label}
+    </label>
+    {editable ? (
+      <textarea
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        rows={3}
+        className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800
+                   focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100
+                   transition resize-none placeholder:text-gray-400"
+        placeholder={`Masukkan ${label.toLowerCase()}`}
+      />
+    ) : (
+      <div
+        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
+                      text-gray-800 min-h-[42px] whitespace-pre-wrap"
+      >
+        {value || <span className="italic text-gray-400">Belum diisi</span>}
+      </div>
+    )}
+  </div>
+);
+
+/* ── main component ──────────────────────────────────────── */
 const DataPribadiSection = ({
   editedData,
-  setEditedData,
   isEditable,
   onEdit,
   onCancel,
   onSave,
   onChange,
-  dateInputRef,
 }) => {
-  const {
-    name,
-    email,
-    profile: {
-      fullName,
-      NIK,
-      gender,
-      nomorHp,
-      tempatLahir,
-      tanggalLahir,
-      alamat,
-      about,
-    } = {},
-  } = editedData;
+  // ✅ Persis bentuk toSafeUser() di auth.service.js:
+  // { nama, email, profil: { nik, jenis_kelamin, nomor_hp, tempat_lahir,
+  //   tanggal_lahir, alamat, foto_profil, tentang } }
+  // `nama` cuma ada di level atas (kolom pengguna.nama), tidak ada
+  // duplikasi di dalam `profil` (model profil tidak punya kolom nama).
+  const { nama, email, profil = {} } = editedData || {};
 
-  const displayData = (data) => (data && data !== "" ? toDisplayFormat(data) : "Data belum diisi");
-  const dataClass = (data) => (data && data !== "" ? "text-gray-900 font-medium" : "text-gray-500 italic");
+  const {
+    nik,
+    jenis_kelamin,
+    nomor_hp,
+    tempat_lahir,
+    tanggal_lahir,
+    alamat,
+  } = profil;
+
+  // format tanggal untuk display
+  const formatDate = (d) => {
+    if (!d) return "";
+    try {
+      return new Date(d).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    onChange({ target: { id: name, value } });
+  };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-      <div className="flex justify-between items-center border-b pb-4 mb-4">
+    <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
+      {/* ── header ── */}
+      <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
         <div>
-          <h3 className="text-xl font-bold text-gray-900">Data Pribadi</h3>
-          <p className="text-sm text-gray-500 mt-1 mb-6">
+          <h3 className="text-base font-bold text-gray-900">Data Pribadi</h3>
+          <p className="mt-0.5 text-sm text-gray-500">
             Pastikan data pribadi benar untuk mempermudah proses pendaftaran
           </p>
         </div>
 
         {isEditable ? (
-          <div className="flex space-x-2">
+          <div className="flex items-center gap-2 shrink-0 ml-4">
             <button
               onClick={onCancel}
-              className="flex items-center text-gray-600 hover:text-red-600 transition p-2 rounded-lg hover:bg-red-50 border border-gray-300"
-              aria-label="Batalkan Edit"
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm
+                         text-gray-600 hover:bg-gray-50 transition"
             >
               Batalkan
             </button>
-
             <button
               onClick={onSave}
-              className="flex items-center px-4 py-2 text-white font-semibold rounded-lg shadow-md bg-blue-600 hover:bg-blue-700 transition"
-              aria-label="Simpan Data"
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5
+                         text-sm font-semibold text-white hover:bg-blue-700 transition shadow-sm"
             >
-              <Save size={20} className="mr-2" /> Simpan
+              <Save size={15} />
+              Simpan
             </button>
           </div>
         ) : (
           <button
-            className="text-sky-600 hover:text-blue-800 transition p-2 rounded-full hover:bg-sky-50"
-            aria-label="Edit Data"
             onClick={onEdit}
+            className="ml-4 rounded-full p-2 text-gray-400 hover:bg-gray-100
+                       hover:text-blue-600 transition shrink-0"
+            aria-label="Edit data pribadi"
           >
-            <Edit size={20} />
+            <Edit2 size={16} />
           </button>
         )}
       </div>
 
-      <h4 className="text-lg font-bold text-gray-900 mt-6 mb-4">Biodata</h4>
+      {/* ── body: two columns ── */}
+      <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+        {/* ── Biodata column ── */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-l-4 border-blue-600 pl-3">
+            <h4 className="text-sm font-bold text-gray-800">Biodata</h4>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 text-gray-700">
-        {/* Nama Lengkap */}
-        <div className="col-span-1 md:col-span-2">
-          <SettingsInput
-            id="fullName"
+          {/* Nama Lengkap — kolom pengguna.nama, di level atas editedData */}
+          <Field
             label="Nama Lengkap"
-            value={fullName || name || ""}
-            onChange={onChange}
+            name="nama"
+            value={nama || ""}
             editable={isEditable}
-            readOnly={!isEditable}
+            onChange={handleChange}
           />
-        </div>
 
-        {/* NIK */}
-        <div>
-          <SettingsInput
-            id="NIK"
-            label="NIK"
-            value={NIK || ""}
-            onChange={onChange}
-            editable={isEditable}
-            readOnly={!isEditable}
-          />
-        </div>
-
-        {/* Jenis Kelamin */}
-        <div>
-          <SettingsInput
-            id="gender"
-            label="Jenis Kelamin"
-            value={gender || ""}
-            onChange={onChange}
-            editable={isEditable}
-            readOnly={!isEditable}
-          />
-        </div>
-
-        {/* Tempat Lahir */}
-        <div>
-          <SettingsInput
-            id="tempatLahir"
-            label="Tempat Lahir"
-            value={tempatLahir || ""}
-            onChange={onChange}
-            editable={isEditable}
-            readOnly={!isEditable}
-          />
-        </div>
-
-        {/* Tanggal Lahir */}
-        <div className="relative">
-          {isEditable ? (
-            <>
-              <SettingsInput
-                id="tanggalLahir"
-                label="Tanggal Lahir"
-                value={toDisplayFormat(tanggalLahir)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const parts = val.split("-");
-                  if (parts.length === 3) {
-                    const [dd, mm, yyyy] = parts;
-                    if (dd.length === 2 && mm.length === 2 && yyyy.length === 4) {
-                      setEditedData((prev) => ({
-                        ...prev,
-                        profile: { ...prev.profile, tanggalLahir: `${yyyy}-${mm}-${dd}` },
-                      }));
-                      return;
-                    }
-                  }
-
-                  setEditedData((prev) => ({
-                    ...prev,
-                    profile: { ...prev.profile, tanggalLahir: val },
-                  }));
-                }}
-                editable={isEditable}
-                readOnly={!isEditable}
-                type="text"
-                showDateIcon={true}
-                dateInputRef={dateInputRef}
-              />
-
-              <input
-                ref={dateInputRef}
-                type="date"
-                className="absolute opacity-0 w-0 h-0 p-0 m-0"
-                value={toDateInputFormat(tanggalLahir)}
-                onChange={(e) => {
-                  const internalFormat = e.target.value;
-                  setEditedData((prev) => ({
-                    ...prev,
-                    profile: { ...prev.profile, tanggalLahir: internalFormat },
-                  }));
-                }}
-              />
-            </>
-          ) : (
-            <div className="mb-4">
-              <p className="text-base font-bold text-gray-800 mb-1">Tanggal Lahir</p>
-              <div className="px-4 py-3 rounded-lg border border-gray-200 bg-gray-100 text-gray-800">
-                <p className={dataClass(tanggalLahir)}>{displayData(tanggalLahir)}</p>
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="NIK"
+              name="nik"
+              value={nik}
+              editable={isEditable}
+              onChange={handleChange}
+            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Jenis Kelamin
+              </label>
+              {isEditable ? (
+                <select
+                  name="jenis_kelamin"
+                  value={jenis_kelamin || ""}
+                  onChange={handleChange}
+                  className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm
+                             text-gray-800 focus:border-blue-500 focus:outline-none
+                             focus:ring-2 focus:ring-blue-100 transition bg-white"
+                >
+                  <option value="">Pilih</option>
+                  <option value="Laki-Laki">Laki-Laki</option>
+                  <option value="Perempuan">Perempuan</option>
+                </select>
+              ) : (
+                <div
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5
+                                text-sm text-gray-800 min-h-[42px]"
+                >
+                  {jenis_kelamin || (
+                    <span className="italic text-gray-400">Belum diisi</span>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* No Handphone */}
-        <div>
-          <SettingsInput
-            id="nomorHp"
-            label="No Handphone"
-            value={nomorHp || ""}
-            onChange={onChange}
-            editable={isEditable}
-            readOnly={!isEditable}
-            type="tel"
-          />
-        </div>
-
-        {/* Email */}
-        <div>
-          <div className="mb-4">
-            <p className="text-base font-bold text-gray-800 mb-1">Email</p>
-            <div className="px-4 py-3 rounded-lg border border-gray-200 bg-gray-100 text-gray-800">
-              <p className={dataClass(email)}>{email || "Data belum diisi"}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Tempat Lahir"
+              name="tempat_lahir"
+              value={tempat_lahir}
+              editable={isEditable}
+              onChange={handleChange}
+            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Tanggal Lahir
+              </label>
+              {isEditable ? (
+                <input
+                  type="date"
+                  name="tanggal_lahir"
+                  value={
+                    tanggal_lahir
+                      ? new Date(tanggal_lahir).toISOString().split("T")[0]
+                      : ""
+                  }
+                  onChange={handleChange}
+                  className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm
+                             text-gray-800 focus:border-blue-500 focus:outline-none
+                             focus:ring-2 focus:ring-blue-100 transition"
+                />
+              ) : (
+                <div
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5
+                                text-sm text-gray-800 min-h-[42px]"
+                >
+                  {tanggal_lahir ? (
+                    formatDate(tanggal_lahir)
+                  ) : (
+                    <span className="italic text-gray-400">Belum diisi</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Alamat */}
-        <div className="col-span-1 md:col-span-2">
-          <SettingsInput
-            id="alamat"
-            label="Alamat Lengkap"
-            value={alamat || ""}
-            onChange={onChange}
-            editable={isEditable}
-            readOnly={!isEditable}
-            isTextArea={true}
-          />
-        </div>
+        {/* ── Kontak & Lokasi column ── */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-l-4 border-blue-600 pl-3">
+            <h4 className="text-sm font-bold text-gray-800">Kontak & Lokasi</h4>
+          </div>
 
-        {/* About Me */}
-        <div className="col-span-1 md:col-span-2">
-          <SettingsInput
-            id="about"
-            label="Tentang Saya (About Me)"
-            value={about || ""}
-            onChange={onChange}
+          {/* Email — read only always */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Email
+            </label>
+            <div
+              className="rounded-lg border border-gray-200 bg-gray-100 px-3 py-2.5
+                            text-sm text-gray-700 min-h-[42px]"
+            >
+              {email || (
+                <span className="italic text-gray-400">Belum diisi</span>
+              )}
+            </div>
+          </div>
+
+          <Field
+            label="No. Handphone"
+            name="nomor_hp"
+            value={nomor_hp}
             editable={isEditable}
-            readOnly={!isEditable}
-            isTextArea={true}
+            onChange={handleChange}
+            type="tel"
+          />
+
+          <TextareaField
+            label="Alamat Domisili"
+            name="alamat"
+            value={alamat}
+            editable={isEditable}
+            onChange={handleChange}
           />
         </div>
       </div>

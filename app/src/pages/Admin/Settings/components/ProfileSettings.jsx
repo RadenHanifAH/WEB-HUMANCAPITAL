@@ -40,7 +40,8 @@ const PasswordField = memo(function PasswordField({
 export default function ProfileSettings({ showToast }) {
   const { user, checkAuth, setUser } = useAuthStore();
 
-  const [profile, setProfile] = useState({ firstName: "", email: "" });
+  // ✅ "nama" persis kolom di model `pengguna`, bukan "firstName"/"fullName"
+  const [profile, setProfile] = useState({ nama: "", email: "" });
   const [password, setPassword] = useState({
     current: "",
     new: "",
@@ -77,14 +78,17 @@ export default function ProfileSettings({ showToast }) {
     }
   }, [user, checkAuth]);
 
+  // ✅ user mengikuti bentuk toSafeUser() di auth.service.js:
+  // { id, nama, email, peran, divisi, created_at, profil: { nik, jenis_kelamin,
+  //   nomor_hp, tempat_lahir, tanggal_lahir, alamat, foto_profil, tentang } }
   useEffect(() => {
     if (!user) return;
 
     setProfile({
-      firstName: user.profile?.fullName || user.name || "",
+      nama: user.nama || "",
       email: user.email || "",
     });
-    setAvatarUrl(user.profile?.fotoProfile || "");
+    setAvatarUrl(user.profil?.foto_profil || "");
   }, [user]);
 
   const compressImage = (file, maxWidth = 800, quality = 0.7) =>
@@ -171,18 +175,35 @@ export default function ProfileSettings({ showToast }) {
     }
 
     try {
+      // ✅ Body persis yang dibaca updateProfile() di auth.service.js:
+      // `nama` (kolom tabel pengguna) + `foto_profil` (salah satu
+      // ALLOWED_PROFIL_FIELDS milik tabel profil).
       const payload = {
-        fullName: profile.firstName,
-        fotoProfile: avatarUrl,
+        nama: profile.nama,
+        foto_profil: avatarUrl,
       };
 
       const res = await axios.put("/auth/profile", payload);
 
-      const updatedProfile = res?.data?.data || res?.data || payload;
+      // ✅ Response updateProfile() FLAT (bukan nested di `profil`):
+      // { nama, nik, jenis_kelamin, nomor_hp, tempat_lahir, tanggal_lahir,
+      //   alamat, foto_profil, tentang }
+      const updated = res?.data?.data || {};
 
       setUser({
         ...user,
-        profile: updatedProfile,
+        nama: updated.nama ?? profile.nama,
+        profil: {
+          ...user?.profil,
+          nik: updated.nik ?? user?.profil?.nik ?? null,
+          jenis_kelamin: updated.jenis_kelamin ?? user?.profil?.jenis_kelamin ?? null,
+          nomor_hp: updated.nomor_hp ?? user?.profil?.nomor_hp ?? null,
+          tempat_lahir: updated.tempat_lahir ?? user?.profil?.tempat_lahir ?? null,
+          tanggal_lahir: updated.tanggal_lahir ?? user?.profil?.tanggal_lahir ?? null,
+          alamat: updated.alamat ?? user?.profil?.alamat ?? null,
+          foto_profil: updated.foto_profil ?? avatarUrl,
+          tentang: updated.tentang ?? user?.profil?.tentang ?? null,
+        },
       });
 
       if (password.new) {
@@ -247,9 +268,9 @@ export default function ProfileSettings({ showToast }) {
           <label className="block text-sm font-medium text-gray-600">Nama Lengkap</label>
           <input
             type="text"
-            value={profile.firstName}
+            value={profile.nama}
             onChange={(e) =>
-              setProfile((p) => ({ ...p, firstName: e.target.value }))
+              setProfile((p) => ({ ...p, nama: e.target.value }))
             }
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
           />

@@ -4,10 +4,7 @@ const { findUserById } = require("../modules/auth/auth.repository");
 
 const protectRoute = async (req, res, next) => {
   try {
-    // ✅ 1) Ambil access token (prioritas cookie)
     const tokenFromCookie = req.cookies?.accessToken;
-
-    // optional: support Bearer token juga
     const tokenFromHeader = req.headers.authorization?.startsWith("Bearer ")
       ? req.headers.authorization.split(" ")[1]
       : null;
@@ -20,7 +17,6 @@ const protectRoute = async (req, res, next) => {
       });
     }
 
-    // ✅ 2) Verify token
     let decoded;
     try {
       decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
@@ -35,14 +31,12 @@ const protectRoute = async (req, res, next) => {
       });
     }
 
-    // ✅ 3) Validasi payload
     if (!decoded?.id) {
       return res.status(401).json({
         message: "Unauthorized - Invalid token payload",
       });
     }
 
-    // ✅ 4) Ambil user dari DB
     const user = await findUserById(decoded.id);
 
     if (!user) {
@@ -51,11 +45,18 @@ const protectRoute = async (req, res, next) => {
       });
     }
 
-    // ✅ 5) Jangan expose password (dan field sensitif lain kalau ada)
     const safeUser = { ...user };
     delete safeUser.password;
 
-    // taruh ke req.user (biar controller bisa pakai)
+    // ⚠️ FIX: kolom di model `pengguna` bernama `peran` (bukan `role`).
+    // `user` di sini adalah row database MENTAH dari findUserById
+    // (prisma.pengguna.findUnique), jadi cuma punya `peran`, tidak
+    // pernah punya `role`. Middleware lain (adminRoute, divisiRoute,
+    // dan requireAdmin di users.routes.js) semua mengecek `req.user.role`,
+    // sehingga tanpa baris ini pengecekan itu SELALU gagal walau JWT
+    // payload-nya sendiri sudah benar berisi `role`.
+    safeUser.role = user.peran;
+
     req.user = safeUser;
 
     return next();
@@ -70,18 +71,13 @@ const protectRoute = async (req, res, next) => {
 
 const adminRoute = (req, res, next) => {
   try {
-    // pastikan protectRoute sudah jalan dulu
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
     if (req.user?.role === "admin") {
       return next();
     }
-
-    return res.status(403).json({
-      message: "Access denied - admin only",
-    });
+    return res.status(403).json({ message: "Access denied - admin only" });
   } catch (error) {
     console.error("adminRoute error:", error);
     return res.status(500).json({
@@ -91,7 +87,27 @@ const adminRoute = (req, res, next) => {
   }
 };
 
+// ✅ Siapapun yang login pakai akun role "divisi" boleh masuk
+const divisiRoute = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.user?.role === "divisi") {
+      return next();
+    }
+    return res.status(403).json({ message: "Access denied - divisi only" });
+  } catch (error) {
+    console.error("divisiRoute error:", error);
+    return res.status(500).json({
+      message: "Server error in divisi middleware",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   protectRoute,
   adminRoute,
+  divisiRoute,
 };

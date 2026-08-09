@@ -8,8 +8,15 @@ const normalizeStatus = (raw) => {
   if (low === "screaning" || low === "screening" || low === "under-review" || low === "under review")
     return "Screaning";
 
-  if (low === "interview hc" || low === "interview-hc" || low === "interviewhc")
-    return "Interview HC";
+  if (
+    low === "interview hc" ||
+    low === "interview-hc" ||
+    low === "interviewhc" ||
+    low === "interview pertama" ||
+    low === "interview-pertama" ||
+    low === "interviewpertama"
+  )
+    return "Interview Pertama";
 
   if (
     low === "psikotes" ||
@@ -18,10 +25,17 @@ const normalizeStatus = (raw) => {
     low === "psychotest" ||
     low === "psycho test"
   )
-    return "Psikotes/Technical Test";
+    return "Psikotes";
 
-  if (low === "final interview" || low === "final-interview" || low === "finalinterview")
-    return "Final Interview";
+  if (
+    low === "final interview" ||
+    low === "final-interview" ||
+    low === "finalinterview" ||
+    low === "interview kedua" ||
+    low === "interview-kedua" ||
+    low === "interviewkedua"
+  )
+    return "Interview Kedua";
 
   return s;
 };
@@ -30,9 +44,9 @@ const StatCards = ({ applicants }) => {
   const counts = useMemo(() => {
     const c = {
       "Screaning": 0,
-      "Interview HC": 0,
-      "Psikotes/Technical Test": 0,
-      "Final Interview": 0,
+      "Interview Pertama": 0,
+      "Psikotes": 0,
+      "Interview Kedua": 0,
     };
 
     (applicants || []).forEach((a) => {
@@ -52,22 +66,22 @@ const StatCards = ({ applicants }) => {
       sub: "Sedang ditinjau",
     },
     {
-      label: "Interview HC",
-      count: counts["Interview HC"],
+      label: "Interview Pertama",
+      count: counts["Interview Pertama"],
       icon: User,
       color: "text-blue-500",
       sub: "Menunggu jadwal",
     },
     {
-      label: "Psikotes/Technical Test",
-      count: counts["Psikotes/Technical Test"],
+      label: "Psikotes",
+      count: counts["Psikotes"],
       icon: AlertCircle,
       color: "text-purple-500",
       sub: "Dalam proses",
     },
     {
-      label: "Final Interview",
-      count: counts["Final Interview"],
+      label: "Interview Kedua",
+      count: counts["Interview Kedua"],
       icon: TrendingUp,
       color: "text-green-500",
       sub: "Tahap akhir",

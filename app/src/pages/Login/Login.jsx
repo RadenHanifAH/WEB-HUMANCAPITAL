@@ -1,12 +1,10 @@
+// src/pages/auth/Login.jsx
 import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-// Pastikan path ini benar di proyek Anda
 import Logo from "../../assets/perusahaan1.png";
-// Pastikan path ini benar
 import useAuthStore from "../../store/useAuthStore";
 
-// --- Komponen Pembantu: IconInputField ---
 const IconInputField = ({
   icon: Icon,
   type,
@@ -31,9 +29,7 @@ const IconInputField = ({
         value={value}
         onChange={onChange}
         required
-        className="w-full pl-12 pr-10 py-3 border border-gray-300 rounded-lg text-base 
-                   focus:border-sky-600 focus:ring-1 focus:ring-sky-600 
-                   transition duration-150 placeholder:text-gray-400"
+        className="w-full pl-12 pr-10 py-3 border border-gray-300 rounded-lg text-base focus:border-sky-600 focus:ring-1 focus:ring-sky-600 transition duration-150 placeholder:text-gray-400"
       />
       {isPassword && (
         <button
@@ -47,43 +43,35 @@ const IconInputField = ({
     </div>
   </div>
 );
-// --- Akhir Komponen Pembantu ---
 
-/**
- * Komponen utama untuk halaman Login.
- */
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-
-  // Mengambil action login dari store Zustand
-  const {login, loading}=useAuthStore()
-
+  const { login, loading } = useAuthStore();
   const navigate = useNavigate();
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
 
-  try {
-    const response = await login(email, password);
-    if (response?.success) {
-      navigate("/");
+    try {
+      const response = await login(email, password);
+      if (response?.success) {
+        navigate("/");
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || "Gagal login");
     }
-  } catch (err) {
-    setError(err?.response?.data?.message || "Gagal login");
-  }
-};
+  };
 
   return (
     <div
       className="relative w-full overflow-hidden"
       style={{ minHeight: "100vh" }}
     >
-      {/* === FULLSCREEN LOADING OVERLAY === */}
       {loading && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-opacity duration-600">
           <Loader2 className="w-12 h-12 text-sky-600 animate-spin mb-3" />
@@ -91,12 +79,10 @@ const handleSubmit = async (e) => {
         </div>
       )}
 
-      {/* Background gradasi */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/60 via-blue-400/50 to-blue-500/50 opacity-40 pointer-events-none" />
 
       <div className="relative h-full flex items-center justify-center p-4 sm:p-6 min-h-screen">
         <div className="flex flex-col lg:flex-row w-full max-w-5xl bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
-          {/* Panel kiri (logo/visual) */}
           <div className="hidden lg:flex lg:w-1/2 relative p-8 bg-white items-center justify-center">
             <img
               src={Logo}
@@ -105,7 +91,6 @@ const handleSubmit = async (e) => {
             />
           </div>
 
-          {/* Panel kanan (form login) */}
           <div className="w-full lg:w-1/2 p-6 sm:p-8 md:p-10 flex items-center justify-center">
             <div className="w-full max-w-sm">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center sm:text-left">
@@ -163,12 +148,7 @@ const handleSubmit = async (e) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`w-full px-5 py-2.5 md:px-6 md:py-3 
-                    bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
-                    text-white rounded-lg text-sm md:text-base font-semibold 
-                    flex items-center justify-center transition shadow-lg transform active:scale-95 ${
-                      loading ? "opacity-80 cursor-not-allowed" : ""
-                    }`}
+                  className={`w-full px-5 py-2.5 md:px-6 md:py-3 bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 text-white rounded-lg text-sm md:text-base font-semibold flex items-center justify-center transition shadow-lg transform active:scale-95 ${loading ? "opacity-80 cursor-not-allowed" : ""}`}
                 >
                   Masuk
                 </button>

@@ -1,20 +1,19 @@
 import { User as UserIcon, Settings, LogOut } from "lucide-react";
 
-/** fallback profile structure */
+/** fallback profile structure — persis bentuk toSafeUser() di auth.service.js */
 export const defaultProfileData = {
   id: null,
-  name: "",
+  nama: "",
   email: "",
-  profile: {
-    fullName: "",
-    NIK: "",
-    gender: "",
-    nomorHp: "",
-    tempatLahir: "",
-    tanggalLahir: "",
+  profil: {
+    nik: "",
+    jenis_kelamin: "",
+    nomor_hp: "",
+    tempat_lahir: "",
+    tanggal_lahir: "",
     alamat: "",
-    fotoProfile: "",
-    about: "",
+    foto_profil: "",
+    tentang: "",
   },
   currentStep: "Screaning",
   finalStatus: "Pending",
@@ -54,8 +53,10 @@ export const getStepState = (stepName, currentStep, finalStatus, steps) => {
     return "pending";
   }
 
-  if (finalStatus === "Accepted" && stepName === "Offering/Final Result") return "accepted";
-  if (finalStatus === "Accepted" && stepIndex < steps.length - 1) return "completed";
+  if (finalStatus === "Accepted" && stepName === "Final Result")
+    return "accepted";
+  if (finalStatus === "Accepted" && stepIndex < steps.length - 1)
+    return "completed";
 
   if (stepIndex < currentStepIndex) return "completed";
   if (stepIndex === currentStepIndex) return "active";
@@ -63,14 +64,9 @@ export const getStepState = (stepName, currentStep, finalStatus, steps) => {
   return "pending";
 };
 
-/**
- * ✅ Warna badge berdasarkan step (Pending)
- * Kamu bisa ubah mapping warnanya sesuka kamu
- */
 export const getStepBadgeColor = (currentStep) => {
   const step = String(currentStep || "").trim();
 
-  // default kalau kosong / belum melamar
   if (!step) return "bg-gray-100 text-gray-700";
 
   switch (step) {
@@ -82,32 +78,22 @@ export const getStepBadgeColor = (currentStep) => {
       return "bg-purple-100 text-purple-600";
     case "Final Interview":
       return "bg-green-100 text-green-600";
-    case "Offering/Final Result":
+    case "Final Result":
       return "bg-teal-100 text-teal-700";
     default:
-      // kalau ada mismatch nama step
       return "bg-gray-100 text-gray-700";
   }
 };
 
-/**
- * ✅ Class badge final status (Accepted / Rejected / Pending)
- * - Pending sekarang warnanya mengikuti step
- */
 export const getFinalStatusColor = (finalStatus, currentStep) => {
   if (finalStatus === "Accepted") return "bg-green-100 text-green-700";
   if (finalStatus === "Rejected") return "bg-red-100 text-red-700";
-  return getStepBadgeColor(currentStep); // ✅ pending ikut step
+  return getStepBadgeColor(currentStep);
 };
 
-/**
- * ✅ Text badge kanan atas
- * - "PROSES" dihilangkan
- * - jadi langsung "(currentStep)"
- */
 export const getStatusText = (finalStatus, currentStep) => {
   if (finalStatus === "Accepted") return "DITERIMA";
   if (finalStatus === "Rejected") return "DITOLAK";
-  if (currentStep) return `(${currentStep})`; // ✅ tanpa "PROSES"
+  if (currentStep) return `(${currentStep})`;
   return "BELUM MELAMAR";
 };

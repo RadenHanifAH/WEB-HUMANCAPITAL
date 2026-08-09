@@ -1,4 +1,3 @@
-// src/modules/jobs/job.service.js
 const jobRepository = require("./job.repository");
 
 const getAllJobs = async (filter = {}, page = 1, limit = 5, isPublic = true) => {
@@ -8,7 +7,7 @@ const getAllJobs = async (filter = {}, page = 1, limit = 5, isPublic = true) => 
 
   if (isPublic) {
     whereClause.status = "active";
-    whereClause.OR = [{ deadline: null }, { deadline: { gte: new Date() } }];
+    whereClause.OR = [{ tenggat: null }, { tenggat: { gte: new Date() } }];
   }
 
   const jobs = await jobRepository.findJobs(whereClause, skip, limit);
@@ -27,22 +26,21 @@ const getAllJobs = async (filter = {}, page = 1, limit = 5, isPublic = true) => 
   };
 };
 
-
-
 const createJob = async (data) => {
-  if (!data.title) throw new Error("Judul lowongan wajib diisi");
+  if (!data.judul) throw new Error("Judul lowongan wajib diisi");
 
   const validJobTypes = ["FullTime", "PartTime", "Contract", "Internship", "Freelance"];
-  if (data.type && !validJobTypes.includes(data.type)) throw new Error("Tipe pekerjaan tidak valid");
+  if (data.jenis && !validJobTypes.includes(data.jenis)) throw new Error("Tipe pekerjaan tidak valid");
 
-  const validExperienceLevels = ["FreshGraduate", "Junior", "MidLevel", "Senior"];
-  if (data.experience && !validExperienceLevels.includes(data.experience)) throw new Error("Level pengalaman tidak valid");
+  // ✅ Hapus validasi pengalaman & pendidikan
+  // const validExperienceLevels = ["FreshGraduate", "Junior", "MidLevel", "Senior"];
+  // if (data.pengalaman && !validExperienceLevels.includes(data.pengalaman)) throw new Error("Level pengalaman tidak valid");
 
-  const validEducationLevels = ["SMA", "D3", "D4", "S1", "S2", "S3"];
-  if (data.education && !validEducationLevels.includes(data.education)) throw new Error("Level pendidikan tidak valid");
+  // const validEducationLevels = ["SMA", "D3", "D4", "S1", "S2", "S3"];
+  // if (data.pendidikan && !validEducationLevels.includes(data.pendidikan)) throw new Error("Level pendidikan tidak valid");
 
-  if (data.deadline) {
-    const deadlineDate = new Date(data.deadline);
+  if (data.tenggat) {
+    const deadlineDate = new Date(data.tenggat);
     if (deadlineDate < new Date()) throw new Error("Deadline tidak boleh di masa lalu");
   }
 

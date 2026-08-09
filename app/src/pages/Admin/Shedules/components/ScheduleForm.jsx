@@ -1,349 +1,381 @@
-import React, { Fragment, useEffect, useMemo, useState } from "react";
-import { Listbox, Transition } from "@headlessui/react";
-import { X, ChevronDown, Check, Calendar, Clock, MapPin } from "lucide-react";
-import { interviewTypes } from "./constants";
-import { fetchApplicants, createSchedule } from "../services/schedules.api";
+import React, { useEffect, useState } from "react";
+import { X, Calendar, Clock, MapPin, User, CheckSquare, Square, Loader2, Video } from "lucide-react";
+import { SCHEDULE_TYPES } from "./constants";
+import { fetchApplicantsByStage, bulkCreateSchedule } from "../services/schedules.api";
+import LocationStep from "./Locationstep";
+import { buildLocationPayload, locationSummaryLabel } from "./LocationData";
 import toast from "react-hot-toast";
 
+// ── Helper H+1 ────────────────────────────────────────────────────────────
+// Menghasilkan string tanggal besok dalam format YYYY-MM-DD untuk
+// digunakan sebagai nilai `min` pada input date, sehingga hari ini
+// tidak bisa dipilih di date picker.
+const getTomorrowDateString = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const yyyy = tomorrow.getFullYear();
+  const mm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+  const dd = String(tomorrow.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const INITIAL_LOCATION = {
+  meetingMode: "office", // "office" | "online"
+  officeId: "",
+  onlineLink: "",
+};
+
+const STEP_LABELS = ["Pilih Kandidat", "Pilih Lokasi", "Atur Jadwal"];
+
 export default function ScheduleForm({ open, onClose, onCreated }) {
+  const [step, setStep] = useState(1); // 1 = kandidat, 2 = lokasi, 3 = jadwal
+  const [selectedType, setSelectedType] = useState(SCHEDULE_TYPES[0].value);
+
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [applicants, setApplicants] = useState([]);
+  const [checkedIds, setCheckedIds] = useState([]); // applicationId[]
 
-  const [form, setForm] = useState({
-    applicant: null, // { applicationId, applicantName, applicantEmail, position }
-    type: null, // enum value
-    date: "",
-    time: "",
-    location: "",
-  });
+  const [location, setLocation] = useState(INITIAL_LOCATION);
+  const [form, setForm] = useState({ date: "", time: "" });
+  const [submitting, setSubmitting] = useState(false);
 
-  // ✅ state untuk autocomplete kandidat
-  const [candidateQuery, setCandidateQuery] = useState("");
-  const [showCandidateList, setShowCandidateList] = useState(false);
-
-  const typeLabel = useMemo(() => {
-    const found = interviewTypes.find((x) => x.value === form.type);
-    return found?.label || "Pilih tipe";
-  }, [form.type]);
-
+  // Load kandidat setiap kali tipe berubah
   useEffect(() => {
     if (!open) return;
+    setCheckedIds([]);
+    loadApplicants(selectedType);
+  }, [open, selectedType]);
 
-    (async () => {
-      try {
-        setLoadingApplicants(true);
-        const res = await fetchApplicants();
-        const items = res.items || [];
-        setApplicants(items);
-
-        // kalau modal dibuka dan sudah ada applicant terpilih, set query textnya
-        if (form.applicant) {
-          setCandidateQuery(
-            `${form.applicant.applicantName} — ${form.applicant.position}`
-          );
-        } else {
-          setCandidateQuery("");
-        }
-      } catch (e) {
-        console.error(e);
-        toast.error(
-          e?.response?.data?.message ||
-            "Gagal memuat kandidat. Pastikan server backend aktif."
-        );
-      } finally {
-        setLoadingApplicants(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // ✅ hasil filter kandidat berdasarkan query (nama/email/posisi)
-  const filteredApplicants = useMemo(() => {
-    const q = String(candidateQuery || "").trim().toLowerCase();
-    if (!q) return applicants;
-
-    return applicants.filter((a) => {
-      const name = String(a.applicantName || "").toLowerCase();
-      const email = String(a.applicantEmail || "").toLowerCase();
-      const pos = String(a.position || "").toLowerCase();
-      return name.includes(q) || email.includes(q) || pos.includes(q);
-    });
-  }, [candidateQuery, applicants]);
-
-  const selectApplicant = (a) => {
-    setForm((prev) => ({ ...prev, applicant: a }));
-    setCandidateQuery(`${a.applicantName} — ${a.position}`);
-    setShowCandidateList(false);
+  const loadApplicants = async (type) => {
+    try {
+      setLoadingApplicants(true);
+      const res = await fetchApplicantsByStage(type);
+      setApplicants(res.items || []);
+    } catch {
+      toast.error("Gagal memuat kandidat");
+    } finally {
+      setLoadingApplicants(false);
+    }
   };
 
-  const clearApplicant = () => {
-    setForm((prev) => ({ ...prev, applicant: null }));
-    setCandidateQuery("");
-    setShowCandidateList(false);
+  const toggleCheck = (id) => {
+    setCheckedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
-  const submit = async (e) => {
+  const toggleAll = () => {
+    if (checkedIds.length === applicants.length) {
+      setCheckedIds([]);
+    } else {
+      setCheckedIds(applicants.map((a) => a.applicationId));
+    }
+  };
+
+  const handleNextFromCandidates = () => {
+    if (checkedIds.length === 0) {
+      toast.error("Pilih minimal satu kandidat");
+      return;
+    }
+    setStep(2);
+  };
+
+  const handleNextFromLocation = () => setStep(3);
+  const handleBackToCandidates = () => setStep(1);
+  const handleBackToLocation = () => setStep(2);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.date || !form.time) {
+      toast.error("Tanggal dan waktu harus diisi");
+      return;
+    }
 
-    if (!form.applicant || !form.type || !form.date || !form.time || !form.location) {
-      toast.error("Semua field harus diisi.");
+    // Validasi H+1 di sisi client sebagai lapisan tambahan
+    // (validasi utama tetap di server / assertDateIsHPlusOne)
+    if (form.date < getTomorrowDateString()) {
+      toast.error("Tanggal jadwal minimal H+1 (besok), tidak bisa hari ini");
+      return;
+    }
+
+    const { location: locationText, meetingLink } = buildLocationPayload(location);
+    if (!locationText) {
+      toast.error("Lokasi belum lengkap");
       return;
     }
 
     try {
-      await createSchedule({
-        applicationId: form.applicant.applicationId,
-        type: form.type,
+      setSubmitting(true);
+      const result = await bulkCreateSchedule({
+        applicationIds: checkedIds,
+        type: selectedType,
         date: form.date,
         time: form.time,
         durationMin: 60,
-        location: form.location,
+        location: locationText,
+        meetingLink,
       });
 
-      toast.success("Jadwal berhasil dibuat");
+      if (result.errors?.length > 0) {
+        toast.error(`${result.created} jadwal dibuat, ${result.errors.length} gagal (mungkin sudah ada)`);
+      } else {
+        toast.success(`${result.created} jadwal berhasil dibuat`);
+      }
+
+      resetAll();
       onClose();
-      setForm({
-        applicant: null,
-        type: null,
-        date: "",
-        time: "",
-        location: "",
-      });
-      setCandidateQuery("");
-      setShowCandidateList(false);
       onCreated?.();
-    } catch (e2) {
-      toast.error(e2?.response?.data?.message || "Gagal membuat jadwal");
+    } catch (e) {
+      toast.error(e?.response?.data?.message || "Gagal membuat jadwal");
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  const resetAll = () => {
+    setStep(1);
+    setCheckedIds([]);
+    setLocation(INITIAL_LOCATION);
+    setForm({ date: "", time: "" });
+  };
+
+  const handleClose = () => {
+    resetAll();
+    onClose();
+  };
+
+  const selectedTypeLabel = SCHEDULE_TYPES.find((t) => t.value === selectedType)?.label || "";
+  const allChecked = applicants.length > 0 && checkedIds.length === applicants.length;
+
   if (!open) return null;
 
+  const modalWidthClass = step === 2 ? "max-w-2xl" : "max-w-md";
+
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg font-bold">Jadwalkan Interview/Test Baru</h2>
-          <button onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-3 sm:p-4">
+      <div
+        className={`bg-white rounded-xl shadow-lg w-full ${modalWidthClass} p-4 sm:p-6 transition-all max-h-[92vh] overflow-y-auto`}
+      >
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-1 gap-3">
+          <h2 className="text-lg font-bold">
+            {step === 2 ? "Pilih Lokasi Pertemuan" : "Buat Jadwal"}
+          </h2>
+          <button onClick={handleClose} className="shrink-0">
             <X className="h-5 w-5 text-gray-500 hover:text-sky-800" />
           </button>
         </div>
         <p className="text-sm text-gray-500 mb-4">
-          Buat jadwal interview/test
+          {step === 1 && "Pilih tipe dan kandidat yang akan dijadwalkan"}
+          {step === 2 && "Tentukan kantor dan ruangan, atau atur pertemuan daring"}
+          {step === 3 && `Atur waktu untuk ${checkedIds.length} kandidat`}
         </p>
 
-        <form onSubmit={submit} className="space-y-4">
-          {/* ✅ Kandidat Autocomplete (bukan dropdown) */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700">
-              Kandidat <span className="text-red-500">*</span>
-            </label>
-
-            <div className="relative mt-1">
-              <input
-                type="text"
-                value={candidateQuery}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setCandidateQuery(v);
-                  setShowCandidateList(true);
-
-                  // kalau user mengetik ulang, anggap belum memilih kandidat valid
-                  setForm((prev) => ({ ...prev, applicant: null }));
-                }}
-                onFocus={() => setShowCandidateList(true)}
-                onBlur={() => {
-                  // delay biar klik list kebaca dulu
-                  setTimeout(() => setShowCandidateList(false), 150);
-                }}
-                placeholder={
-                  loadingApplicants ? "Loading kandidat..." : "Nama"
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/30 pr-10"
-              />
-
-              {!!candidateQuery && (
-                <button
-                  type="button"
-                  onClick={clearApplicant}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100"
-                  title="Clear"
+        {/* Step indicator — bisa discroll horizontal di layar sangat sempit */}
+        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+          {STEP_LABELS.map((label, i) => (
+            <React.Fragment key={i}>
+              <div
+                className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-medium whitespace-nowrap shrink-0 ${
+                  step === i + 1 ? "text-sky-600" : step > i + 1 ? "text-green-600" : "text-gray-400"
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
+                  ${step === i + 1 ? "bg-sky-600 text-white" : step > i + 1 ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"}`}
                 >
-                  <X className="h-4 w-4 text-gray-400" />
-                </button>
-              )}
+                  {i + 1}
+                </div>
+                {label}
+              </div>
+              {i < STEP_LABELS.length - 1 && <div className="flex-1 min-w-[16px] h-px bg-gray-200" />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* STEP 1: Pilih tipe + kandidat */}
+        {step === 1 && (
+          <div className="space-y-4">
+            {/* Tab tipe */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Jadwal</label>
+              <div className="flex bg-gray-100 rounded-lg p-1 gap-1 overflow-x-auto">
+                {SCHEDULE_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setSelectedType(t.value)}
+                    className={`flex-1 min-w-[90px] px-2 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap
+                      ${selectedType === t.value
+                        ? "bg-white text-sky-700 shadow-sm font-semibold"
+                        : "text-gray-500 hover:text-gray-700"
+                      }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {showCandidateList && (
-              <div className="absolute mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 text-sm max-h-60 overflow-auto">
-                {loadingApplicants ? (
-                  <div className="px-3 py-2 text-gray-500">Loading...</div>
-                ) : filteredApplicants.length === 0 ? (
-                  <div className="px-3 py-2 text-gray-500">
-                    Kandidat tidak ditemukan
-                  </div>
-                ) : (
-                  filteredApplicants.map((a) => (
-                    <button
-                      key={a.applicationId}
-                      type="button"
-                      onClick={() => selectApplicant(a)}
-                      className="w-full text-left px-3 py-2 hover:bg-sky-100"
-                    >
-                      <div className="font-medium text-gray-900 truncate">
-                        {a.applicantName} — {a.position}
-                      </div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {a.applicantEmail}
-                      </div>
-                    </button>
-                  ))
+            {/* Daftar kandidat dengan checkbox */}
+            <div>
+              <div className="flex justify-between items-center mb-2 gap-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Kandidat <span className="text-gray-400 font-normal">({applicants.length} tersedia)</span>
+                </label>
+                {applicants.length > 0 && (
+                  <button type="button" onClick={toggleAll} className="text-xs text-sky-600 hover:underline shrink-0">
+                    {allChecked ? "Batal semua" : "Pilih semua"}
+                  </button>
                 )}
               </div>
-            )}
 
-            {/* ✅ indikator kalau belum memilih kandidat valid */}
-            {!form.applicant && candidateQuery.trim() !== "" && (
-              <p className="mt-1 text-xs text-amber-600">
-                Pilih kandidat dari daftar yang muncul.
-              </p>
-            )}
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-56 overflow-y-auto">
+                {loadingApplicants ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Memuat kandidat...
+                  </div>
+                ) : applicants.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-gray-400 px-3">
+                    Tidak ada kandidat di tahap <span className="font-medium text-gray-600">{selectedTypeLabel}</span>
+                  </div>
+                ) : (
+                  applicants.map((a) => {
+                    const checked = checkedIds.includes(a.applicationId);
+                    return (
+                      <label
+                        key={a.applicationId}
+                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors border-b border-gray-100 last:border-0
+                          ${checked ? "bg-sky-50" : "hover:bg-gray-50"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCheck(a.applicationId)}
+                          className="hidden"
+                        />
+                        {checked
+                          ? <CheckSquare className="h-4 w-4 text-sky-600 flex-shrink-0" />
+                          : <Square className="h-4 w-4 text-gray-300 flex-shrink-0" />
+                        }
 
-            {/* ✅ kalau sudah dipilih tampilkan small info */}
-            {form.applicant && (
-              <p className="mt-1 text-xs text-green-700">
-                Terpilih: {form.applicant.applicantName} ({form.applicant.applicantEmail})
-              </p>
-            )}
-          </div>
+                        {a.avatar ? (
+                          <img src={a.avatar} alt="" className="h-8 w-8 rounded-full object-cover border border-gray-200 flex-shrink-0" />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                            <User className="h-4 w-4 text-gray-400" />
+                          </div>
+                        )}
 
-          {/* Type (tetap dropdown) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Tipe Jadwal <span className="text-red-500">*</span>
-            </label>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${checked ? "text-sky-800" : "text-gray-800"}`}>
+                            {a.applicantName}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">{a.position}</p>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
 
-            <Listbox
-              value={form.type}
-              onChange={(val) => setForm({ ...form, type: val })}
-            >
-              {({ open: ddOpen }) => (
-                <div className="relative mt-1">
-                  <Listbox.Button className="w-full flex justify-between items-center px-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm text-left text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/30">
-                    <span className="block truncate">
-                      {form.type ? typeLabel : "Pilih tipe"}
-                    </span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-gray-500 ml-1 transition-transform ${
-                        ddOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </Listbox.Button>
-
-                  <Transition
-                    as={Fragment}
-                    leave="transition ease-in duration-100"
-                    leaveFrom="opacity-100"
-                    leaveTo="opacity-0"
-                  >
-                    <Listbox.Options className="absolute mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 text-sm max-h-60 overflow-auto">
-                      {interviewTypes.map((t) => (
-                        <Listbox.Option key={t.value} value={t.value}>
-                          {({ active, selected }) => (
-                            <div
-                              className={`relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                                active
-                                  ? "bg-sky-100 text-sky-900"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              <span
-                                className={`block truncate ${
-                                  selected ? "font-medium" : "font-normal"
-                                }`}
-                              >
-                                {t.label}
-                              </span>
-                              {selected && (
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-sky-600">
-                                  <Check className="h-5 w-5" />
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </Listbox.Option>
-                      ))}
-                    </Listbox.Options>
-                  </Transition>
-                </div>
+              {checkedIds.length > 0 && (
+                <p className="mt-1.5 text-xs text-sky-600 font-medium">
+                  {checkedIds.length} kandidat dipilih
+                </p>
               )}
-            </Listbox>
-          </div>
+            </div>
 
-          {/* Date + Time */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Tanggal <span className="text-red-500">*</span>
-              </label>
-              <div className="relative mt-1">
-                <input
-                  type="date"
-                  className="border border-gray-300 shadow rounded-lg px-3 py-2 text-sm w-full pl-9 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                />
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <button type="button" onClick={handleClose}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 text-sm w-full sm:w-auto">
+                Batal
+              </button>
+              <button type="button" onClick={handleNextFromCandidates}
+                className="px-4 py-2 rounded-lg text-white bg-sky-600 hover:bg-sky-700 text-sm font-medium w-full sm:w-auto">
+                Lanjut →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Pilih Lokasi */}
+        {step === 2 && (
+          <LocationStep
+            value={location}
+            onChange={setLocation}
+            onNext={handleNextFromLocation}
+            onBack={handleBackToCandidates}
+          />
+        )}
+
+        {/* STEP 3: Atur tanggal & waktu */}
+        {step === 3 && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Ringkasan kandidat + lokasi terpilih */}
+            <div className="bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 text-sm text-sky-800 space-y-1">
+              <p>
+                <span className="font-semibold">{checkedIds.length} kandidat</span> akan dijadwalkan untuk{" "}
+                <span className="font-semibold">{selectedTypeLabel}</span>
+              </p>
+              <p className="flex items-start gap-1.5 text-sky-700">
+                {location.meetingMode === "online" ? (
+                  <Video className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                )}
+                <span className="break-words">{locationSummaryLabel(location)}</span>
+              </p>
+            </div>
+
+            {/* Tanggal + Waktu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tanggal <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={form.date}
+                    min={getTomorrowDateString()}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    className="border border-gray-300 shadow-sm rounded-lg px-3 py-2 text-sm w-full pl-9 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
+                  />
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Waktu <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={form.time}
+                    onChange={(e) => setForm({ ...form, time: e.target.value })}
+                    className="border border-gray-300 shadow-sm rounded-lg px-3 py-2 text-sm w-full pl-9 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
+                  />
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                </div>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Waktu <span className="text-red-500">*</span>
-              </label>
-              <div className="relative mt-1">
-                <input
-                  type="time"
-                  className="border border-gray-300 shadow rounded-lg px-3 py-2 text-sm w-full pl-9 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-                  value={form.time}
-                  onChange={(e) => setForm({ ...form, time: e.target.value })}
-                />
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              </div>
-            </div>
-          </div>
 
-          {/* Location */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Lokasi <span className="text-red-500">*</span>
-            </label>
-            <div className="relative mt-1">
-              <input
-                placeholder="Syaamil Group atau Zoom"
-                className="border border-gray-300 shadow rounded-lg px-3 py-2 text-sm w-full pl-9 focus:outline-none focus:ring-1 focus:ring-sky-500/30"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-              />
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
+              <button type="button" onClick={handleBackToLocation}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 text-sm w-full sm:w-auto">
+                ← Kembali
+              </button>
+              <button type="submit" disabled={submitting}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white bg-sky-600 hover:bg-sky-700 text-sm font-medium disabled:opacity-60 w-full sm:w-auto">
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Jadwalkan
+              </button>
             </div>
-          </div>
-
-          <div className="flex justify-end gap-2 mt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 bg-white hover:bg-gray-100 text-sm"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg text-white bg-sky-700 hover:bg-sky-800 text-sm"
-            >
-              Jadwalkan
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
     </div>
   );

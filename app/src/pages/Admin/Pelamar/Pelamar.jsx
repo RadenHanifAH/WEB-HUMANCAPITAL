@@ -15,16 +15,15 @@ import StatCards from "./components/StatCards";
 import FilterBar from "./components/FilterBar";
 import ApplicantTable from "./components/ApplicantTable";
 import DetailModal from "./components/DetailModal";
-import MessageModal from "./components/MessageModal";
 
 const STATUS_TO_BACKEND = {
   screaning: "Screaning",
-  "interview-hc": "Interview HC",
+  "interview-pertama": "Interview Pertama",
   psikotes: "Psikotes",
-  "final-interview": "Final Interview",
-  offering: "Offering/Final Result",
-  accepted: "Accepted",
-  rejected: "Rejected",
+  "interview-kedua": "Interview Kedua",
+  offering: "Final Result",
+  accepted: "Diterima",
+  rejected: "Ditolak",
 };
 
 function Pelamar() {
@@ -46,33 +45,27 @@ function Pelamar() {
 
   const [selectedDetail, setSelectedDetail] = useState(null);
 
-  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
-  const [modalData, setModalData] = useState({
-    applicant: null,
-    action: null,
-    status: "",
-    stage: "",
-  });
-
   useEffect(() => {
     setCurrentPage(1);
   }, [search, filterStatus, filterPosisi]);
 
   const filteredApplicants = (applicants || []).filter((a) => {
-    const name = String(a?.name || "");
+    const name = String(a?.pengguna?.nama || a?.name || "");
     const status = String(a?.status || "");
-    const position = String(a?.position || "");
+    const position = String(a?.lowongan?.judul || a?.position || "");
 
     const matchName = name.toLowerCase().includes(search.toLowerCase());
 
     const matchStatus =
       filterStatus.value === "rejected"
-        ? status.toLowerCase().startsWith("rejected")
+        ? status.toLowerCase().startsWith("rejected") || status.toLowerCase().startsWith("ditolak")
         : filterStatus.value
-        ? status === filterStatus.value
-        : true;
+          ? status === filterStatus.value
+          : true;
 
-    const matchPosisi = filterPosisi.value ? position === filterPosisi.value : true;
+    const matchPosisi = filterPosisi.value
+      ? position === filterPosisi.value
+      : true;
 
     return matchName && matchStatus && matchPosisi;
   });
@@ -80,51 +73,187 @@ function Pelamar() {
   const totalPages = Math.ceil(filteredApplicants.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentApplicants = filteredApplicants.slice(indexOfFirstItem, indexOfLastItem);
+  const currentApplicants = filteredApplicants.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
 
-  const updateApplicantStatus = async (applicantId, newStatusForBackend, applicantName) => {
-    const loadingToast = toast.loading(`Memperbarui status ${applicantName}...`);
+  const updateApplicantStatus = async (
+    applicantId,
+    newStatusForBackend,
+    applicantName,
+  ) => {
+    const loadingToast = toast.loading(
+      `Memperbarui status ${applicantName}...`,
+    );
 
     try {
       await axiosInstance.put(`${API_APPLICANTS}/${applicantId}/status`, {
         status: newStatusForBackend,
       });
 
-      toast.success(`Status ${applicantName} berhasil diubah`, { id: loadingToast });
+      toast.success(`Status ${applicantName} berhasil diubah`, {
+        id: loadingToast,
+      });
       fetchApplicants();
     } catch (e) {
-      toast.error(`Gagal update status: ${e?.message || "error"}`, { id: loadingToast });
+      toast.error(`Gagal update status: ${e?.message || "error"}`, {
+        id: loadingToast,
+      });
     }
   };
 
+  // ✅ MessageModal dihapus: sekarang "accepted" & "rejected" langsung
+  // memanggil updateApplicantStatus juga, sama seperti status lainnya,
+  // tanpa popup pesan konfirmasi.
   const handleStatusUpdate = async (applicant, newStatusValue) => {
     if (!applicant) return;
 
-    const newStatusForBackend = STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
+    const newStatusForBackend =
+      STATUS_TO_BACKEND[newStatusValue] || newStatusValue;
 
-    if (newStatusValue === "accepted") {
-      setModalData({ applicant, action: "accept", status: newStatusForBackend, stage: "accepted" });
-      setIsMessageModalOpen(true);
-      return;
-    }
-
-    if (newStatusValue === "rejected") {
-      setModalData({ applicant, action: "reject", status: newStatusForBackend, stage: "rejected" });
-      setIsMessageModalOpen(true);
-      return;
-    }
-
-    await updateApplicantStatus(applicant.id, newStatusForBackend, applicant.name);
+    await updateApplicantStatus(
+      applicant.id,
+      newStatusForBackend,
+      applicant.pengguna?.nama || applicant.name,
+    );
   };
 
+  // ✅ handler untuk tombol "Acc" di DetailModal (Screening -> Interview Pertama, dst).
+  const handleAccFromDetail = async (
+    applicant,
+    fromKey,
+    toKey,
+    backendStatus,
+  ) => {
+    if (!applicant?.id) return;
+
+    const loadingToast = toast.loading(
+      `Menyimpan perubahan tahap ${applicant.pengguna?.nama || applicant.name}...`,
+    );
+
+    try {
+      const res = await axiosInstance.put(
+        `${API_APPLICANTS}/${applicant.id}/status`,
+        { status: backendStatus },
+      );
+
+      // Backend (updateStatus controller) mengembalikan { message, data: updatedApplication }
+      const updated = res?.data?.data;
+      const newStatus = updated?.status ?? backendStatus;
+      const newStage = updated?.stage ?? backendStatus;
+
+      // Sinkronkan list applicants (dipakai ApplicantTable, StatCards, dst)
+      setApplicants((prev) =>
+        prev.map((a) =>
+          a.id === applicant.id
+            ? { ...a, status: newStatus, stage: newStage }
+            : a,
+        ),
+      );
+
+      // ✅ Sinkronkan applicant yang sedang dibuka di DetailModal.
+      setSelectedDetail((prev) =>
+        prev && prev.id === applicant.id
+          ? { ...prev, status: newStatus, stage: newStage }
+          : prev,
+      );
+
+      toast.success(`${applicant.pengguna?.nama || applicant.name} berhasil maju ke tahap ${newStage}`, {
+        id: loadingToast,
+      });
+
+      // Refetch di background supaya data benar-benar sinkron dengan DB.
+      fetchApplicants();
+    } catch (e) {
+      console.error("Gagal ACC dari DetailModal:", e);
+      toast.error(
+        `Gagal menyimpan perubahan tahap: ${e?.response?.data?.message || e?.message || "error"}`,
+        { id: loadingToast },
+      );
+    }
+  };
+
+  // ✅ NEW: helper generik untuk tombol Tolak / Terima di DetailModal.
+  // Sama pola-nya dengan handleAccFromDetail (update list + selectedDetail
+  // + toast), tapi backendStatus-nya langsung "Ditolak" / "Diterima"
+  // (bukan nama stage), sesuai yang dikenali updateApplicationStatus di
+  // application.service.js.
+  const handleStatusChangeFromDetail = async (
+    applicant,
+    backendStatus,
+    successLabel,
+  ) => {
+    if (!applicant?.id) return;
+
+    const applicantName = applicant.pengguna?.nama || applicant.name;
+    const loadingToast = toast.loading(
+      `Menyimpan perubahan ${applicantName}...`,
+    );
+
+    try {
+      // 1. Update status lamaran menjadi Diterima / Ditolak
+      const res = await axiosInstance.put(
+        `${API_APPLICANTS}/${applicant.id}/status`,
+        { status: backendStatus },
+      );
+
+      // 2. Pindahkan ke arsip secara manual (panggil endpoint baru)
+      await axiosInstance.post(`/archives/archive/${applicant.id}`);
+
+      const updated = res?.data?.data;
+      const newStatus = updated?.status ?? backendStatus;
+      const newStage = updated?.stage ?? backendStatus;
+
+      setApplicants((prev) =>
+        prev.map((a) =>
+          a.id === applicant.id
+            ? { ...a, status: newStatus, stage: newStage }
+            : a,
+        ),
+      );
+
+      // Tutup modal langsung setelah berhasil ditolak/diterima
+      setSelectedDetail(null);
+
+      toast.success(`${applicantName} ${successLabel} & dipindahkan ke arsip`, {
+        id: loadingToast,
+      });
+
+      fetchApplicants();
+    } catch (e) {
+      console.error("Gagal update status dari DetailModal:", e);
+      toast.error(
+        `Gagal menyimpan perubahan: ${e?.response?.data?.message || e?.message || "error"}`,
+        { id: loadingToast },
+      );
+    }
+  };
+
+  // ✅ NEW: tombol "Tolak" — tersedia mulai stage Screaning s.d. Interview
+  // Kedua, dan juga muncul (berdampingan dengan Terima) di stage Final
+  // Result. Lihat DetailModal.jsx bagian kartu "Aksi".
+  const handleRejectFromDetail = (applicant) =>
+    handleStatusChangeFromDetail(applicant, "Ditolak", "berhasil ditolak");
+
+  // ✅ NEW: tombol "Terima" — hanya muncul di stage Final Result.
+  const handleAcceptFromDetail = (applicant) =>
+    handleStatusChangeFromDetail(applicant, "Diterima", "berhasil diterima");
+
   const handleDownloadCV = (a) => {
-    if (!a?.cvDownloadUrl) return toast.error(`CV ${a?.name} tidak ditemukan`);
-    downloadFileFromUrl(a.cvDownloadUrl, `CV_${a?.name || "pelamar"}.pdf`);
+    const url = a?.cvDownloadUrl;
+    if (!url) return toast.error(`CV ${a?.pengguna?.nama || a?.name} tidak ditemukan`);
+    downloadFileFromUrl(url, `CV_${a?.pengguna?.nama || "pelamar"}.pdf`);
   };
 
   const handleDownloadPortfolio = (a) => {
-    if (!a?.portfolioDownloadUrl) return toast.error(`Portofolio ${a?.name} tidak tersedia.`);
-    downloadFileFromUrl(a.portfolioDownloadUrl, `Portofolio_${a?.name || "pelamar"}.pdf`);
+    const url = a?.portfolioDownloadUrl;
+    if (!url)
+      return toast.error(`Portofolio ${a?.pengguna?.nama || a?.name} tidak tersedia.`);
+    downloadFileFromUrl(
+      url,
+      `Portofolio_${a?.pengguna?.nama || "pelamar"}.pdf`,
+    );
   };
 
   return (
@@ -189,7 +318,8 @@ function Pelamar() {
                   const pageNum = i + 1;
                   if (
                     totalPages <= 5 ||
-                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1) ||
+                    (pageNum >= currentPage - 1 &&
+                      pageNum <= currentPage + 1) ||
                     pageNum === 1 ||
                     pageNum === totalPages
                   ) {
@@ -207,7 +337,10 @@ function Pelamar() {
                       </button>
                     );
                   }
-                  if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                  if (
+                    pageNum === currentPage - 2 ||
+                    pageNum === currentPage + 2
+                  ) {
                     return (
                       <span key={pageNum} className="text-gray-400 px-1">
                         ...
@@ -219,7 +352,9 @@ function Pelamar() {
               </div>
 
               <button
-                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
                 disabled={currentPage === totalPages}
                 className="p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sky-900"
               >
@@ -243,19 +378,9 @@ function Pelamar() {
           applicant={selectedDetail}
           profile={selectedDetail.profile}
           onClose={() => setSelectedDetail(null)}
-        />
-      )}
-
-      {isMessageModalOpen && (
-        <MessageModal
-          isOpen={isMessageModalOpen}
-          onClose={() => setIsMessageModalOpen(false)}
-          data={modalData}
-          onSuccess={() => {
-            setIsMessageModalOpen(false);
-            fetchApplicants();
-            toast.success("Pesan berhasil dikirim dan status diperbarui");
-          }}
+          onAcc={handleAccFromDetail}
+          onReject={handleRejectFromDetail}
+          onAccept={handleAcceptFromDetail}
         />
       )}
     </div>

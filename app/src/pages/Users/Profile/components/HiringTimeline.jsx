@@ -12,10 +12,10 @@ import { getStepState } from "../utils/profileHelpers";
 // ✅ HARUS SAMA PERSIS dengan stage backend
 const HIRING_STEPS = [
   { id: 1, name: "Screaning", icon: Clock },
-  { id: 2, name: "Interview HC", icon: UserIcon },
-  { id: 3, name: "Psikotes/technical test", icon: Clock },
-  { id: 4, name: "Final Interview", icon: Briefcase },
-  { id: 5, name: "Offering/Final Result", icon: GraduationCap },
+  { id: 2, name: "Interview Pertama", icon: UserIcon },
+  { id: 3, name: "Psikotes", icon: Clock },
+  { id: 4, name: "Interview kedua", icon: Briefcase },
+  { id: 5, name: "Final Result", icon: GraduationCap },
 ];
 
 const HiringTimeline = ({ currentStep, finalStatus, finalStatusClass, statusText }) => {

@@ -1,28 +1,19 @@
 import React from "react";
-import { Trash2 } from "lucide-react";
-import UserAvatar from "../components/UserAvatar";
+import { Trash2, Eye } from "lucide-react";
+import UserAvatar from "../components/UserAvatar"; // Sesuaikan path import UserAvatar Anda
 
-const GRID_TEMPLATE = "grid-cols-[2.5fr_1.5fr_1fr_1fr_0.5fr]";
+const GRID_TEMPLATE = "grid-cols-[2.5fr_1.5fr_1fr_1fr_0.8fr]";
 
-const getStatusColors = (status) => {
-  switch (status) {
+const getStatusColors = (statusAkhir) => {
+  switch (statusAkhir) {
     case "hired":
-      return "bg-green-100 text-green-800";
+    case "Diterima":
+      return "bg-green-100 text-green-700";
     case "rejected":
-      return "bg-red-100 text-red-800";
+    case "Ditolak":
+      return "bg-red-100 text-red-700";
     default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
-const getStatusLabel = (status) => {
-  switch (status) {
-    case "hired":
-      return "Diterima";
-    case "rejected":
-      return "Ditolak";
-    default:
-      return status || "-";
+      return "bg-gray-100 text-gray-700";
   }
 };
 
@@ -33,75 +24,67 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString("id-ID");
 };
 
-export default function ArchiveRow({ item, onDelete }) {
-  const user = item?.user;
-  const profile = user?.profile;
-
-  // ✅ PRIORITAS NAMA: profile.fullName -> item.name -> user.name -> snapshot archive
-  const displayName =
-    profile?.fullName ||
-    item?.name ||
-    user?.name ||
-    item?.applicantName ||
-    "-";
-
-  // ✅ PRIORITAS EMAIL: user.email -> item.email -> snapshot archive
-  const displayEmail =
-    user?.email || item?.email || item?.applicantEmail || "-";
-
-  // ✅ foto dari profile
-  const fotoProfile =
-    profile?.fotoProfile || item?.fotoProfile || null;
-
-  const positionText =
-    item?.job?.title || item?.position || "-";
-
-  const decisionDate =
-    item?.decisionDate || item?.archivedDate || item?.appliedAt || null;
+export default function ArchiveRow({ item, onDelete, onViewDetail }) {
+  // ✅ FIX: Baca properti camelCase yang dikirim oleh mapArchiveItem di backend
+  const displayName = item?.name || "-";
+  const displayEmail = item?.email || "-";
+  const positionText = item?.position || "-";
+  const decisionDate = item?.decisionDate;
+  const fotoProfil = item?.profile?.fotoProfile || null;
+  const finalStatus = item?.finalStatus === "hired" ? "Diterima" : "Ditolak";
 
   return (
     <div
-      className={`grid ${GRID_TEMPLATE} gap-4 items-center bg-white py-3 px-0 hover:bg-gray-50 transition-colors`}
+      className={`grid ${GRID_TEMPLATE} gap-4 items-center bg-white py-4 px-0 hover:bg-gray-50/70 transition-colors`}
     >
       {/* Pelamar */}
       <div className="flex items-center gap-3 pl-2">
         <UserAvatar
-          fotoProfile={fotoProfile}
+          fotoProfile={fotoProfil}
           className="w-10 h-10"
           alt={`Foto ${displayName}`}
         />
 
-        <div>
-          <p className="text-sm font-medium">{displayName}</p>
-          <p className="text-xs text-gray-500">{displayEmail}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 uppercase truncate">{displayName}</p>
+          <p className="text-xs text-gray-400 truncate">{displayEmail}</p>
         </div>
       </div>
 
       {/* Posisi */}
-      <span className="text-sm text-gray-700">{positionText}</span>
+      <span className="text-sm text-sky-700 font-medium truncate">{positionText}</span>
 
       {/* Status */}
       <div className="flex justify-center">
         <span
           className={`text-xs font-semibold px-3 py-1 rounded-full text-center ${getStatusColors(
-            item?.finalStatus
+            finalStatus
           )}`}
         >
-          {getStatusLabel(item?.finalStatus)}
+          {finalStatus}
         </span>
       </div>
 
       {/* Tanggal */}
-      <span className="text-sm text-gray-700 text-center">
+      <span className="text-sm text-gray-600 text-center">
         {formatDate(decisionDate)}
       </span>
 
       {/* Aksi */}
-      <div className="text-right pr-2">
+      <div className="flex items-center justify-end gap-1 pr-2">
+        <button
+          onClick={() => onViewDetail?.(item?.id)}
+          className="p-1.5 rounded-full text-sky-600 hover:bg-sky-50"
+          title="Lihat Detail"
+          type="button"
+        >
+          <Eye size={18} />
+        </button>
         <button
           onClick={() => onDelete?.(item?.id)}
-          className="p-1 rounded-full text-red-500 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-1.5 rounded-full text-red-500 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
           title="Hapus Permanen"
+          type="button"
           disabled={!item?.id}
         >
           <Trash2 size={18} />

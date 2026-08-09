@@ -19,13 +19,19 @@ export default function Pagination({ page, totalPages, onChange }) {
   const range = getRange();
 
   const btn = (disabled) =>
-    `w-10 h-10 flex items-center justify-center rounded-full transition-colors border border-gray-300 ${
+    `w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-colors border border-gray-300 shrink-0 ${
       disabled ? "text-gray-400 cursor-not-allowed bg-gray-50" : "text-gray-700 hover:bg-gray-100"
     }`;
 
   return (
-    <div className="flex justify-center items-center gap-2 mt-6">
-      <button className={btn(page === 1)} disabled={page === 1} onClick={() => onChange(1)}>
+    <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-6 overflow-x-auto px-2 py-1">
+      {/* Tombol "ke halaman pertama" disembunyikan di layar sangat sempit
+          supaya tidak berdesakan; tetap tersedia mulai breakpoint sm. */}
+      <button
+        className={`hidden sm:flex ${btn(page === 1)}`}
+        disabled={page === 1}
+        onClick={() => onChange(1)}
+      >
         <ChevronsLeft className="w-4 h-4" />
       </button>
 
@@ -37,7 +43,7 @@ export default function Pagination({ page, totalPages, onChange }) {
         <button
           key={p}
           onClick={() => onChange(p)}
-          className={`w-10 h-10 rounded-full font-medium transition-colors border border-gray-300 ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full font-medium transition-colors border border-gray-300 shrink-0 text-sm sm:text-base ${
             page === p ? "bg-sky-700 text-white shadow-md" : "bg-white text-gray-700 hover:bg-gray-100"
           }`}
         >
@@ -49,7 +55,11 @@ export default function Pagination({ page, totalPages, onChange }) {
         <ChevronRight className="w-4 h-4" />
       </button>
 
-      <button className={btn(page === totalPages)} disabled={page === totalPages} onClick={() => onChange(totalPages)}>
+      <button
+        className={`hidden sm:flex ${btn(page === totalPages)}`}
+        disabled={page === totalPages}
+        onClick={() => onChange(totalPages)}
+      >
         <ChevronsRight className="w-4 h-4" />
       </button>
     </div>

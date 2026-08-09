@@ -2,41 +2,72 @@ const prisma = require("../../config/prisma");
 
 module.exports = {
   // =====================================================
-  // CREATE APPLICATION (dengan file disimpan di DB)
+  // CREATE LAMARAN
   // =====================================================
   create(data) {
-    return prisma.application.create({ data });
+    return prisma.lamaran.create({ data });
   },
 
   // =====================================================
   // ADMIN: LIST SEMUA LAMARAN (TANPA BLOB FILE)
   // =====================================================
   findAll() {
-    return prisma.application.findMany({
+    return prisma.lamaran.findMany({
       include: {
-        user: {
+        pengguna: {
           include: {
-            profile: true,
+            profil: true,
+            pengalaman_kerja: {
+              orderBy: { tahun_mulai: "desc" },
+            },
+            pendidikan: {
+              orderBy: { tanggal_mulai: "desc" },
+            },
+            organisasi: {
+              orderBy: { tanggal_mulai: "desc" },
+            },
+            sertifikat: {
+              orderBy: { diterbitkan: "desc" },
+            },
+            keahlian_pengguna: true,
           },
         },
-        job: true,
+        lowongan: true,
+        jadwal_wawancara: {
+          orderBy: { created_at: "desc" },
+        },
       },
       orderBy: {
-        appliedAt: "desc",
+        tanggal_melamar: "desc",
       },
     });
   },
 
   // =====================================================
-  // ADMIN / SERVICE: AMBIL STATUS & STAGE SAJA
+  // CEK USER SUDAH APPLY KE JOB INI ATAU BELUM
+  // =====================================================
+  findByUserAndJob(userId, jobId) {
+    return prisma.lamaran.findFirst({
+      where: {
+        pengguna_id: Number(userId),
+        lowongan_id: Number(jobId),
+      },
+      orderBy: {
+        tanggal_melamar: "desc",
+      },
+    });
+  },
+
+  // =====================================================
+  // ADMIN / SERVICE: AMBIL STATUS & TAHAP SAJA
   // =====================================================
   findById(id) {
-    return prisma.application.findUnique({
+    return prisma.lamaran.findUnique({
       where: { id: Number(id) },
       select: {
         id: true,
         status: true,
-        stage: true,
+        tahap: true,
       },
     });
   },
@@ -45,26 +76,24 @@ module.exports = {
   // USER: TIMELINE TERAKHIR (TANPA BLOB)
   // =====================================================
   findLatestByUserId(userId) {
-    return prisma.application.findFirst({
+    return prisma.lamaran.findFirst({
       where: {
-        userId: Number(userId),
+        pengguna_id: Number(userId),
       },
       orderBy: {
-        appliedAt: "desc",
+        tanggal_melamar: "desc",
       },
       select: {
         id: true,
         status: true,
-        stage: true,
-        appliedAt: true,
-
-        cvName: true,
-        portfolioName: true,
-
-        job: {
+        tahap: true,
+        tanggal_melamar: true,
+        nama_cv: true,
+        nama_portofolio: true,
+        lowongan: {
           select: {
             id: true,
-            title: true,
+            judul: true,
           },
         },
       },
@@ -75,29 +104,27 @@ module.exports = {
   // SERVICE: CEK LAMARAN AKTIF (BELUM DIARSIP)
   // =====================================================
   findActiveByUserId(userId) {
-    return prisma.application.findFirst({
+    return prisma.lamaran.findFirst({
       where: {
-        userId: Number(userId),
-        archive: {
+        pengguna_id: Number(userId),
+        arsip: {
           is: null,
         },
       },
       orderBy: {
-        appliedAt: "desc",
+        tanggal_melamar: "desc",
       },
       select: {
         id: true,
         status: true,
-        stage: true,
-        appliedAt: true,
-
-        cvName: true,
-        portfolioName: true,
-
-        job: {
+        tahap: true,
+        tanggal_melamar: true,
+        nama_cv: true,
+        nama_portofolio: true,
+        lowongan: {
           select: {
             id: true,
-            title: true,
+            judul: true,
           },
         },
       },
@@ -108,26 +135,24 @@ module.exports = {
   // USER: LIST SEMUA LAMARAN DIA (TANPA BLOB)
   // =====================================================
   findManyByUserId(userId) {
-    return prisma.application.findMany({
+    return prisma.lamaran.findMany({
       where: {
-        userId: Number(userId),
+        pengguna_id: Number(userId),
       },
       orderBy: {
-        appliedAt: "desc",
+        tanggal_melamar: "desc",
       },
       select: {
         id: true,
         status: true,
-        stage: true,
-        appliedAt: true,
-
-        cvName: true,
-        portfolioName: true,
-
-        job: {
+        tahap: true,
+        tanggal_melamar: true,
+        nama_cv: true,
+        nama_portofolio: true,
+        lowongan: {
           select: {
             id: true,
-            title: true,
+            judul: true,
           },
         },
       },
@@ -135,26 +160,23 @@ module.exports = {
   },
 
   // =====================================================
-  // ADMIN: UPDATE STATUS & STAGE
+  // ADMIN: UPDATE STATUS & TAHAP
   // =====================================================
-  updateStatusAndStage(id, status, stage) {
-    return prisma.application.update({
+  updateStatusAndTahap(id, status, tahap) {
+    return prisma.lamaran.update({
       where: { id: Number(id) },
-      data: {
-        status,
-        stage,
-      },
+      data: { status, tahap },
     });
   },
 
   // =====================================================
-  // ADMIN: UPDATE SCORE
+  // ADMIN: UPDATE SKOR
   // =====================================================
-  updateScore(id, score) {
-    return prisma.application.update({
+  updateSkor(id, skor) {
+    return prisma.lamaran.update({
       where: { id: Number(id) },
       data: {
-        score: score === null ? null : Number(score),
+        skor: skor === null ? null : Number(skor),
       },
     });
   },
@@ -163,20 +185,18 @@ module.exports = {
   // ADMIN: DOWNLOAD FILE (AMBIL BLOB + METADATA)
   // =====================================================
   findFileById(id) {
-    return prisma.application.findUnique({
+    return prisma.lamaran.findUnique({
       where: { id: Number(id) },
       select: {
         id: true,
-
-        cvData: true,
-        cvName: true,
-        cvMime: true,
-        cvSize: true,
-
-        portfolioData: true,
-        portfolioName: true,
-        portfolioMime: true,
-        portfolioSize: true,
+        data_cv: true,
+        nama_cv: true,
+        mime_cv: true,
+        ukuran_cv: true,
+        data_portofolio: true,
+        nama_portofolio: true,
+        mime_portofolio: true,
+        ukuran_portofolio: true,
       },
     });
   },

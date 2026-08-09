@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-
 import Tabs from "./components/Tabs";
 import Toast from "./components/Toast";
 
 import GeneralSettings from "./components/GeneralSettings";
 import ProfileSettings from "./components/ProfileSettings";
 import NotificationSettings from "./components/NotificationSettings";
+// ✅ Tambahkan import SystemSettings
+import SystemSettings from "./components/SystemSettings"; 
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
@@ -25,6 +26,7 @@ export default function SettingsPage() {
       </h1>
 
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Pastikan komponen Tabs mendukung tab "system" */}
         <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
         <div className="p-0">
@@ -33,6 +35,8 @@ export default function SettingsPage() {
           {activeTab === "notifications" && (
             <NotificationSettings {...props} />
           )}
+          {/* ✅ Tambahkan renderer untuk SystemSettings */}
+          {activeTab === "system" && <SystemSettings {...props} />}
         </div>
       </div>
 

@@ -1,30 +1,45 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Search, Download } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 import StatusFilter from "./components/StatusFilter";
+import PositionFilter from "./components/PositionFilter";
 import ConfirmModal from "./components/ConfirmModal";
 import ArchiveRow from "./components/ArchiveRow";
+import ArchiveDetailModal from "./components/ArchiveDetailModal";
+import Pagination from "./components/Pagination";
 
+import {
+  fetchArchives,
+  fetchArchivePositions,
+  fetchArchiveDetail,
+  exportArchivesCSV,
+  deleteArchive,
+} from "./services/archives.api";
 
-import { fetchArchives, exportArchivesCSV, deleteArchive } from "./services/archives.api";
-
-const GRID_TEMPLATE = "grid-cols-[2.5fr_1.5fr_1fr_1fr_0.5fr]";
+const GRID_TEMPLATE = "grid-cols-[2.5fr_1.5fr_1fr_1fr_0.8fr]";
 
 export default function ArsipPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
+  const [position, setPosition] = useState("all");
+  const [positionOptions, setPositionOptions] = useState([]);
 
   const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 10 });
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
-  const load = async ({ page = data.page, pageSize = data.pageSize } = {}) => {
+  // ===== Detail modal =====
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailData, setDetailData] = useState(null);
+
+  const load = async ({ page = 1, pageSize = data.pageSize } = {}) => {
     try {
       setLoading(true);
-      const res = await fetchArchives({ q, status, page, pageSize });
+      const res = await fetchArchives({ q, status, position, page, pageSize });
       setData({
         items: res.items || [],
         total: res.total || 0,
@@ -43,13 +58,18 @@ export default function ArsipPage() {
   useEffect(() => {
     load({ page: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, status]);
+  }, [q, status, position]);
 
-  const canNext = useMemo(() => data.page * data.pageSize < data.total, [data.page, data.pageSize, data.total]);
+  // ✅ Ambil daftar posisi unik sekali di awal untuk dropdown "Semua Posisi"
+  useEffect(() => {
+    fetchArchivePositions()
+      .then((items) => setPositionOptions(items))
+      .catch((e) => console.error("Gagal memuat daftar posisi:", e));
+  }, []);
 
   const handleExport = async () => {
     try {
-      const res = await exportArchivesCSV({ q, status });
+      const res = await exportArchivesCSV({ q, status, position });
       const blob = new Blob([res.data], { type: "text/csv" });
 
       const cd = res.headers?.["content-disposition"];
@@ -92,6 +112,22 @@ export default function ArsipPage() {
     }
   };
 
+  const handleViewDetail = async (id) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailData(null);
+    try {
+      const res = await fetchArchiveDetail(id);
+      setDetailData(res);
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal memuat detail pelamar");
+      setDetailOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 font-sans text-gray-800">
       <Toaster position="top-center" />
@@ -106,22 +142,30 @@ export default function ArsipPage() {
         }}
       />
 
+      <ArchiveDetailModal
+        isOpen={detailOpen}
+        loading={detailLoading}
+        data={detailData}
+        onClose={() => setDetailOpen(false)}
+      />
+
       <h1 className="text-2xl font-semibold text-sky-900 mb-6">Arsip Pelamar</h1>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        {/* ✅ Hanya satu tab: "Pelamar Diarsipkan" — "Riwayat Penolakan" dihapus */}
         <div className="flex border-b border-gray-200">
-          <button className="flex-1 px-4 py-3 text-sm font-semibold border-b-2 border-sky-600 text-sky-700">
+          <button className="px-4 py-3 text-sm font-semibold border-b-2 border-sky-600 text-sky-700">
             Pelamar Diarsipkan
           </button>
         </div>
 
         <div className="p-6">
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <div className="relative flex-1 w-full sm:w-auto">
+          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center mb-6 gap-3">
+            <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Cari pelamar..."
+                placeholder="Cari nama pelamar atau posisi..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500/30"
@@ -129,12 +173,13 @@ export default function ArsipPage() {
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
 
-            <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-3">
               <StatusFilter value={status} onChange={setStatus} />
+              <PositionFilter value={position} positions={positionOptions} onChange={setPosition} />
 
               <button
                 onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 border border-sky-200 text-sky-700 rounded-lg text-sm font-medium hover:bg-sky-50 transition-colors"
               >
                 <Download size={16} /> Export Data
               </button>
@@ -142,7 +187,7 @@ export default function ArsipPage() {
           </div>
 
           {/* Header Table */}
-          <div className={`grid ${GRID_TEMPLATE} gap-4 py-3 border-b border-gray-200 text-sm font-semibold text-black`}>
+          <div className={`grid ${GRID_TEMPLATE} gap-4 py-3 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide`}>
             <span className="pl-14">Pelamar</span>
             <span>Posisi</span>
             <span className="text-center">Status Akhir</span>
@@ -155,39 +200,27 @@ export default function ArsipPage() {
             {loading ? (
               <div className="text-center py-10 text-gray-500">Loading...</div>
             ) : data.items.length > 0 ? (
-              data.items.map((item) => <ArchiveRow key={item.id} item={item} onDelete={askDelete} />)
+              data.items.map((item) => (
+                <ArchiveRow
+                  key={item.id}
+                  item={item}
+                  onDelete={askDelete}
+                  onViewDetail={handleViewDetail}
+                />
+              ))
             ) : (
               <div className="text-center py-10 text-gray-500">Tidak ada pelamar yang ditemukan.</div>
             )}
           </div>
 
           {/* Pagination */}
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Total: <b>{data.total}</b>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                disabled={data.page <= 1 || loading}
-                onClick={() => load({ page: data.page - 1 })}
-                className="px-3 py-2 rounded-lg border bg-white disabled:opacity-50"
-              >
-                Prev
-              </button>
-
-              <div className="px-3 py-2 text-sm text-gray-700">Page {data.page}</div>
-
-              <button
-                disabled={!canNext || loading}
-                onClick={() => load({ page: data.page + 1 })}
-                className="px-3 py-2 rounded-lg border bg-white disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-
+          <Pagination
+            page={data.page}
+            pageSize={data.pageSize}
+            total={data.total}
+            loading={loading}
+            onPageChange={(page) => load({ page })}
+          />
         </div>
       </div>
     </div>

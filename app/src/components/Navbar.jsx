@@ -51,17 +51,24 @@ function Navbar() {
     { name: "Core Value", onClick: () => handleScrollTo("culture") },
   ];
 
-  const userPhoto = user?.profile?.fotoProfile || user?.profile_picture || null;
+  // ✅ `user` sekarang berbentuk sesuai model Prisma `pengguna`:
+  // { id, nama, email, peran, profil: { foto_profil, ... } }
+  // Tidak ada lagi fullName / role / profile.fotoProfile.
+  const userPhoto = user?.profil?.foto_profil || null;
 
-  // ✅ Klik profile: admin => dashboard, user => profile
+  // ✅ `peran` adalah enum Prisma: admin | pelamar | divisi
   const handleProfileClick = () => {
     if (!user) return;
     setIsOpen(false);
     setIsDropdownOpen(false);
 
-    if (user?.role === "admin") navigate("/admin/dashboard");
+    if (user?.peran === "admin") navigate("/admin/dashboard");
+    else if (user?.peran === "divisi") navigate("/divisi/dashboard");
     else navigate("/profile");
   };
+
+  const profileMenuLabel =
+    user?.peran === "admin" || user?.peran === "divisi" ? "Dashboard" : "Profil";
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white shadow-sm">
@@ -142,15 +149,13 @@ function Navbar() {
 
               {isDropdownOpen && (
                 <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-gray-300 rounded-lg shadow-lg py-2">
-                  {/* ✅ TIDAK ADA MENU DASHBOARD */}
-                  {/* Profil menu: admin pun klik ke dashboard via profileClick */}
                   <button
                     type="button"
                     onClick={handleProfileClick}
                     className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
                   >
                     <User className="h-4 w-4 text-gray-500" />
-                    {user?.role === "admin" ? "Dashboard" : "Profil"}
+                    {profileMenuLabel}
                   </button>
 
                   <button
@@ -206,8 +211,6 @@ function Navbar() {
               )
             )}
 
-            {/* ✅ HILANGKAN tombol dashboard admin di mobile */}
-
             {!user ? (
               <>
                 <Link
@@ -228,7 +231,6 @@ function Navbar() {
               </>
             ) : (
               <div className="flex flex-col gap-2 pt-2 border-t">
-                {/* Klik area profile: admin => dashboard, user => profile */}
                 <button
                   type="button"
                   onClick={handleProfileClick}
@@ -248,15 +250,18 @@ function Navbar() {
 
                   <div className="leading-tight">
                     <p className="text-sm font-semibold text-gray-800">
-                      {user?.name || "User"}
+                      {user?.nama || "User"}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {user?.role === "admin" ? "Klik untuk Dashboard" : user?.email || "Klik untuk Profil"}
+                      {user?.peran === "admin"
+                        ? "Klik untuk Dashboard"
+                        : user?.peran === "divisi"
+                        ? "Klik untuk Dashboard Divisi"
+                        : user?.email || "Klik untuk Profil"}
                     </p>
                   </div>
                 </button>
 
-                {/* Logout kecil (tidak melebar) */}
                 <button
                   onClick={() => {
                     logout();

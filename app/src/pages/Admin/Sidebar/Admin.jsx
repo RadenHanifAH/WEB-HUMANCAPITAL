@@ -3,6 +3,7 @@ import Sidebar from "./Sidebar";
 import MainContent from "../MainContent";
 import useAuthStore from "../../../store/useAuthStore";
 import axios from "../../../api/axiosInstance";
+import NotificationBell from "../notifications/components/NotificationBell";
 
 const TAB_STORAGE_KEY = "adminActiveTab";
 
@@ -32,17 +33,9 @@ function Admin() {
         });
 
         const data = res.data?.data;
-
-        // NORMALISASI DATA PROFILE AGAR SESUAI SidebarFooter
-        const normalizedUser = {
-          profile: {
-            fullName: data?.fullName || "Admin",
-            fotoProfile: data?.fotoProfile || "",
-          },
-          email: data?.email || "",
-        };
-
-        setUser(normalizedUser);
+        if (data) {
+          setUser(data);
+        }
       } catch (err) {
         console.error("Error fetching admin profile:", err);
       }
@@ -51,7 +44,6 @@ function Admin() {
     if (!user) fetchAdminProfile();
   }, [user, setUser]);
 
-  // SIMPAN ACTIVE TAB + SCROLL
   useEffect(() => {
     localStorage.setItem(TAB_STORAGE_KEY, activeTab);
     if (mainRef.current && scrollPositions.current[activeTab] !== undefined) {
@@ -66,7 +58,6 @@ function Admin() {
     setActiveTab(id);
   };
 
-  // USER AMAN UNTUK SIDEBAR
   const safeUser = user || { profile: {}, email: "" };
 
   return (
@@ -80,11 +71,18 @@ function Admin() {
         logout={logout}
       />
 
+      {/* ✅ Langsung kirim null agar MainContent tidak undefined & tidak error ESLint */}
       <MainContent
         ref={mainRef}
         activeTab={activeTab}
         sidebarWidth={sidebarWidth}
+        onNavigateTab={handleTabChange}
+        selectedApplicationId={null}
       />
+
+      <div className="fixed top-4 right-4 md:right-6 z-30">
+        <NotificationBell onNavigate={handleTabChange} />
+      </div>
     </div>
   );
 }

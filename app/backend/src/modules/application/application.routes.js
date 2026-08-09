@@ -1,20 +1,17 @@
 const router = require("express").Router();
 const ctrl = require("./application.controller");
-const upload = require("../../middleware/upload");
 const { protectRoute, adminRoute } = require("../../middleware/auth");
 
-// pelamar apply job (upload masuk DB)
-router.post(
-  "/job",
-  protectRoute,
-  upload.fields([
-    { name: "cv", maxCount: 1 },
-    { name: "portfolio", maxCount: 1 },
-  ]),
-  ctrl.apply
-);
+// pelamar apply job (CV & Portofolio diambil otomatis dari dokumen profil)
+router.post("/job", protectRoute, ctrl.apply);
 
-// user lihat timeline
+// cek kelengkapan dokumen profil sebelum menampilkan tombol "Lamar"
+router.get("/profile-readiness", protectRoute, ctrl.checkProfileReadiness);
+
+// cek apakah user sudah melamar lowongan tertentu
+router.get("/check/:jobId", protectRoute, ctrl.checkApplication);
+
+// user lihat timeline lamaran terakhir
 router.get("/me/latest", protectRoute, ctrl.getMyLatest);
 
 // user lihat list lamaran dia
@@ -26,7 +23,7 @@ router.get("/", protectRoute, adminRoute, ctrl.getAll);
 // admin download file cv/portfolio dari DB
 router.get("/:id/file", protectRoute, adminRoute, ctrl.downloadFile);
 
-// admin update STATUS (stage otomatis)
+// admin update STATUS (tahap otomatis)
 router.put("/:id/status", protectRoute, adminRoute, ctrl.updateStatus);
 
 // admin update score

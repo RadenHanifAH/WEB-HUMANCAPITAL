@@ -1,11 +1,14 @@
-import React from "react";
-import { FileSpreadsheet } from "lucide-react";
+import React, { useState } from "react";
+import { FileSpreadsheet, FileText } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance"; // ✅ sesuaikan path kalau beda
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  Filler,
   Title,
   Tooltip,
   Legend,
@@ -26,6 +29,9 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  Filler,
   Title,
   Tooltip,
   Legend,
@@ -36,7 +42,7 @@ export default function ReportsPage() {
   const { loading, exporting, setExporting, dropdownState, dataState, exportParams } =
     useReportsDashboard();
 
-  const { trendPeriod, setTrendPeriod } = dropdownState;
+  const { trendPeriod, setTrendPeriod, dateRange, applyRange, clearRange } = dropdownState;
 
   const {
     trendData,
@@ -46,24 +52,37 @@ export default function ReportsPage() {
     setShowFullPositionList,
   } = dataState;
 
-  const exportExcel = async (type) => {
+  // ✅ BARU: format export yang sedang dipilih, dipakai baik oleh tombol
+  // "Export" utama (dashboard) maupun tombol-tombol quick export per
+  // section di <ExportButtons />. Defaultnya tetap Excel supaya perilaku
+  // lama tidak berubah untuk siapa pun yang belum menyentuh toggle ini.
+  const [exportFormat, setExportFormat] = useState("xlsx"); // "xlsx" | "pdf"
+
+  // ✅ Digeneralisasi dari `exportExcel` -> `exportReport`: sekarang bisa
+  // export ke Excel (.xlsx) ATAU PDF laporan formal, tergantung state
+  // `exportFormat` yang dipilih user lewat toggle di toolbar.
+  const exportReport = async (type) => {
     if (exporting) return;
 
     setExporting(true);
     try {
-      let params = { format: "xlsx" };
+      let params = { format: exportFormat };
 
       if (type === "dashboard") {
         params = {
           ...params,
           type: "dashboard",
           trendPeriod: exportParams.trendPeriodId,
+          startDate: exportParams.startDate,
+          endDate: exportParams.endDate,
         };
       } else if (type === "trend_analytics") {
         params = {
           ...params,
           type: "trend_analytics",
           period: exportParams.trendPeriodId,
+          startDate: exportParams.startDate,
+          endDate: exportParams.endDate,
         };
       } else if (type === "position_analytics") {
         params = {
@@ -88,13 +107,15 @@ export default function ReportsPage() {
       });
 
       const cd = res.headers?.["content-disposition"];
-      const fallback = `laporan_${type}.xlsx`;
+      const ext = exportFormat === "pdf" ? "pdf" : "xlsx";
+      const fallback = `laporan_${type}.${ext}`;
       const filename = getFilenameFromContentDisposition(cd, fallback);
 
       downloadBlob(res.data, filename);
     } catch (e) {
-      console.error("Export Excel Error:", e);
-      alert("❌ Gagal export Excel: " + (e?.message || "Unknown error"));
+      console.error("Export Report Error:", e);
+      const label = exportFormat === "pdf" ? "PDF" : "Excel";
+      alert(`❌ Gagal export ${label}: ` + (e?.message || "Unknown error"));
     } finally {
       setExporting(false);
     }
@@ -109,14 +130,50 @@ export default function ReportsPage() {
           Laporan Rekrutmen
         </h1>
 
-        <button
-          onClick={() => exportExcel("dashboard")}
-          disabled={exporting}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          {exporting ? "Menyimpan & Export..." : "Export"}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* ✅ BARU: toggle pilihan format. Berlaku untuk tombol "Export"
+              utama di sini maupun tombol-tombol quick export di
+              <ExportButtons /> di bagian bawah halaman. */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => setExportFormat("xlsx")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
+                exportFormat === "xlsx"
+                  ? "bg-white text-sky-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportFormat("pdf")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
+                exportFormat === "pdf"
+                  ? "bg-white text-sky-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              PDF
+            </button>
+          </div>
+
+          <button
+            onClick={() => exportReport("dashboard")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {exportFormat === "pdf" ? (
+              <FileText className="h-4 w-4" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
+            {exporting ? "Menyimpan & Export..." : "Export"}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -124,6 +181,9 @@ export default function ReportsPage() {
           trendPeriod={trendPeriod}
           setTrendPeriod={setTrendPeriod}
           trendData={trendData}
+          dateRange={dateRange}
+          onApplyRange={applyRange}
+          onClearRange={clearRange}
         />
 
         <PositionsCard
@@ -135,7 +195,11 @@ export default function ReportsPage() {
         <StatusCard acceptanceData={acceptanceData} />
       </div>
 
-      <ExportButtons exporting={exporting} onExport={exportExcel} />
+      {/* ✅ ExportButtons tetap dipakai apa adanya (propnya tidak berubah),
+          tapi karena `exportReport` membaca `exportFormat` dari state di
+          atas, tombol-tombol quick export di sini otomatis ikut format
+          yang sedang dipilih user di toggle Excel/PDF */}
+      <ExportButtons exporting={exporting} onExport={exportReport} />
     </div>
   );
 }

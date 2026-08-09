@@ -1,42 +1,26 @@
-import React, { Fragment } from "react";
-import { Listbox, Transition } from "@headlessui/react";
-import { periodOptions } from "../utils/constants";
+import React from "react";
 
-export default function PeriodDropdown({ selected, onChange }) {
+// Segmented control ala gambar referensi: Harian | Mingguan | Bulanan | Tahunan
+export default function PeriodDropdown({ selected, onChange, options }) {
   return (
-    <Listbox value={selected} onChange={onChange}>
-      <div className="relative w-40">
-        <Listbox.Button className="w-full flex justify-between items-center px-3 py-2 border rounded-lg bg-white text-sm shadow-sm hover:border-sky-300 transition-colors focus:outline-none">
-          <span className="truncate">{selected?.label}</span>
-          <span className="text-gray-500">▾</span>
-        </Listbox.Button>
-
-        <Transition
-          as={Fragment}
-          enter="transition ease-out duration-100"
-          enterFrom="transform opacity-0 scale-95"
-          enterTo="transform opacity-100 scale-100"
-          leave="transition ease-in duration-75"
-          leaveFrom="transform opacity-100 scale-100"
-          leaveTo="transform opacity-0 scale-95"
-        >
-          <Listbox.Options className="absolute right-0 mt-2 w-full bg-white border rounded-lg shadow-lg z-[9999] overflow-hidden">
-            {periodOptions.map((opt) => (
-              <Listbox.Option
-                key={opt.id}
-                value={opt}
-                className={({ active }) =>
-                  `px-3 py-2 cursor-pointer transition-colors ${
-                    active ? "bg-sky-100 text-sky-700" : "text-gray-700"
-                  }`
-                }
-              >
-                {opt.label}
-              </Listbox.Option>
-            ))}
-          </Listbox.Options>
-        </Transition>
-      </div>
-    </Listbox>
+    <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-1">
+      {options.map((opt) => {
+        const isActive = selected?.id === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+              isActive
+                ? "bg-white text-sky-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

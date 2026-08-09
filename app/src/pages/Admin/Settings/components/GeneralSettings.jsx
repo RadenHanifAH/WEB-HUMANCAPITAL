@@ -4,10 +4,10 @@ import { getSettings, updateGeneralSettings } from "../services/settings.api";
 
 export default function GeneralSettings({ showToast }) {
   const [settings, setSettings] = useState({
-    companyName: "",
+    nama_perusahaan: "",
     website: "",
-    location: "Bandung",
-    timezone: "WIB (UTC+7)",
+    lokasi: "Bandung",
+    zona_waktu: "WIB (UTC+7)",
   });
 
   const [loading, setLoading] = useState(true);
@@ -19,10 +19,10 @@ export default function GeneralSettings({ showToast }) {
       const res = await getSettings();
       const s = res.data || {};
       setSettings({
-        companyName: s.companyName || "",
+        nama_perusahaan: s.nama_perusahaan || "",
         website: s.website || "",
-        location: s.location || "Bandung",
-        timezone: s.timezone || "WIB (UTC+7)",
+        lokasi: s.lokasi || "Bandung",
+        zona_waktu: s.zona_waktu || "WIB (UTC+7)",
       });
     } catch (e) {
       console.error(e);
@@ -75,8 +75,8 @@ export default function GeneralSettings({ showToast }) {
           <label className="block text-sm font-medium text-gray-600">Nama Perusahaan</label>
           <input
             type="text"
-            name="companyName"
-            value={settings.companyName}
+            name="nama_perusahaan"
+            value={settings.nama_perusahaan}
             onChange={onChange}
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30 focus:border-sky-500"
           />
@@ -96,8 +96,8 @@ export default function GeneralSettings({ showToast }) {
         <div>
           <label className="block text-sm font-medium text-gray-600">Lokasi Default</label>
           <select
-            name="location"
-            value={settings.location}
+            name="lokasi"
+            value={settings.lokasi}
             onChange={onChange}
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30 focus:border-sky-500"
           >
@@ -110,8 +110,8 @@ export default function GeneralSettings({ showToast }) {
         <div>
           <label className="block text-sm font-medium text-gray-600">Zona Waktu</label>
           <select
-            name="timezone"
-            value={settings.timezone}
+            name="zona_waktu"
+            value={settings.zona_waktu}
             onChange={onChange}
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/30 focus:border-sky-500"
           >

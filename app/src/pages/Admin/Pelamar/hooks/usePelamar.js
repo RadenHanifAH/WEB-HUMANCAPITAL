@@ -13,7 +13,14 @@ export const usePelamar = () => {
       const res = await axiosInstance.get(API_JOBS);
       const data = res?.data?.data || res?.data || [];
 
-      const uniqueTitles = [...new Set((data || []).map((job) => job.title).filter(Boolean))];
+      // ✅ FIX: Baca 'judul' (Prisma) atau fallback ke 'title' kalau ada
+      const uniqueTitles = [
+        ...new Set(
+          (data || [])
+            .map((job) => job.judul || job.title)
+            .filter(Boolean)
+        ),
+      ];
 
       setJobPositions([
         { value: "", label: "Posisi" },

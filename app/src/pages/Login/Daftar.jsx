@@ -1,6 +1,15 @@
 // src/pages/auth/Daftar.jsx
 import React, { useMemo, useState } from "react";
-import { Mail, Lock, User, Phone, IdCard, Eye, EyeOff, KeyRound } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User,
+  Phone,
+  IdCard,
+  Eye,
+  EyeOff,
+  KeyRound,
+} from "lucide-react";
 import Logo from "../../assets/perusahaan1.png";
 import { Link, useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
@@ -9,7 +18,6 @@ import toast from "react-hot-toast";
 function Daftar() {
   const navigate = useNavigate();
 
-  // STEP: "form" -> isi data, "otp" -> verifikasi otp
   const [step, setStep] = useState("form");
   const [loading, setLoading] = useState(false);
 
@@ -23,8 +31,7 @@ function Daftar() {
     setuju: false,
   });
 
-  // OTP state
-  const [otp, setOtp] = useState(""); // string "123456"
+  const [otp, setOtp] = useState("");
   const otpValid = useMemo(() => /^\d{6}$/.test(otp), [otp]);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -58,7 +65,6 @@ function Daftar() {
       iconTheme: { primary: "#ef4444", secondary: "#fff" },
     });
 
-  // ✅ STEP 1: Register -> kirim OTP
   const handleSubmitRegister = async (e) => {
     e.preventDefault();
     setError("");
@@ -87,19 +93,21 @@ function Daftar() {
 
     setLoading(true);
     try {
-      // Backend: kirim OTP ke email
+      // ✅ Persis nama field yang dibaca auth.controller.js -> register():
+      // const { nama, email, password, nik, nomor_hp } = req.body;
       const res = await axiosInstance.post("/auth/register", {
-        name: formData.nama,
+        nama: formData.nama,
         email: formData.email,
         password: formData.password,
-        NIK: formData.nik,
-        nomorHp: formData.noHp,
+        nik: formData.nik,
+        nomor_hp: formData.noHp,
       });
 
       toastSuccess(res?.data?.message || "OTP sudah dikirim ke email kamu.");
       setStep("otp");
     } catch (err) {
-      const msg = err.response?.data?.message || "Terjadi kesalahan pada server";
+      const msg =
+        err.response?.data?.message || "Terjadi kesalahan pada server";
       setError(msg);
       toastError(msg);
     } finally {
@@ -107,7 +115,6 @@ function Daftar() {
     }
   };
 
-  // ✅ STEP 2: Verify OTP
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setError("");
@@ -126,7 +133,9 @@ function Daftar() {
         otp,
       });
 
-      toastSuccess(res?.data?.message || "Email berhasil diverifikasi. Silakan login.");
+      toastSuccess(
+        res?.data?.message || "Email berhasil diverifikasi. Silakan login.",
+      );
       setTimeout(() => navigate("/login"), 900);
     } catch (err) {
       const msg = err.response?.data?.message || "OTP salah / kadaluarsa.";
@@ -137,17 +146,13 @@ function Daftar() {
     }
   };
 
-  // ✅ resend OTP
   const handleResendOtp = async () => {
     setError("");
     setLoading(true);
     try {
-      // gunakan endpoint yang sama / endpoint khusus resend
-      // jika backend kamu pakai /auth/resend-otp, tinggal ganti
       const res = await axiosInstance.post("/auth/resend-otp", {
         email: formData.email,
       });
-
       toastSuccess(res?.data?.message || "OTP baru sudah dikirim.");
     } catch (err) {
       const msg = err.response?.data?.message || "Gagal mengirim ulang OTP.";
@@ -162,7 +167,8 @@ function Daftar() {
     const email = formData.email || "";
     const [user, domain] = email.split("@");
     if (!user || !domain) return email;
-    const safeUser = user.length <= 2 ? user[0] + "*" : user.slice(0, 2) + "***";
+    const safeUser =
+      user.length <= 2 ? user[0] + "*" : user.slice(0, 2) + "***";
     return `${safeUser}@${domain}`;
   }, [formData.email]);
 
@@ -186,7 +192,6 @@ function Daftar() {
               className="w-full max-w-md h-full overflow-y-auto lg:overflow-visible"
               style={{ maxHeight: "calc(120vh - 80px)" }}
             >
-              {/* ================= STEP FORM ================= */}
               {step === "form" && (
                 <>
                   <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
@@ -197,13 +202,15 @@ function Daftar() {
                   </p>
 
                   <form onSubmit={handleSubmitRegister} className="space-y-4">
-                    {/* Nama */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Nama Lengkap <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <User
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type="text"
                           name="nama"
@@ -216,13 +223,15 @@ function Daftar() {
                       </div>
                     </div>
 
-                    {/* NIK */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         NIK <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <IdCard
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type="text"
                           name="nik"
@@ -236,13 +245,15 @@ function Daftar() {
                       </div>
                     </div>
 
-                    {/* No HP */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         No. HP <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <Phone
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type="tel"
                           name="noHp"
@@ -255,13 +266,15 @@ function Daftar() {
                       </div>
                     </div>
 
-                    {/* Email */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Email <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <Mail
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type="email"
                           name="email"
@@ -274,13 +287,15 @@ function Daftar() {
                       </div>
                     </div>
 
-                    {/* Password */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Password <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <Lock
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type={showPassword ? "text" : "password"}
                           name="password"
@@ -295,18 +310,25 @@ function Daftar() {
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          {showPassword ? (
+                            <EyeOff size={18} />
+                          ) : (
+                            <Eye size={18} />
+                          )}
                         </button>
                       </div>
                     </div>
 
-                    {/* Konfirmasi Password */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
-                        Konfirmasi Password <span className="text-red-600">*</span>
+                        Konfirmasi Password{" "}
+                        <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <Lock
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           type={showConfirmPassword ? "text" : "password"}
                           name="konfirmasiPassword"
@@ -318,15 +340,20 @@ function Daftar() {
                         />
                         <button
                           type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
-                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          {showConfirmPassword ? (
+                            <EyeOff size={18} />
+                          ) : (
+                            <Eye size={18} />
+                          )}
                         </button>
                       </div>
                     </div>
 
-                    {/* Checkbox */}
                     <div className="flex items-start space-x-2 mt-3">
                       <input
                         type="checkbox"
@@ -336,26 +363,31 @@ function Daftar() {
                         className="mt-1 accent-sky-700"
                       />
                       <label className="text-sm text-gray-700 leading-snug">
-                        Dengan ini saya menyatakan bahwa seluruh data dan/atau informasi yang saya sampaikan adalah benar.
+                        Dengan ini saya menyatakan bahwa seluruh data dan/atau
+                        informasi yang saya sampaikan adalah benar.
                       </label>
                     </div>
 
-                    {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+                    {error && (
+                      <p className="text-sm text-red-600 font-medium">
+                        {error}
+                      </p>
+                    )}
 
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full px-5 py-2.5 sm:px-6 sm:py-3 
-                      bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
-                      text-white rounded-lg text-sm sm:text-base font-semibold 
-                      transition shadow-md transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 text-white rounded-lg text-sm sm:text-base font-semibold transition shadow-md transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {loading ? "Memproses..." : "Daftar"}
                     </button>
 
                     <p className="text-sm text-gray-700 text-center mt-3">
                       Sudah memiliki akun?{" "}
-                      <Link to="/login" className="text-sky-800 font-semibold hover:underline">
+                      <Link
+                        to="/login"
+                        className="text-sky-800 font-semibold hover:underline"
+                      >
                         Masuk disini
                       </Link>
                     </p>
@@ -363,14 +395,14 @@ function Daftar() {
                 </>
               )}
 
-              {/* ================= STEP OTP ================= */}
               {step === "otp" && (
                 <>
                   <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
                     Verifikasi Email
                   </h2>
                   <p className="text-gray-700 mb-6 text-center lg:text-left text-sm sm:text-base">
-                    Masukkan kode OTP 6 digit yang kami kirim ke <span className="font-semibold">{maskedEmail}</span>.
+                    Masukkan kode OTP 6 digit yang kami kirim ke{" "}
+                    <span className="font-semibold">{maskedEmail}</span>.
                   </p>
 
                   <form onSubmit={handleVerifyOtp} className="space-y-4">
@@ -379,13 +411,18 @@ function Daftar() {
                         Kode OTP <span className="text-red-600">*</span>
                       </label>
                       <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <KeyRound
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          size={18}
+                        />
                         <input
                           inputMode="numeric"
                           autoComplete="one-time-code"
                           value={otp}
                           onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                            const val = e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 6);
                             setOtp(val);
                             if (error) setError("");
                           }}
@@ -395,19 +432,21 @@ function Daftar() {
                         />
                       </div>
                       <p className="text-xs text-gray-500 mt-2">
-                        OTP berlaku terbatas (mis. 5 menit). Jika tidak masuk, cek spam.
+                        OTP berlaku terbatas (mis. 5 menit). Jika tidak masuk,
+                        cek spam.
                       </p>
                     </div>
 
-                    {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+                    {error && (
+                      <p className="text-sm text-red-600 font-medium">
+                        {error}
+                      </p>
+                    )}
 
                     <button
                       type="submit"
                       disabled={loading || !otpValid}
-                      className="w-full px-5 py-2.5 sm:px-6 sm:py-3 
-                      bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
-                      text-white rounded-lg text-sm sm:text-base font-semibold 
-                      transition shadow-md transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 text-white rounded-lg text-sm sm:text-base font-semibold transition shadow-md transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {loading ? "Memverifikasi..." : "Verifikasi"}
                     </button>
@@ -421,7 +460,6 @@ function Daftar() {
                       >
                         Ubah email
                       </button>
-
                       <button
                         type="button"
                         onClick={handleResendOtp}

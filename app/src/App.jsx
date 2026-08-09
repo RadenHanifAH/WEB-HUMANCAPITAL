@@ -12,7 +12,7 @@ import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 
 import Home from "./pages/Home";
-import Lowongan from "./pages/Lowongan/Index.jsx";
+import Lowongan from "./pages/Lowongan/Lowongan.jsx";
 import Kontak from "./components/Kontak.jsx";
 
 import Login from "./pages/Login/Login";
@@ -21,7 +21,15 @@ import Reset from "./pages/Login/Reset";
 import ResetPasswordNew from "./pages/Login/ResetPasswordNew";
 import Admin from "./pages/Admin/Sidebar/Admin.jsx";
 
-import Profile from "./pages/Users/Profile/index.jsx";
+import Profile from "./pages/Users/Profile/ProfilePage.jsx";
+import ConfirmSchedulePage from "./pages/Admin/Shedules/components/ConfirmSchedulePage.jsx";
+import NotificationsPage from "./pages/Admin/notifications/NotificationsPage.jsx";
+
+import DivisiLayout from "./pages/Divisi/components/DivisiLayout.jsx";
+import DivisiDashboard from "./pages/Divisi/DivisiDashboard.jsx";
+import PengajuanSDM from "./pages/Divisi/PengajuanSDM.jsx";
+import EditPengajuanSDM from "./pages/Divisi/EditPengajuanSDM.jsx";
+import DivisiSettings from "./pages/Divisi/DivisiSettings.jsx";
 
 import useAuthStore from "./store/useAuthStore";
 import { Loader2 } from "lucide-react";
@@ -48,23 +56,26 @@ function Layout() {
     location.pathname.startsWith("/daftar") ||
     location.pathname.startsWith("/reset") ||
     location.pathname.startsWith("/reset-password") ||
-    location.pathname.startsWith("/admin/dashboard");
+    location.pathname.startsWith("/admin/dashboard") ||
+    location.pathname.startsWith("/admin/notifications") ||
+    location.pathname.startsWith("/divisi");
 
   const hideFooter =
     location.pathname.startsWith("/login") ||
     location.pathname.startsWith("/daftar") ||
     location.pathname.startsWith("/reset") ||
     location.pathname.startsWith("/reset-password") ||
-    location.pathname.startsWith("/admin/dashboard");
+    location.pathname.startsWith("/admin/dashboard") ||
+    location.pathname.startsWith("/admin/notifications") ||
+    location.pathname.startsWith("/divisi");
 
   return (
-    // ✅ WRAPPER INI KUNCI: bikin footer selalu di bawah
     <div className="min-h-screen flex flex-col bg-white">
-      <Toaster position="top-right" />
+      <Toaster position="top-center" 
+      containerStyle={{ top:20 }}/>
 
       {!hideNavbar && <Navbar />}
 
-      {/* ✅ MAIN harus flex-1 supaya ngisi tinggi layar */}
       <main className="flex-1">
         <Routes>
           {/* ================= PUBLIC ================= */}
@@ -87,10 +98,38 @@ function Layout() {
           <Route path="/reset-password/:token" element={<ResetPasswordNew />} />
 
           {/* ================= ADMIN ================= */}
+          {/* ⚠️ FIX: kolom Prisma-nya `peran` (bukan `role`). toSafeUser()
+              di backend mengirim `user.peran`, jadi guard di sini harus
+              mengecek field yang sama, kalau tidak `user?.role` akan
+              selalu undefined dan admin selalu dilempar ke "/". */}
           <Route
             path="/admin/dashboard"
-            element={user?.role === "admin" ? <Admin /> : <Navigate to="/" />}
+            element={user?.peran === "admin" ? <Admin /> : <Navigate to="/" />}
           />
+
+          <Route
+            path="/admin/notifications"
+            element={
+              user?.peran === "admin" ? <NotificationsPage /> : <Navigate to="/" />
+            }
+          />
+
+          {/* ================= DIVISI ================= */}
+          <Route
+            path="/divisi"
+            element={
+              user?.peran === "divisi" ? (
+                <DivisiLayout />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          >
+            <Route path="dashboard" element={<DivisiDashboard />} />
+            <Route path="pengajuan" element={<PengajuanSDM />} />
+            <Route path="pengajuan/edit/:id" element={<EditPengajuanSDM />} />
+            <Route path="settings" element={<DivisiSettings />} />
+          </Route>
 
           {/* ================= USER ================= */}
           <Route
@@ -100,6 +139,7 @@ function Layout() {
 
           {/* ================= FALLBACK ================= */}
           <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/confirm-schedule/:id" element={<ConfirmSchedulePage />} />
         </Routes>
       </main>
 

@@ -2,7 +2,14 @@ import { create } from "zustand";
 import axios from "../api/axiosInstance";
 import { toast } from "react-hot-toast";
 
-const pickUser = (res) => res?.data?.user || res?.data?.data?.user || res?.data?.data || res?.data || null;
+const pickUser = (res) =>
+  res?.data?.user ||
+  res?.data?.data?.user ||
+  res?.data?.data ||
+  res?.data ||
+  null;
+
+const LOGGED_OUT_FLAG = "isLoggedOut";
 
 const useAuthStore = create((set) => ({
   user: null,
@@ -30,16 +37,24 @@ const useAuthStore = create((set) => ({
     }
 
     try {
+      // ⚠️ FIX: backend (auth.controller.js -> register) sekarang membaca
+      // body dengan nama kolom Prisma persis: { nama, email, password,
+      // nik, nomor_hp } — bukan lagi { name, NIK, nomorHp }. Semua
+      // parameter & fallback lama (NIK||nik, nomorHp||noHp) dipertahankan,
+      // hanya KEY yang dikirim ke backend yang disesuaikan.
       const payload = {
-        name,
+        nama: name,
         email,
         password,
-        NIK: NIK || nik,
-        nomorHp: nomorHp || noHp,
+        nik: NIK || nik,
+        nomor_hp: nomorHp || noHp,
       };
 
       const res = await axios.post("/auth/register", payload);
       const user = pickUser(res);
+
+      // ✅ user baru register/login -> hapus flag logout
+      localStorage.removeItem(LOGGED_OUT_FLAG);
 
       set({ user, loading: false });
       toast.success("Daftar berhasil");
@@ -55,15 +70,34 @@ const useAuthStore = create((set) => ({
     set({ loading: true });
 
     try {
-      const res = await axios.post("/auth/login", { email, password });
-      const user = pickUser(res);
+      const res = await axios.post("/auth/login", {
+        email,
+        password,
+      });
 
-      set({ user, loading: false });
+      const user = res.data.user;
+
+      localStorage.setItem("accessToken", res.data.accessToken);
+
+      // ✅ login berhasil -> hapus flag logout
+      localStorage.removeItem(LOGGED_OUT_FLAG);
+
+      set({
+        user,
+        loading: false,
+      });
+
       toast.success("Login berhasil");
-      return user;
+
+      return {
+        success: true,
+        user,
+      };
     } catch (error) {
       set({ loading: false });
+
       toast.error(error?.response?.data?.message || "Login gagal");
+
       throw error;
     }
   },
@@ -71,70 +105,87 @@ const useAuthStore = create((set) => ({
   logout: async () => {
     try {
       await axios.post("/auth/logout");
+
+      // ✅ tandai bahwa user memang sengaja logout
+      localStorage.setItem(LOGGED_OUT_FLAG, "true");
+      localStorage.removeItem("accessToken");
+
       set({ user: null });
       toast.success("Logout berhasil");
     } catch (error) {
+      // tetap tandai logout di client meski request ke server gagal,
+      // supaya checkAuth tidak auto-login lagi
+      localStorage.setItem(LOGGED_OUT_FLAG, "true");
+      localStorage.removeItem("accessToken");
+      set({ user: null });
       toast.error(error?.response?.data?.message || "Gagal logout");
     }
   },
 
   /**
    * ✅ checkAuth behavior:
+   * - Kalau user baru saja logout (flag ada di localStorage) -> jangan coba refresh sama sekali
    * - Guest (belum login): profile 401 "No access token provided" => silent, user null
    * - Token expired/invalid: coba refresh => kalau gagal (no refresh token) silent
    * - Error selain auth => console.error
    */
-checkAuth: async () => {
-  set({ checkingAuth: true });
-
-  try {
-    const res = await axios.get("/auth/profile");
-    set({
-      user: res.data?.data || res.data?.user || res.data || null,
-      checkingAuth: false,
-    });
-    return;
-  } catch (error) {
-    const status = error?.response?.status;
-    const msg = error?.response?.data?.message;
-
-    // ✅ guest: normal
-    if (status === 401 && msg === "Unauthorized - No access token provided") {
+  checkAuth: async () => {
+    // ✅ kalau user memang baru logout, jangan coba auto-login lewat refresh
+    if (localStorage.getItem(LOGGED_OUT_FLAG) === "true") {
       set({ user: null, checkingAuth: false });
       return;
     }
 
-    // ✅ token expired/invalid -> coba refresh
-    if (status === 401) {
-      try {
-        await axios.post("/auth/refresh-token");
-        const res2 = await axios.get("/auth/profile");
-        set({
-          user: res2.data?.data || res2.data?.user || res2.data || null,
-          checkingAuth: false,
-        });
-        return;
-      } catch (e2) {
-        const st2 = e2?.response?.status;
-        const msg2 = e2?.response?.data?.message;
+    set({ checkingAuth: true });
 
-        // ✅ guest: normal
-        if (st2 === 400 && msg2 === "No refresh token provided") {
-          set({ user: null, checkingAuth: false });
-          return;
-        }
+    try {
+      const res = await axios.get("/auth/profile");
+      set({
+        user: res.data?.data || res.data?.user || res.data || null,
+        checkingAuth: false,
+      });
+      return;
+    } catch (error) {
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message;
 
-        // ✅ refresh gagal => anggap logout
+      // ✅ guest: normal
+      if (status === 401 && msg === "Unauthorized - No access token provided") {
         set({ user: null, checkingAuth: false });
         return;
       }
+
+      // ✅ token expired/invalid -> coba refresh
+      if (status === 401) {
+        try {
+          await axios.post("/auth/refresh-token");
+          const res2 = await axios.get("/auth/profile");
+
+          set({
+            user: res2.data?.data || res2.data?.user || res2.data || null,
+            checkingAuth: false,
+          });
+          return;
+        } catch (e2) {
+          const st2 = e2?.response?.status;
+          const msg2 = e2?.response?.data?.message;
+
+          // ✅ guest: normal
+          if (st2 === 400 && msg2 === "No refresh token provided") {
+            set({ user: null, checkingAuth: false });
+            return;
+          }
+
+          // ✅ refresh gagal => anggap logout
+          set({ user: null, checkingAuth: false });
+          return;
+        }
+      }
+
+      // ✅ selain 401 -> error beneran
+      set({ user: null, checkingAuth: false });
     }
-
-    // ✅ selain 401 -> error beneran
-    set({ user: null, checkingAuth: false });
-  }
-},
-
+  },
 }));
 
 export default useAuthStore;

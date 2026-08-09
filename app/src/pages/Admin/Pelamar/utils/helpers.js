@@ -25,7 +25,6 @@ export const formatDate = (dateStr) => {
 const getApiOrigin = () => {
   const base = axiosInstance?.defaults?.baseURL || "";
   try {
-    // base: http://localhost:4000/api  -> origin: http://localhost:4000
     return new URL(base).origin;
   } catch {
     return "";
@@ -55,15 +54,18 @@ export const downloadFileFromUrl = (url, filename = "file") => {
 
 export const getProgress = (status) => {
   const s = String(status || "").trim();
+  const low = s.toLowerCase();
 
   const stageProgress = {
     Screaning: 25,
-    "Interview HC": 50,
-    "Psikotes/Technical Test": 75,
-    "Final Interview": 100,
-    Accepted: 100,
+    "Interview Pertama": 50,
+    Psikotes: 75,
+    "Interview Kedua": 100,
+    "Final Result": 100,
+    Diterima: 100,
   };
 
-  if (s.toLowerCase().startsWith("rejected")) return 100;
+  // ✅ dukung "rejected..." (lama) & "ditolak..." (baru)
+  if (low.startsWith("rejected") || low.startsWith("ditolak")) return 100;
   return stageProgress[s] || 0;
 };

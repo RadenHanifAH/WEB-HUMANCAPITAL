@@ -1,143 +1,151 @@
-"use client";
 import React from "react";
 import {
+  FileText,
   X,
-  Briefcase,
-  Users,
-  MapPin,
   Calendar,
-  ClipboardList,
-  Tag,
+  Building2,
+  MapPin,
+  Briefcase,
+  CheckCircle2,
+  AlignLeft,
+  ListChecks,
 } from "lucide-react";
 
-export default function ViewJob({ isOpen, onClose, job }) {
-  if (!isOpen || !job) return null;
+/**
+ * JobDetailModal
+ * Modal "Detail Lowongan" — menampilkan ringkasan satu lowongan kerja.
+ *
+ * Props:
+ * - job: {
+ *     title, department, location, type, deadline, status,
+ *     description, requirements
+ *   }
+ * - onClose: () => void
+ * - onEdit: () => void
+ */
+export default function JobDetailModal({ job, onClose}) {
+  if (!job) return null;
 
-  // Fungsi untuk memformat tanggal
-  const formatDeadline = (dateString) => {
-    if (!dateString) return "-";
-    try {
-      // Membuat objek Date dari string tanggal (e.g., "2024-02-15")
-      const date = new Date(dateString);
-
-      // Menggunakan toLocaleDateString untuk format Indonesia (id-ID)
-      // options: full day, long month, numeric year
-      return date.toLocaleDateString("id-ID", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch (e) {
-      console.error("Error formatting date:", e);
-      return dateString; // Kembali ke format asli jika gagal
-    }
+  const statusStyles = {
+    aktif: "bg-emerald-100 text-emerald-700",
+    "non-aktif": "bg-gray-200 text-gray-600",
+    ditutup: "bg-red-100 text-red-700",
+    draft: "bg-amber-100 text-amber-700",
   };
 
-  const getStatusBadge = (status) => {
-    if (status.toLowerCase() === "active")
-      return (
-        <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-700">
-          Aktif
-        </span>
-      );
-    if (status.toLowerCase() === "draft")
-      return (
-        <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">
-          Draft
-        </span>
-      );
-    if (status.toLowerCase() === "closed" || status.toLowerCase() === "ditutup")
-      return (
-        <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-600">
-          Ditutup
-        </span>
-      );
-  };
+  const statusKey = (job.status || "aktif").toLowerCase();
+  const statusClass = statusStyles[statusKey] || statusStyles.aktif;
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-sky-600" /> Detail Lowongan
-          </h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <FileText className="w-5 h-5 text-sky-600" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              Detail Lowongan
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-4 text-sm">
-          {/* Judul Posisi */}
-          <div className="flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-gray-500" />
-            <label className="font-medium text-gray-500">Judul Posisi:</label>
-            <p className="ml-1">{job.title}</p>
-          </div>
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+          {/* Grid info utama */}
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+            <Field
+              icon={Briefcase}
+              label="Judul Posisi"
+              value={job.title}
+              bold
+            />
+            <Field
+              icon={Building2}
+              label="Departemen"
+              value={job.department}
+              bold
+            />
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Departemen */}
-            <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-gray-500" />
-              <label className="font-medium text-gray-500">Departemen:</label>
-              <p className="ml-1">{job.department}</p>
-            </div>
-            {/* Tipe Pekerjaan */}
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-gray-500" />
-              <label className="font-medium text-gray-500">
-                Tipe Pekerjaan:
-              </label>
-              <p className="ml-1">{job.type}</p>
-            </div>
-          </div>
+            <Field icon={MapPin} label="Lokasi" value={job.location} />
+            <Field icon={Briefcase} label="Tipe Pekerjaan" value={job.type} />
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Lokasi */}
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-gray-500" />
-              <label className="font-medium text-gray-500">Lokasi:</label>
-              <p className="ml-1">{job.location}</p>
+            <Field
+              icon={Calendar}
+              label="Deadline"
+              value={
+                job.deadline
+                  ? new Date(job.deadline).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "-"
+              }
+            />
+            <div>
+              <FieldLabel icon={CheckCircle2} label="Status" />
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 mt-1 rounded-full text-xs font-semibold uppercase tracking-wide ${statusClass}`}
+              >
+                {job.status || "Aktif"}
+              </span>
             </div>
-            {/* Deadline (Perubahan di sini) */}
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-500" />
-              <label className="font-medium text-gray-500">Deadline:</label>
-              <p className="ml-1">{formatDeadline(job.deadline)}</p>
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="flex items-center gap-2">
-            <label className="font-medium text-gray-500">Status:</label>
-            {getStatusBadge(job.status)}
           </div>
 
           {/* Deskripsi Pekerjaan */}
-          <div className="flex items-start gap-2">
-            <Briefcase className="w-4 h-4 text-gray-500 mt-1" />
-            <label className="font-medium text-gray-500">
-              Deskripsi Pekerjaan:
-            </label>
-            {/* Menggunakan div untuk memastikan teks tetap sejajar dengan label saat wrap */}
-            <div className="flex-1 ml-1 whitespace-pre-wrap text-gray-900">
-              {job.description || "-"}
+          <div>
+            <FieldLabel icon={AlignLeft} label="Deskripsi Pekerjaan" />
+            <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 italic leading-relaxed">
+              {job.description || "Tidak ada deskripsi."}
             </div>
           </div>
 
           {/* Persyaratan */}
-          <div className="flex items-start gap-2">
-            <Users className="w-4 h-4 text-gray-500 mt-1" />
-            <label className="font-medium text-gray-500">Persyaratan:</label>
-            {/* Menggunakan div untuk memastikan teks tetap sejajar dengan label saat wrap */}
-            <div className="flex-1 ml-1 whitespace-pre-wrap text-gray-900">
-              {job.requirements || "-"}
+          <div>
+            <FieldLabel icon={ListChecks} label="Persyaratan" />
+            <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 italic leading-relaxed">
+              {job.requirements || "Tidak ada persyaratan."}
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FieldLabel({ icon: Icon, label }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+      {Icon && <Icon className="w-3.5 h-3.5" />}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function Field({ icon, label, value, bold }) {
+  return (
+    <div>
+      <FieldLabel icon={icon} label={label} />
+      <p
+        className={`mt-1 text-sm text-gray-900 truncate ${
+          bold ? "font-semibold" : "font-medium"
+        }`}
+        title={value}
+      >
+        {value || "-"}
+      </p>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// src/pages/auth/ResetPasswordNew.jsx
 import React, { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Lock, Eye, EyeOff } from "lucide-react";
@@ -18,19 +19,16 @@ export default function ResetPasswordNew() {
   const hasToken = useMemo(() => !!String(token || "").trim(), [token]);
 
   const validatePassword = (password) => {
-    // minimal 8, 1 huruf besar, 1 angka, 1 simbol
     const regex =
       /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[{\]};:'",.<>/?\\|`~]).{8,}$/;
     return regex.test(password);
   };
 
-  // ✅ helper toast style seperti Daftar.jsx
   const toastSuccess = (message) =>
     toast.success(message, {
       style: { borderLeft: "6px solid #22c55e" },
       iconTheme: { primary: "#22c55e", secondary: "#fff" },
     });
-
   const toastError = (message) =>
     toast.error(message, {
       style: { borderLeft: "6px solid #ef4444" },
@@ -39,7 +37,6 @@ export default function ResetPasswordNew() {
 
   const submit = async (e) => {
     e.preventDefault();
-
     if (!hasToken) {
       toastError("Token reset tidak ditemukan di URL.");
       return;
@@ -47,12 +44,10 @@ export default function ResetPasswordNew() {
 
     const ruleMsg =
       "Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol.";
-
     if (!validatePassword(newPassword)) {
       toastError(ruleMsg);
       return;
     }
-
     if (newPassword !== confirm) {
       toastError("Konfirmasi password tidak sama.");
       return;
@@ -60,28 +55,25 @@ export default function ResetPasswordNew() {
 
     try {
       setLoading(true);
-
-      await axios.post("/auth/password-reset/confirm", {
-        token,
-        newPassword,
-      });
-
+      await axios.post("/auth/password-reset/confirm", { token, newPassword });
       toastSuccess("Password berhasil direset. Silakan login.");
       setTimeout(() => navigate("/login"), 900);
     } catch (err) {
       const status = err?.response?.status;
-      const msg = err?.response?.data?.message || err?.message || "Reset gagal.";
-
-      // contoh token invalid/expired
+      const msg =
+        err?.response?.data?.message || err?.message || "Reset gagal.";
       const lower = String(msg).toLowerCase();
       if (
         status === 400 &&
-        (lower.includes("token") || lower.includes("kadaluarsa") || lower.includes("expired"))
+        (lower.includes("token") ||
+          lower.includes("kadaluarsa") ||
+          lower.includes("expired"))
       ) {
-        toastError("Token reset tidak valid atau sudah kadaluarsa. Silakan request ulang.");
+        toastError(
+          "Token reset tidak valid atau sudah kadaluarsa. Silakan request ulang.",
+        );
         return;
       }
-
       toastError(msg);
     } finally {
       setLoading(false);
@@ -90,7 +82,6 @@ export default function ResetPasswordNew() {
 
   return (
     <div className="relative min-h-screen w-full bg-white overflow-hidden">
-      {/* background sama seperti Daftar.jsx */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-400/50 via-blue-400/40 to-blue-500/50 blur-3xl opacity-40 pointer-events-none" />
       <div className="absolute inset-0 backdrop-blur-md bg-white/30 pointer-events-none" />
 
@@ -111,12 +102,10 @@ export default function ResetPasswordNew() {
           )}
 
           <form onSubmit={submit} className="space-y-4">
-            {/* Password baru */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Password Baru <span className="text-red-600">*</span>
               </label>
-
               <div className="relative">
                 <Lock
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -138,18 +127,16 @@ export default function ResetPasswordNew() {
                   {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-
               <p className="mt-2 text-xs text-gray-600">
-                Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 angka, dan 1 simbol.
+                Password harus mengandung minimal 8 karakter, 1 huruf besar, 1
+                angka, dan 1 simbol.
               </p>
             </div>
 
-            {/* Konfirmasi */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Konfirmasi Password <span className="text-red-600">*</span>
               </label>
-
               <div className="relative">
                 <Lock
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -176,17 +163,16 @@ export default function ResetPasswordNew() {
             <button
               disabled={loading || !hasToken}
               type="submit"
-              className="w-full px-5 py-2.5 sm:px-6 sm:py-3 
-                bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 
-                text-white rounded-lg text-sm sm:text-base font-semibold 
-                transition shadow-md transform active:scale-95 disabled:opacity-60"
+              className="w-full px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 text-white rounded-lg text-sm sm:text-base font-semibold transition shadow-md transform active:scale-95 disabled:opacity-60"
             >
               {loading ? "Menyimpan..." : "Simpan Password"}
             </button>
-
             <p className="text-sm text-gray-700 text-center mt-3">
               Kembali ke{" "}
-              <Link to="/login" className="text-sky-800 font-semibold hover:underline">
+              <Link
+                to="/login"
+                className="text-sky-800 font-semibold hover:underline"
+              >
                 Login
               </Link>
             </p>

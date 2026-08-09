@@ -7,6 +7,6 @@ router.get("/", jobController.getAllJobs);
 router.get("/:id", jobController.getJobById);
 router.post("/", authMiddleware.protectRoute, jobController.createJob);
 router.put("/:id", authMiddleware.protectRoute, jobController.updateJob);
-router.delete("/:id",authMiddleware.protectRoute, jobController.deleteJob);
+router.delete("/:id", authMiddleware.protectRoute, jobController.deleteJob);
 
 module.exports = router;

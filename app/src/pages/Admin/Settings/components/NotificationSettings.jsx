@@ -11,7 +11,7 @@ export default function NotificationSettings({ showToast }) {
     setLoading(true);
     try {
       const res = await getSettings();
-      setEnabled(Boolean(res?.data?.systemUpdateEmailEnabled));
+      setEnabled(Boolean(res?.data?.email_pembaruan_sistem_aktif));
     } catch (e) {
       console.error(e);
       showToast("Gagal memuat pengaturan notifikasi", "error");
@@ -28,7 +28,7 @@ export default function NotificationSettings({ showToast }) {
   const save = async () => {
     setSaving(true);
     try {
-      await updateNotificationSettings({ systemUpdateEmailEnabled: enabled });
+      await updateNotificationSettings({ email_pembaruan_sistem_aktif: enabled });
       showToast("Pengaturan notifikasi berhasil diperbarui!", "success");
       await load();
     } catch (e) {

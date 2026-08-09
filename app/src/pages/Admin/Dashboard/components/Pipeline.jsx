@@ -2,10 +2,10 @@ import React from "react";
 import { Clock, UserCheck, AlertCircle, TrendingUp } from "lucide-react";
 
 const iconMap = {
-  "Under Review": Clock,
-  "Interview HC": UserCheck,
+  "Screaning": Clock,
+  "Interview Pertama": UserCheck,
   "Psikotes": AlertCircle,
-  "Final Interview": TrendingUp,
+  "Interview Kedua": TrendingUp,
 };
 
 const Pipeline = ({ pipeline, loading }) => (

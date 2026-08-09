@@ -1,10 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,12 +7,414 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  admin
-  pelamar
+model pengguna {
+  // Identitas & akses
+  id          Int            @id @default(autoincrement())
+  email       String         @unique(map: "Pengguna_email_key")
+  nama        String
+  password    String
+  peran       peran_pengguna @default(pelamar)       // Administrator | Recruiter | Manager | Hiring Manager
+  divisi      String?
+
+  // Status & waktu
+  status_akun    String    @default("active") // active | pending | inactive | suspended
+  login_terakhir DateTime?
+  created_at     DateTime  @default(now())
+
+  // Keamanan (reset password & refresh token)
+  reset_password_kadaluarsa DateTime?
+  hash_token_reset_password String?
+  hash_refresh_token        String?
+
+  // Relasi
+  lamaran            lamaran[]
+  arsip              arsip[]
+  sertifikat         sertifikat[]
+  pendidikan         pendidikan[]
+  notifikasi         notifikasi[]
+  organisasi         organisasi[]
+  profil             profil?
+  dokumen_pengguna   dokumen_pengguna?
+  keahlian_pengguna  keahlian_pengguna[]
+  pengalaman_kerja   pengalaman_kerja[]
+  pengajuan_sdm      pengajuan_sdm[]      @relation("PengajuanPemilik")
+  pendaftaran_tertunda   pendaftaran_tertunda?
+
+  @@index([status_akun], map: "Pengguna_status_akun_idx")
+  @@index([divisi], map: "Pengguna_divisi_idx")
 }
 
-enum JobType {
+model profil {
+  id            Int       @id @default(autoincrement())
+  pengguna_id   Int       @unique(map: "Profil_pengguna_id_key")
+  nik           String?
+  jenis_kelamin String?
+  nomor_hp      String?
+  tempat_lahir  String?
+  tanggal_lahir DateTime? @db.Date
+  alamat        String?
+  foto_profil   String?   @db.LongText
+  tentang       String?   @db.Text
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "Profil_pengguna_id_fkey")
+}
+
+model pendaftaran_tertunda {
+  id             Int      @id @default(autoincrement())
+  pengguna_id    Int?     @unique(map: "PendaftaranTertunda_pengguna_id_key")
+  email          String   @unique(map: "PendaftaranTertunda_email_key")
+  nama           String
+  hash_password  String
+  nik            String
+  nomor_hp       String
+  hash_otp       String
+  otp_kadaluarsa DateTime
+  percobaan      Int      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  pengguna pengguna? @relation(fields: [pengguna_id], references: [id], onDelete: SetNull, map: "PendaftaranTertunda_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "PendaftaranTertunda_pengguna_id_idx")
+}
+
+model pendidikan {
+  id                 Int       @id @default(autoincrement())
+  pengguna_id        Int
+  institusi          String
+  jurusan            String?
+  gelar              String?
+  tanggal_mulai      DateTime  @db.Date
+  tanggal_selesai    DateTime? @db.Date
+  sedang_berlangsung Boolean   @default(false)
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "Pendidikan_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "Pendidikan_pengguna_id_idx")
+}
+
+model pengalaman_kerja {
+  id              Int      @id @default(autoincrement())
+  pengguna_id     Int
+  jabatan         String
+  perusahaan      String
+  jenis_pekerjaan String?
+  lokasi          String?
+  bulan_mulai     Int
+  tahun_mulai     String
+  bulan_selesai   Int?
+  tahun_selesai   String?
+  sedang_bekerja  Boolean  @default(false)
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "PengalamanKerja_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "PengalamanKerja_pengguna_id_idx")
+}
+
+model organisasi {
+  id                 Int       @id @default(autoincrement())
+  pengguna_id        Int
+  peran              String
+  nama_organisasi    String
+  tanggal_mulai      DateTime  @db.Date
+  tanggal_selesai    DateTime? @db.Date
+  sedang_berlangsung Boolean   @default(false)
+  deskripsi          String?   @db.Text
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "Organisasi_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "Organisasi_pengguna_id_idx")
+}
+
+model sertifikat {
+  id              Int       @id @default(autoincrement())
+  pengguna_id     Int
+  nama            String
+  penerbit        String
+  diterbitkan     DateTime? @db.Date
+  kadaluarsa      DateTime? @db.Date
+  file_sertifikat String?   @db.LongText
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "Sertifikat_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "Sertifikat_pengguna_id_idx")
+}
+
+model keahlian_pengguna {
+  id          Int    @id @default(autoincrement())
+  pengguna_id Int
+  nama        String
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "KeahlianPengguna_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "KeahlianPengguna_pengguna_id_idx")
+}
+
+model dokumen_pengguna {
+  id              Int     @id @default(autoincrement())
+  pengguna_id     Int     @unique(map: "DokumenPengguna_pengguna_id_key")
+  url_cv          String?
+  nama_cv         String?
+  url_portofolio  String?
+  nama_portofolio String?
+
+  pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "DokumenPengguna_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "DokumenPengguna_pengguna_id_idx")
+}
+
+model lowongan {
+  id               Int                  @id @default(autoincrement())
+  pengajuan_sdm_id Int?                 @unique
+  judul            String
+  departemen       String?
+  lokasi           String?
+  jenis            jenis_lowongan?
+  deskripsi        String?              @db.Text
+  persyaratan      String?              @db.Text
+  tenggat          DateTime?
+  status           String               @default("active")
+  created_at       DateTime             @default(now())
+  updated_at       DateTime             @default(now()) @updatedAt
+
+  pengajuan_sdm pengajuan_sdm? @relation(fields: [pengajuan_sdm_id], references: [id], onDelete: SetNull, map: "Lowongan_pengajuan_sdm_id_fkey")
+  lamaran       lamaran[]
+  arsip         arsip[]
+}
+
+model lamaran {
+  id                Int      @id @default(autoincrement())
+  pengguna_id       Int
+  lowongan_id       Int
+  status            String   @default("Screaning")
+  tahap             String   @default("Screaning")
+  tanggal_melamar   DateTime @default(now())
+  data_cv           String   @db.LongText
+  mime_cv           String
+  nama_cv           String
+  ukuran_cv         Int
+  data_portofolio   String?  @db.LongText
+  mime_portofolio   String?
+  nama_portofolio   String?
+  ukuran_portofolio Int?
+  skor              Int?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+
+  pengguna         pengguna           @relation(fields: [pengguna_id], references: [id], map: "Lamaran_pengguna_id_fkey")
+  lowongan         lowongan           @relation(fields: [lowongan_id], references: [id], map: "Lamaran_lowongan_id_fkey")
+  arsip            arsip?
+  jadwal_wawancara jadwal_wawancara[]
+  hasil_psikotes   hasil_psikotes[]
+  hasil_wawancara  hasil_wawancara[]
+
+  @@index([lowongan_id], map: "Lamaran_lowongan_id_fkey")
+  @@index([pengguna_id], map: "Lamaran_pengguna_id_fkey")
+}
+
+model arsip {
+  id                Int       @id @default(autoincrement())
+  lamaran_id        Int       @unique(map: "Arsip_lamaran_id_key")
+  pengguna_id       Int?
+  lowongan_id       Int?
+  nama_pelamar      String
+  email_pelamar     String
+  posisi            String
+  status_akhir      String
+  tanggal_keputusan DateTime  @default(now())
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  lamaran  lamaran   @relation(fields: [lamaran_id], references: [id], onDelete: Cascade, map: "Arsip_lamaran_id_fkey")
+  pengguna pengguna? @relation(fields: [pengguna_id], references: [id], map: "Arsip_pengguna_id_fkey")
+  lowongan lowongan? @relation(fields: [lowongan_id], references: [id], map: "Arsip_lowongan_id_fkey")
+
+  @@index([tanggal_keputusan], map: "Arsip_tanggal_keputusan_idx")
+  @@index([status_akhir], map: "Arsip_status_akhir_idx")
+  @@index([lowongan_id], map: "Arsip_lowongan_id_fkey")
+  @@index([pengguna_id], map: "Arsip_pengguna_id_fkey")
+}
+
+model jadwal_wawancara {
+  id              Int                     @id @default(autoincrement())
+  lamaran_id      Int?
+  nama_pelamar    String
+  posisi          String
+  jenis           jenis_jadwal_wawancara
+  status          status_jadwal_wawancara @default(scheduled)
+  tanggal_waktu   DateTime
+  durasi_menit    Int                     @default(60)
+  lokasi          String
+  tautan_rapat    String?                 @db.VarChar(500)
+  sudah_selesai   Boolean                 @default(false)
+  waktu_selesai   DateTime?
+
+  dikonfirmasi_oleh_pelamar Boolean   @default(false)
+  waktu_konfirmasi          DateTime?
+  status_kehadiran          String    @default("pending")
+  alasan_tidak_hadir        String?   @db.Text
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  lamaran  lamaran?  @relation(fields: [lamaran_id], references: [id], map: "JadwalWawancara_lamaran_id_fkey")
+
+  @@index([lamaran_id], map: "JadwalWawancara_lamaran_id_idx")
+  @@index([tanggal_waktu], map: "JadwalWawancara_tanggal_waktu_idx")
+  @@index([status], map: "JadwalWawancara_status_idx")
+  @@index([jenis], map: "JadwalWawancara_jenis_idx")
+  @@index([status_kehadiran], map: "JadwalWawancara_status_kehadiran_idx")
+}
+
+model hasil_psikotes {
+  id         Int      @id @default(autoincrement())
+  lamaran_id Int?
+
+  // Data calon karyawan
+  nama_pelamar String
+  posisi       String
+  tanggal_tes  DateTime
+
+  data_dokumen_pendukung   String? @db.LongText
+  nama_dokumen_pendukung   String?
+  mime_dokumen_pendukung   String?
+  ukuran_dokumen_pendukung Int?
+
+  // Kesimpulan
+  kesimpulan String
+  skor_akhir Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  lamaran lamaran? @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilPsikotes_lamaran_id_fkey")
+
+  @@index([lamaran_id], map: "HasilPsikotes_lamaran_id_idx")
+  @@index([kesimpulan], map: "HasilPsikotes_kesimpulan_idx")
+}
+
+model hasil_wawancara {
+  id         Int  @id @default(autoincrement())
+  lamaran_id Int?
+  tahap      Int  @default(1)
+
+  // Data calon
+  nama_pelamar        String
+  tanggal_lahir       DateTime? @db.Date
+  pendidikan_terakhir String?
+  jabatan_dilamar     String
+  tanggal_wawancara   DateTime
+
+  data_dokumen_pendukung   String? @db.LongText
+  nama_dokumen_pendukung   String?
+  mime_dokumen_pendukung   String?
+  ukuran_dokumen_pendukung Int?
+
+  // Kesimpulan
+  kesimpulan String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  lamaran lamaran? @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilWawancara_lamaran_id_fkey")
+
+  @@index([lamaran_id], map: "HasilWawancara_lamaran_id_idx")
+  @@index([kesimpulan], map: "HasilWawancara_kesimpulan_idx")
+  @@index([tahap], map: "HasilWawancara_tahap_idx")
+}
+
+model pengajuan_sdm {
+  id               Int       @id @default(autoincrement())
+  pengguna_id      Int?
+
+  // Informasi dasar
+  departemen         String   @default("")
+  posisi              String   @default("") @db.VarChar(255)
+  tanggal_permintaan  DateTime @default(now())
+  alasan              String?  @db.Text
+
+  // Spesifikasi
+  jumlah          Int    @default(1)
+  status_karyawan String @default("")
+  tugas_utama     Json
+
+  // Kualifikasi
+  usia_min            Int?
+  usia_maks           Int?
+  status_perkawinan   Json
+  pendidikan_terakhir String @default("S1 (Sarjana)")
+  keahlian            Json
+  pengalaman          String? @db.Text
+
+  // Fasilitas
+  bahasa_asing       String @default("")
+  level_bahasa_asing String @default("Ahli")
+  keahlian_komputer  Json
+  fasilitas          Json
+
+  // Peta kekuatan
+  peta_kekuatan Json
+
+  // Status workflow
+  status  String    @default("DRAFT")
+  dikirim DateTime?
+
+  // Review admin
+  catatan_admin String?   @db.Text
+  ditinjau      DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  pengguna pengguna?  @relation("PengajuanPemilik", fields: [pengguna_id], references: [id], onDelete: SetNull, map: "PengajuanSdm_pengguna_id_fkey")
+  lowongan lowongan?
+
+  @@index([pengguna_id], map: "PengajuanSdm_pengguna_id_idx")
+  @@index([status], map: "PengajuanSdm_status_idx")
+  @@index([created_at], map: "PengajuanSdm_created_at_idx")
+}
+
+model notifikasi {
+  id           Int      @id @default(autoincrement())
+  pengguna_id  Int?
+  jenis        String
+  judul        String
+  pesan        String   @db.Text
+  sudah_dibaca Boolean  @default(false)
+  tautan_aksi  String?
+  metadata     Json?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  pengguna pengguna? @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "Notifikasi_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "Notifikasi_pengguna_id_idx")
+  @@index([sudah_dibaca], map: "Notifikasi_sudah_dibaca_idx")
+  @@index([created_at], map: "Notifikasi_created_at_idx")
+  @@index([jenis], map: "Notifikasi_jenis_idx")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum peran_pengguna {
+  admin
+  pelamar
+  divisi
+}
+
+enum jenis_jadwal_wawancara {
+  Psikotes
+  InterviewPertama
+  InterviewKedua
+}
+
+enum status_jadwal_wawancara {
+  scheduled
+  completed
+  canceled
+}
+
+enum jenis_lowongan {
   FullTime
   PartTime
   Internship
@@ -27,259 +422,12 @@ enum JobType {
   Contract
 }
 
-enum ExperienceLevel {
-  FreshGraduate
-  Junior
-  MidLevel
-  Senior
-}
 
-enum EducationLevel {
-  SMA 
+enum pendidikan_lowongan {
+  SMA
   D3
   D4
   S1
   S2
   S3
 }
-
-enum MessageStatus {
-  queued
-  sent
-  failed
-}
-
-enum MessageDirection {
-  outgoing
-  incoming
-}
-
-enum InterviewType {
-  InterviewHC
-  FinalInterview
-  Psikotes
-}
-
-enum ScheduleStatus {
-  scheduled
-  completed
-  canceled
-}
-
-enum ArchiveFinalStatus {
-  hired
-  rejected
-}
-
-model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  password     String
-  role         Role          @default(pelamar)
-  createdAt    DateTime      @default(now())
-  applications Application[]
-  profile      Profile?
-
-  messages     Message[]
-  interviewSchedulesCreated InterviewSchedule[] @relation("ScheduleCreatedBy")
-  archives     Archive[]
-
-  resetPasswordTokenHash String?
-  resetPasswordExpires   DateTime?
-}
-
-model Profile {
-  id            Int       @id @default(autoincrement())
-  userId        Int       @unique
-  fullName      String?
-  NIK           String?
-  gender        String?
-  nomorHp       String?
-  tempatLahir   String?
-  tanggalLahir  DateTime?
-  alamat        String?
-  fotoProfile   String? @db.LongText
-  about         String?
-
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Job {
-  id           Int           @id @default(autoincrement())
-  title        String
-  department   String?
-  location     String?
-  type         JobType?
-  experience   ExperienceLevel?
-  education    EducationLevel?
-  description  String?       @db.Text 
-  requirements String?       @db.Text
-  deadline     DateTime?
-  status       String        @default("active")
-  createdAt    DateTime      @default(now())
-  applications Application[]
-  archives     Archive[]
-}
-
-model Application {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  jobId     Int
-
-  cvData    String   @db.LongText
-  cvName    String
-  cvMime    String
-  cvSize    Int
-
-  portfolioData String? @db.LongText
-  portfolioName String?
-  portfolioMime String?
-  portfolioSize Int?
-
-  status    String   @default("Screaning")
-  stage     String   @default("Screaning")
-  score     Int?
-  appliedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-  job  Job  @relation(fields: [jobId], references: [id])
-
-  interviewSchedules InterviewSchedule[]
-  archive Archive?
-}
-
-model Reports {
-  id                 Int       @id @default(autoincrement())
-  period             String
-  startDate          DateTime
-  endDate            DateTime
-  totalApplications  Int       @default(0)
-  accepted           Int       @default(0)
-  rejected           Int       @default(0)
-  averageProcessTime Float?
-  conversionRate     Float?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  positionDetails   Json?
-  chartTrend        Json?
-  chartAcceptance   Json?
-  dashboardMeta     Json?
-}
-
-model Message {
-  id             Int              @id @default(autoincrement())
-
-  userId         Int?
-  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  recipientName  String?
-  recipientEmail String
-  subject        String
-  body           String           @db.Text
-
-  status         MessageStatus    @default(queued)
-  direction      MessageDirection @default(outgoing)
-
-  provider       String?
-  providerId     String?
-  errorMessage   String?          @db.Text
-
-  sentAt         DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-
-  @@index([recipientEmail])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model InterviewSchedule {
-  id            Int            @id @default(autoincrement())
-
-  applicationId Int?
-  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-
-  applicantName String
-  position      String
-
-  type          InterviewType
-  status        ScheduleStatus @default(scheduled)
-
-  dateTime      DateTime
-  durationMin   Int            @default(60)
-  location      String
-  notes         String?        @db.Text
-
-  createdById   Int?
-  createdBy     User?          @relation("ScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-
-  isCompleted   Boolean        @default(false)
-  completedAt   DateTime?
-
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  @@index([dateTime])
-  @@index([type])
-  @@index([status])
-  @@index([applicationId])
-}
-
-model Archive {
-  id             Int               @id @default(autoincrement())
-  applicationId  Int               @unique
-  application    Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  userId         Int?
-  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  jobId          Int?
-  job            Job?              @relation(fields: [jobId], references: [id], onDelete: SetNull)
-
-  applicantName  String
-  applicantEmail String
-  position       String
-
-  finalStatus    String
-  decisionDate   DateTime          @default(now())
-  notes          String?           @db.Text
-
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  @@index([finalStatus])
-  @@index([decisionDate])
-}
-
-model AppSettings {
-  id                       Int      @id @default(autoincrement())
-
-  companyName              String?
-  website                  String?
-  location                 String?
-  timezone                 String?
-
-  systemUpdateEmailEnabled Boolean  @default(true)
-
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-}
-
-model PendingRegistration {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  name         String
-  passwordHash String
-  nik          String
-  nomorHp      String
-
-  otpHash      String
-  otpExpires   DateTime
-  attempts     Int      @default(0)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-

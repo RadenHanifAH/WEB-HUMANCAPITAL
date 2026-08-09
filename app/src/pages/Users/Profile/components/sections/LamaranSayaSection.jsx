@@ -1,5 +1,10 @@
 import React from "react";
 
+// ✅ File sertifikat/dokumen lain di app ini pakai origin backend terpisah
+// dari frontend (lihat CertificateModal.jsx / DocumentsSayaSection.jsx),
+// jadi link download di sini juga perlu digabung ke origin API.
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 const normalizeStage = (stage) => {
   const s = String(stage || "").trim().toLowerCase();
   if (!s) return "-";
@@ -9,9 +14,9 @@ const normalizeStage = (stage) => {
   if (s.includes("technical")) return "Psikotes/technical test";
 
   if (s === "screaning") return "Screaning";
-  if (s === "interview hc") return "Interview HC";
-  if (s === "final interview") return "Final Interview";
-  if (s.includes("offering")) return "Offering/Final Result";
+  if (s === "interview pertama") return "Interview Pertama";
+  if (s === "interview kedua") return "Interview Kedua";
+  if (s.includes("offering")) return "Final Result";
 
   return stage;
 };
@@ -22,7 +27,7 @@ const getFinalBadge = (statusRaw) => {
 
   if (s.includes("reject")) return { text: "DITOLAK", cls: "bg-red-100 text-red-700" };
 
-  if (s.includes("accept") || s.includes("hired"))
+  if (s.includes("accept") || s.includes("hired") || s.includes("diterima"))
     return { text: "DITERIMA", cls: "bg-green-100 text-green-700" };
 
   return null;
@@ -64,15 +69,27 @@ export default function LamaranSayaSection({ applications = [] }) {
       ) : (
         <div className="mt-6 space-y-4">
           {applications.map((app) => {
-            const stage = normalizeStage(app?.stage);
+            // ✅ Persis field yang dikembalikan GET /applications/me
+            // (repo.findManyByUserId): id, status, tahap, tanggal_melamar,
+            // nama_cv, nama_portofolio, lowongan: { id, judul }
+            const stage = normalizeStage(app?.tahap);
             const finalBadge = getFinalBadge(app?.status);
 
             const badgeText = finalBadge?.text ?? stage;
             const badgeClass = finalBadge?.cls ?? stageBadgeClass(stage);
 
-            // ✅ pakai field yang benar dari backend
-            const cvExists = !!(app?.cvDownloadUrl || app?.cvName);
-            const portfolioExists = !!(app?.portfolioDownloadUrl || app?.portfolioName);
+            const cvExists = Boolean(app?.nama_cv);
+            const portfolioExists = Boolean(app?.nama_portofolio);
+
+            // Endpoint /applications/me tidak mengirim URL download,
+            // jadi dibangun manual mengarah ke route yang sama dipakai
+            // admin: GET /api/applications/:id/file?type=cv|portfolio
+            const cvDownloadUrl = cvExists
+              ? `${BASE_URL}/api/applications/${app.id}/file?type=cv`
+              : null;
+            const portfolioDownloadUrl = portfolioExists
+              ? `${BASE_URL}/api/applications/${app.id}/file?type=portfolio`
+              : null;
 
             return (
               <div
@@ -81,11 +98,11 @@ export default function LamaranSayaSection({ applications = [] }) {
               >
                 <div>
                   <p className="text-lg font-bold text-gray-900">
-                    {app?.job?.title || app?.position || "-"}
+                    {app?.lowongan?.judul || "-"}
                   </p>
 
                   <p className="text-sm text-gray-600 mt-1">
-                    Tanggal Lamar: {formatDateTime(app?.appliedAt || app?.appliedDate)}
+                    Tanggal Lamar: {formatDateTime(app?.tanggal_melamar)}
                   </p>
 
                   <div className="mt-3 text-sm text-gray-700 flex gap-6 flex-wrap">
@@ -93,23 +110,19 @@ export default function LamaranSayaSection({ applications = [] }) {
                     <div>
                       <span className="font-semibold">CV:</span>{" "}
                       {cvExists ? (
-                        app?.cvDownloadUrl ? (
-                          <a
-                            href={app.cvDownloadUrl}
-                            className="text-sky-700 font-semibold hover:underline"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Tersimpan
-                          </a>
-                        ) : (
-                          <span className="text-green-700 font-semibold">Tersimpan</span>
-                        )
+                        <a
+                          href={cvDownloadUrl}
+                          className="text-sky-700 font-semibold hover:underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Tersimpan
+                        </a>
                       ) : (
                         "—"
                       )}
-                      {app?.cvName ? (
-                        <span className="text-xs text-gray-500 ml-2">({app.cvName})</span>
+                      {app?.nama_cv ? (
+                        <span className="text-xs text-gray-500 ml-2">({app.nama_cv})</span>
                       ) : null}
                     </div>
 
@@ -117,23 +130,19 @@ export default function LamaranSayaSection({ applications = [] }) {
                     <div>
                       <span className="font-semibold">Portfolio:</span>{" "}
                       {portfolioExists ? (
-                        app?.portfolioDownloadUrl ? (
-                          <a
-                            href={app.portfolioDownloadUrl}
-                            className="text-sky-700 font-semibold hover:underline"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Tersimpan
-                          </a>
-                        ) : (
-                          <span className="text-green-700 font-semibold">Tersimpan</span>
-                        )
+                        <a
+                          href={portfolioDownloadUrl}
+                          className="text-sky-700 font-semibold hover:underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Tersimpan
+                        </a>
                       ) : (
                         "—"
                       )}
-                      {app?.portfolioName ? (
-                        <span className="text-xs text-gray-500 ml-2">({app.portfolioName})</span>
+                      {app?.nama_portofolio ? (
+                        <span className="text-xs text-gray-500 ml-2">({app.nama_portofolio})</span>
                       ) : null}
                     </div>
                   </div>

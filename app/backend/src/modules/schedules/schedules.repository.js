@@ -1,32 +1,32 @@
 const prisma = require("../../config/prisma");
 
 module.exports = {
-  findMany({ query, page, pageSize }) {
-    return prisma.interviewSchedule.findMany({
-      orderBy: { dateTime: "asc" },
+  findMany({ page, pageSize }) {
+    return prisma.jadwal_wawancara.findMany({
+      orderBy: { tanggal_waktu: "asc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
   },
 
   count() {
-    return prisma.interviewSchedule.count();
+    return prisma.jadwal_wawancara.count();
   },
 
   create(data) {
-    return prisma.interviewSchedule.create({ data });
+    return prisma.jadwal_wawancara.create({ data });
   },
 
   update(id, data) {
-    return prisma.interviewSchedule.update({
-      where: { id },
+    return prisma.jadwal_wawancara.update({
+      where: { id: Number(id) },
       data,
     });
   },
 
   deleteById(id) {
-    return prisma.interviewSchedule.delete({
-      where: { id },
+    return prisma.jadwal_wawancara.delete({
+      where: { id: Number(id) },
     });
   },
 };

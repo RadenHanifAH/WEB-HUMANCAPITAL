@@ -1,5 +1,4 @@
 // src/modules/auth/mail.service.js
-const axios = require("axios");
 const nodemailer = require("nodemailer");
 
 /* =========================
@@ -12,115 +11,56 @@ function getFrom() {
 }
 
 /* =========================================================
-   ✅ OPTION A: Brevo API (recommended for Railway hosting)
-   - Uses HTTPS (443) so it won't be blocked like SMTP 587
-   ========================================================= */
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-
-async function sendViaBrevoApi({ to, subject, html }) {
-  const from = getFrom();
-  if (!from.email) throw new Error("MAIL_FROM_EMAIL belum di-set");
-
-  try {
-    const res = await axios.post(
-      "https://api.brevo.com/v3/smtp/email",
-      {
-        sender: { name: from.name, email: from.email },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
-      },
-      {
-        headers: {
-          "api-key": BREVO_API_KEY,
-          "content-type": "application/json",
-          accept: "application/json",
-        },
-        timeout: 15000,
-      }
-    );
-
-    console.log("[BREVO API] SENT", {
-      to,
-      messageId: res?.data?.messageId,
-    });
-
-    return res.data;
-  } catch (e) {
-    console.error("[BREVO API] FAILED", {
-      to,
-      message: e?.message,
-      status: e?.response?.status,
-      data: e?.response?.data,
-    });
-    throw e;
-  }
-}
-
-/* =========================================================
-   ✅ OPTION B: SMTP (fallback - usually works locally)
+   ✅ Nodemailer SMTP transporter
    ========================================================= */
 const port = Number(process.env.SMTP_PORT || 587);
-const secure = port === 465;
+const secure = String(process.env.SMTP_SECURE || "false") === "true" || port === 465;
 
-const smtpEnabled = !!process.env.SMTP_HOST && !!process.env.SMTP_USER && !!process.env.SMTP_PASS;
+const smtpEnabled =
+  !!process.env.SMTP_HOST && !!process.env.SMTP_USER && !!process.env.SMTP_PASS;
 
-const transporter = smtpEnabled
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port,
-      secure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+let transporter = null;
 
-      pool: true,
-      maxConnections: 2,
-      maxMessages: 50,
+if (smtpEnabled) {
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure, // true kalau port 465, false kalau 587 (STARTTLS)
 
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 15000,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
 
-      // TLS helper
-      requireTLS: true,
-      tls: {
-        servername: process.env.SMTP_HOST,
-        rejectUnauthorized: false,
-      },
-    })
-  : null;
+    tls: {
+      rejectUnauthorized: false,
+    },
 
-// Jangan verify SMTP kalau di production Railway (karena diblok & bikin startup error)
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+  });
+}
+
+// Verify SMTP saat startup (skip di production biar startup tidak lambat/timeout kalau port diblokir hosting)
 async function verifySmtpIfSafe() {
   const isProd = process.env.NODE_ENV === "production";
 
-  // ✅ kalau ada BREVO_API_KEY, kita pakai API saja (no need verify SMTP)
-  if (BREVO_API_KEY) {
-    console.log("[MAIL] Using Brevo API (SMTP skipped)");
-    return;
-  }
-
-  // ✅ di production & SMTP sering diblok -> skip verify
-  if (isProd) {
-    console.log("[MAIL] Production detected. SMTP verify skipped to avoid timeouts.");
-    return;
-  }
-
   if (!transporter) {
-    console.log("[MAIL] SMTP not configured. Skipping verify.");
+    console.log("[MAIL] SMTP belum dikonfigurasi (cek SMTP_HOST/SMTP_USER/SMTP_PASS di .env). Email tidak akan bisa terkirim.");
+    return;
+  }
+
+  if (isProd) {
+    console.log("[MAIL] Production detected. SMTP verify di-skip untuk menghindari timeout.");
     return;
   }
 
   try {
+    // ✅ Verifikasi tetap jalan seperti biasa (memastikan koneksi SMTP
+    // valid saat startup), hanya saja log "[SMTP] READY {...}" yang tadinya
+    // muncul di terminal SUDAH DIHAPUS sesuai permintaan.
     await transporter.verify();
-    console.log("[SMTP] READY", {
-      host: process.env.SMTP_HOST,
-      port,
-      secure,
-      user: process.env.SMTP_USER,
-    });
   } catch (e) {
     console.error("[SMTP] VERIFY FAILED", {
       message: e?.message,
@@ -134,7 +74,63 @@ async function verifySmtpIfSafe() {
 verifySmtpIfSafe();
 
 /* =========================================================
-   Public functions
+   ✅ Generic sender — dipakai oleh modul lain (mis. schedules)
+   supaya tidak perlu bikin transporter Nodemailer sendiri lagi.
+   ========================================================= */
+async function sendMail({ to, subject, html, text }) {
+  if (!transporter) {
+    throw new Error("SMTP belum dikonfigurasi. Cek SMTP_HOST, SMTP_USER, SMTP_PASS di .env.");
+  }
+
+  const from = getFrom();
+  if (!from.email) throw new Error("MAIL_FROM_EMAIL belum di-set");
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"${from.name}" <${from.email}>`,
+      to,
+      subject,
+      text,
+      html,
+    });
+
+    console.log("[SMTP] MAIL SENT", {
+      to,
+      subject,
+      messageId: info?.messageId,
+      accepted: info?.accepted,
+      rejected: info?.rejected,
+      response: info?.response,
+    });
+
+    // ⚠️ Nodemailer kadang tidak throw walau server SMTP menolak alamat
+    // tujuan — cek manual di sini supaya tidak silent-fail.
+    if (info?.rejected && info.rejected.length > 0) {
+      throw new Error(`Email ditolak oleh server SMTP untuk: ${info.rejected.join(", ")}`);
+    }
+
+    return {
+      messageId: info?.messageId,
+      accepted: info?.accepted,
+      rejected: info?.rejected,
+      provider: "smtp",
+    };
+  } catch (e) {
+    console.error("[MAIL] SEND FAILED", {
+      to,
+      subject,
+      message: e?.message,
+      code: e?.code,
+      responseCode: e?.responseCode,
+      command: e?.command,
+      response: e?.response,
+    });
+    throw e;
+  }
+}
+
+/* =========================================================
+   Public functions (khusus auth: OTP & reset password)
    ========================================================= */
 async function sendOtpEmail(to, otp) {
   const subject = "Kode OTP Verifikasi Email";
@@ -148,44 +144,7 @@ async function sendOtpEmail(to, otp) {
     </div>
   `;
 
-  // ✅ priority: Brevo API
-  if (BREVO_API_KEY) {
-    return sendViaBrevoApi({ to, subject, html });
-  }
-
-  // ✅ fallback: SMTP
-  if (!transporter) {
-    throw new Error("SMTP belum dikonfigurasi dan BREVO_API_KEY tidak ada.");
-  }
-
-  try {
-    const from = getFrom();
-    const info = await transporter.sendMail({
-      from: `"${from.name}" <${from.email}>`,
-      to,
-      subject,
-      html,
-    });
-
-    console.log("[SMTP] OTP SENT", {
-      to,
-      messageId: info?.messageId,
-      accepted: info?.accepted,
-      rejected: info?.rejected,
-    });
-
-    return info;
-  } catch (e) {
-    console.error("[MAIL] OTP SEND FAILED", {
-      to,
-      message: e?.message,
-      code: e?.code,
-      responseCode: e?.responseCode,
-      command: e?.command,
-      response: e?.response,
-    });
-    throw e;
-  }
+  return sendMail({ to, subject, html });
 }
 
 async function sendResetPasswordEmail(to, resetLink) {
@@ -199,44 +158,7 @@ async function sendResetPasswordEmail(to, resetLink) {
     </div>
   `;
 
-  // ✅ priority: Brevo API
-  if (BREVO_API_KEY) {
-    return sendViaBrevoApi({ to, subject, html });
-  }
-
-  // ✅ fallback: SMTP
-  if (!transporter) {
-    throw new Error("SMTP belum dikonfigurasi dan BREVO_API_KEY tidak ada.");
-  }
-
-  try {
-    const from = getFrom();
-    const info = await transporter.sendMail({
-      from: `"${from.name}" <${from.email}>`,
-      to,
-      subject,
-      html,
-    });
-
-    console.log("[SMTP] RESET SENT", {
-      to,
-      messageId: info?.messageId,
-      accepted: info?.accepted,
-      rejected: info?.rejected,
-    });
-
-    return info;
-  } catch (e) {
-    console.error("[MAIL] RESET SEND FAILED", {
-      to,
-      message: e?.message,
-      code: e?.code,
-      responseCode: e?.responseCode,
-      command: e?.command,
-      response: e?.response,
-    });
-    throw e;
-  }
+  return sendMail({ to, subject, html });
 }
 
-module.exports = { sendOtpEmail, sendResetPasswordEmail };
+module.exports = { sendMail, sendOtpEmail, sendResetPasswordEmail };

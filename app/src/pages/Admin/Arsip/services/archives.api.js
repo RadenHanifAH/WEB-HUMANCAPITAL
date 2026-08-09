@@ -4,22 +4,34 @@ import axiosInstance from "../../../../api/axiosInstance"; // ✅ sesuaikan path
 export async function fetchArchives({
   q = "",
   status = "all",
+  position = "all",
   page = 1,
   pageSize = 10,
 }) {
   const res = await axiosInstance.get("/archives", {
-    params: { q, status, page, pageSize },
+    params: { q, status, position, page, pageSize },
   });
   return res.data;
 }
 
-export async function exportArchivesCSV({ q = "", status = "all" }) {
+// ✅ NEW: daftar posisi unik untuk dropdown "Semua Posisi"
+export async function fetchArchivePositions() {
+  const res = await axiosInstance.get("/archives/positions");
+  return res.data?.items || [];
+}
+
+export async function fetchArchiveDetail(id) {
+  const res = await axiosInstance.get(`/archives/${id}`);
+  return res.data;
+}
+
+export async function exportArchivesCSV({ q = "", status = "all", position = "all" }) {
   // ✅ responseType blob untuk download file
   const res = await axiosInstance.get("/archives/export", {
-    params: { q, status },
+    params: { q, status, position },
     responseType: "blob",
   });
-  return res; // kamu sebelumnya return res (bukan res.data) -> tetap sama
+  return res; // tetap return res (bukan res.data), sesuai pola aslimu
 }
 
 export async function deleteArchive(id) {

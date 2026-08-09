@@ -1,4 +1,3 @@
-// src/modules/jobs/job.repository.js
 const prisma = require("../../config/prisma");
 
 const toIntId = (id) => {
@@ -7,19 +6,16 @@ const toIntId = (id) => {
 };
 
 const createJob = async (data) => {
-  return prisma.job.create({
+  return prisma.lowongan.create({
     data: {
-      title: data.title,
-      department: data.department,
-      location: data.location,
-      type: data.type,
-      experience: data.experience,
-      education: data.education,
-      description: data.description,
-      requirements: data.requirements,
-      deadline: data.deadline ? new Date(data.deadline) : null,
-
-      // ✅ penting biar job admin/public konsisten
+      pengajuan_sdm_id: data.pengajuan_sdm_id,
+      judul: data.judul,
+      departemen: data.departemen, // ✅ KEMBALIKAN
+      lokasi: data.lokasi,
+      jenis: data.jenis,
+      deskripsi: data.deskripsi,
+      persyaratan: data.persyaratan,
+      tenggat: data.tenggat ? new Date(data.tenggat) : null,
       status: data.status || "active",
     },
   });
@@ -29,11 +25,11 @@ const findJobById = async (id) => {
   const jobId = toIntId(id);
   if (!jobId) return null;
 
-  const job = await prisma.job.findUnique({
+  const job = await prisma.lowongan.findUnique({
     where: { id: jobId },
     include: {
-      _count: { select: { applications: true } },
-      applications: true,
+      _count: { select: { lamaran: true } },
+      lamaran: true,
     },
   });
 
@@ -41,7 +37,7 @@ const findJobById = async (id) => {
 
   return {
     ...job,
-    applicants: job._count?.applications ?? (job.applications?.length ?? 0),
+    applicants: job._count?.lamaran ?? job.lamaran?.length ?? 0,
   };
 };
 
@@ -54,40 +50,37 @@ const updateJob = async (id, data) => {
   }
 
   const payload = {
-    ...(data.title !== undefined && { title: data.title }),
-    ...(data.department !== undefined && { department: data.department }),
-    ...(data.location !== undefined && { location: data.location }),
-    ...(data.type !== undefined && { type: data.type }),
-    ...(data.experience !== undefined && { experience: data.experience }),
-    ...(data.education !== undefined && { education: data.education }),
-    ...(data.description !== undefined && { description: data.description }),
-    ...(data.requirements !== undefined && { requirements: data.requirements }),
-    ...(data.deadline !== undefined && { deadline: data.deadline ? new Date(data.deadline) : null }),
+    ...(data.judul !== undefined && { judul: data.judul }),
+    ...(data.departemen !== undefined && { departemen: data.departemen }), // ✅ KEMBALIKAN
+    ...(data.lokasi !== undefined && { lokasi: data.lokasi }),
+    ...(data.jenis !== undefined && { jenis: data.jenis }),
+    ...(data.deskripsi !== undefined && { deskripsi: data.deskripsi }),
+    ...(data.persyaratan !== undefined && { persyaratan: data.persyaratan }),
+    ...(data.tenggat !== undefined && {
+      tenggat: data.tenggat ? new Date(data.tenggat) : null,
+    }),
     ...(data.status !== undefined && { status: data.status }),
   };
 
-  // ✅ FIX UTAMA: updateMany agar tidak P2025
-  const updated = await prisma.job.updateMany({
-    where: { id: jobId },
-    data: payload,
-  });
+  try {
+    const updated = await prisma.lowongan.update({
+      where: { id: jobId },
+      data: payload,
+      include: { _count: { select: { lamaran: true } } },
+    });
 
-  if (updated.count === 0) {
-    const err = new Error("Lowongan tidak ditemukan (ID tidak ada)");
-    err.statusCode = 404;
-    throw err;
+    return {
+      ...updated,
+      applicants: updated?._count?.lamaran ?? 0,
+    };
+  } catch (e) {
+    if (e.code === "P2025") {
+      const err = new Error("Lowongan tidak ditemukan (ID tidak ada)");
+      err.statusCode = 404;
+      throw err;
+    }
+    throw e;
   }
-
-  // kembalikan data yang sudah diupdate + applicants count
-  const job = await prisma.job.findUnique({
-    where: { id: jobId },
-    include: { _count: { select: { applications: true } } },
-  });
-
-  return {
-    ...job,
-    applicants: job?._count?.applications ?? 0,
-  };
 };
 
 const deleteJob = async (id) => {
@@ -98,37 +91,36 @@ const deleteJob = async (id) => {
     throw err;
   }
 
-  // optional: pakai deleteMany biar aman
-  const deleted = await prisma.job.deleteMany({ where: { id: jobId } });
-
-  if (deleted.count === 0) {
-    const err = new Error("Lowongan tidak ditemukan (ID tidak ada)");
-    err.statusCode = 404;
-    throw err;
+  try {
+    const deleted = await prisma.lowongan.delete({ where: { id: jobId } });
+    return deleted;
+  } catch (e) {
+    if (e.code === "P2025") {
+      const err = new Error("Lowongan tidak ditemukan (ID tidak ada)");
+      err.statusCode = 404;
+      throw err;
+    }
+    throw e;
   }
-
-  return { id: jobId };
 };
 
 const findJobs = async (filter, skip, limit) => {
-  const jobs = await prisma.job.findMany({
+  const jobs = await prisma.lowongan.findMany({
     where: filter,
     skip,
     take: limit,
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { applications: true } },
-    },
+    orderBy: { created_at: "desc" },
+    include: { _count: { select: { lamaran: true } } },
   });
 
   return jobs.map((j) => ({
     ...j,
-    applicants: j._count?.applications ?? 0,
+    applicants: j._count?.lamaran ?? 0,
   }));
 };
 
 const countJobs = async (filter) => {
-  return prisma.job.count({ where: filter });
+  return prisma.lowongan.count({ where: filter });
 };
 
 module.exports = {

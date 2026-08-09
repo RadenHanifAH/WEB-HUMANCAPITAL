@@ -1,5 +1,6 @@
-// src/modules/jobs/job.controller.js
 const jobService = require("./job.service");
+const { notifyAdmins } = require("../notifications/notify.helper");
+const { NOTIFICATION_TYPES } = require("../notifications/notifications.service");
 
 const getAllJobs = async (req, res) => {
   try {
@@ -9,17 +10,16 @@ const getAllJobs = async (req, res) => {
       department,
       location,
       type,
-      experience,
-      education,
       isPublic = "true",
     } = req.query;
 
     const filter = {};
-    if (department) filter.department = department;
-    if (location) filter.location = { contains: location };
-    if (type) filter.type = type;
-    if (experience) filter.experience = experience;
-    if (education) filter.education = education;
+    
+    // ✅ KEMBALIKAN FILTER LAMA
+    if (department) filter.departemen = department;
+    
+    if (location) filter.lokasi = { contains: location };
+    if (type) filter.jenis = type;
 
     const result = await jobService.getAllJobs(
       filter,
@@ -68,6 +68,14 @@ const createJob = async (req, res) => {
   try {
     const newJob = await jobService.createJob(req.body);
 
+    notifyAdmins({
+      type: NOTIFICATION_TYPES.JOB_CREATED,
+      title: `Lowongan Baru Dibuat - ${newJob.judul}`,
+      message: `Lowongan untuk posisi ${newJob.judul} di departemen ${newJob.departemen || "-"} telah dibuat.`,
+      actionUrl: "jobs",
+      metadata: { jobId: newJob.id },
+    });
+
     res.status(201).json({
       success: true,
       message: "Berhasil membuat lowongan baru",
@@ -82,6 +90,14 @@ const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
     const updatedJob = await jobService.updateJob(id, req.body);
+
+    notifyAdmins({
+      type: NOTIFICATION_TYPES.JOB_UPDATED,
+      title: `Lowongan Diperbarui - ${updatedJob.judul}`,
+      message: `Detail lowongan untuk posisi ${updatedJob.judul} telah diperbarui.`,
+      actionUrl: "jobs",
+      metadata: { jobId: updatedJob.id },
+    });
 
     res.status(200).json({
       success: true,
@@ -100,6 +116,14 @@ const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
     const deletedJob = await jobService.deleteJob(id);
+
+    notifyAdmins({
+      type: NOTIFICATION_TYPES.JOB_DELETED,
+      title: `Lowongan Dihapus - ${deletedJob.judul}`,
+      message: `Lowongan untuk posisi ${deletedJob.judul} telah dihapus dari sistem.`,
+      actionUrl: "jobs",
+      metadata: { jobId: deletedJob.id },
+    });
 
     res.status(200).json({
       success: true,

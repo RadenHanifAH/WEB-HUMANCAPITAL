@@ -2,7 +2,7 @@ import React from "react";
 import { Edit, User as UserIcon } from "lucide-react";
 
 const ProfileSidebar = ({
-  userName,
+  nama, // ✅ UBAH dari userName
   currentPhotoUrl,
   fileInputRef,
   isHovered,
@@ -12,9 +12,9 @@ const ProfileSidebar = ({
   activeMenu,
   setActiveMenu,
   menuItems,
-  FallbackIcon = UserIcon, // ✅ default kalau tidak dikirim
+  FallbackIcon = UserIcon,
 }) => {
-  const Icon = FallbackIcon || UserIcon; // ✅ jaga-jaga kalau null/undefined
+  const Icon = FallbackIcon || UserIcon;
 
   return (
     <>
@@ -28,7 +28,7 @@ const ProfileSidebar = ({
             <img
               className="w-24 h-24 rounded-full object-cover shadow-md transition-all duration-300 group-hover:opacity-70"
               src={currentPhotoUrl}
-              alt={`Foto ${userName}`}
+              alt={`Foto ${nama}`}
             />
           ) : (
             <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center shadow-md transition-all duration-300 group-hover:opacity-70">
@@ -57,7 +57,7 @@ const ProfileSidebar = ({
         </div>
 
         <h2 className="text-xl font-bold text-gray-900">
-          {userName || "Nama Pengguna"}
+          {nama || "Nama Pengguna"}
         </h2>
       </div>
 

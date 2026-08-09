@@ -11,34 +11,12 @@ module.exports = {
 
       const { jobId } = req.body;
       const userId = req.user.id;
+      const role = req.user.role;
 
-      if (!jobId) return res.status(400).json({ message: "Job ID wajib dikirim" });
+      if (!jobId)
+        return res.status(400).json({ message: "Job ID wajib dikirim" });
 
-      // ✅ ambil file dari memory (buffer)
-      const cvFile = req.files?.["cv"]?.[0] || null;
-      const portfolioFile = req.files?.["portfolio"]?.[0] || null;
-
-      if (!cvFile) {
-        return res.status(400).json({ message: "CV wajib diupload (PDF)" });
-      }
-
-      const cvPayload = {
-        data: cvFile.buffer,
-        name: cvFile.originalname,
-        mime: cvFile.mimetype,
-        size: cvFile.size,
-      };
-
-      const portfolioPayload = portfolioFile
-        ? {
-            data: portfolioFile.buffer,
-            name: portfolioFile.originalname,
-            mime: portfolioFile.mimetype,
-            size: portfolioFile.size,
-          }
-        : null;
-
-      const result = await service.applyJob(userId, jobId, cvPayload, portfolioPayload);
+      const result = await service.applyJob(userId, jobId, role);
 
       return res.status(201).json({
         message: "Lamaran berhasil dikirim",
@@ -54,6 +32,13 @@ module.exports = {
         });
       }
 
+      if (err.code === "PROFILE_INCOMPLETE") {
+        return res.status(400).json({
+          message: err.message,
+          code: "PROFILE_INCOMPLETE",
+        });
+      }
+
       if (err.code === "CV_REQUIRED") {
         return res.status(400).json({ message: err.message });
       }
@@ -66,6 +51,65 @@ module.exports = {
   },
 
   // =========================
+  // CEK KELENGKAPAN PROFIL SEBELUM MELAMAR
+  // GET /api/applications/profile-readiness
+  // =========================
+  async checkProfileReadiness(req, res) {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+      const data = await service.checkProfileReadiness(
+        req.user.id,
+        req.user.role,
+      );
+
+      return res.json({
+        message: "Status kelengkapan profil",
+        data,
+      });
+    } catch (err) {
+      console.error("checkProfileReadiness Error:", err);
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // =========================
+  // CHECK APPLICATION
+  // GET /api/applications/check/:jobId
+  // =========================
+  async checkApplication(req, res) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const userId = req.user.id;
+      const jobId = Number(req.params.jobId);
+
+      const application = await service.checkUserApplication(userId, jobId);
+
+      if (!application) {
+        return res.json({ alreadyApplied: false });
+      }
+
+      // ⚠️ FIX: nama field disesuaikan persis kolom Prisma
+      // (tahap, tanggal_melamar), bukan lagi stage/appliedAt.
+      return res.json({
+        alreadyApplied: true,
+        application: {
+          id: application.id,
+          status: application.status,
+          tahap: application.tahap,
+          tanggal_melamar: application.tanggal_melamar,
+        },
+      });
+    } catch (err) {
+      console.error("checkApplication Error:", err);
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // =========================
   // ADMIN GET ALL
   // GET /api/applications
   // =========================
@@ -73,33 +117,71 @@ module.exports = {
     try {
       const applications = await service.getAllApplications();
 
-      const formattedApplications = applications.map((app) => ({
-        id: app.id,
+      // ⚠️ FIX: seluruh key sekarang persis nama kolom/relasi Prisma.
+      // Tidak ada lagi userId/name/avatar/position/stage/score/appliedDate.
+      const formattedApplications = applications.map((app) => {
+        return {
+          id: app.id,
+          pengguna_id: app.pengguna_id,
+          lowongan_id: app.lowongan_id,
 
-        name: app.user.profile?.fullName || app.user.name,
-        email: app.user.email,
-        experience: app.user.experience,
-        avatar: app.user.profile?.fotoProfile,
+          status: app.status,
+          tahap: app.tahap,
+          skor: app.skor,
+          tanggal_melamar: app.tanggal_melamar,
 
-        position: app.job.title,
+          nama_cv: app.nama_cv || null,
+          nama_portofolio: app.nama_portofolio || null,
 
-        status: app.status,
-        stage: app.stage,
-        score: app.score,
-        appliedDate: app.appliedAt,
+          cvDownloadUrl: app.nama_cv
+            ? `/api/applications/${app.id}/file?type=cv`
+            : null,
 
-        // ✅ endpoint download
-        cvName: app.cvName || null,
-        portfolioName: app.portfolioName || null,
-        cvDownloadUrl: app.cvName ? `/api/applications/${app.id}/file?type=cv` : null,
-        portfolioDownloadUrl: app.portfolioName
-          ? `/api/applications/${app.id}/file?type=portfolio`
-          : null,
+          portfolioDownloadUrl: app.nama_portofolio
+            ? `/api/applications/${app.id}/file?type=portfolio`
+            : null,
 
-        profile: app.user.profile || null,
-      }));
+          // ✅ Relasi pengguna & lowongan dikirim apa adanya (nested),
+          // sesuai bentuk relasi di schema.prisma.
+          pengguna: app.pengguna
+            ? {
+                id: app.pengguna.id,
+                nama: app.pengguna.nama,
+                email: app.pengguna.email,
+                profil: app.pengguna.profil || null,
+              }
+            : null,
 
-      return res.json({ message: "Daftar lamaran", data: formattedApplications });
+          lowongan: app.lowongan
+            ? {
+                id: app.lowongan.id,
+                judul: app.lowongan.judul,
+              }
+            : null,
+
+          // ✅ Relasi turunan pengguna, nama field persis Prisma
+          pengalaman_kerja: app.pengguna?.pengalaman_kerja || [],
+          pendidikan: app.pengguna?.pendidikan || [],
+          organisasi: app.pengguna?.organisasi || [],
+          sertifikat: app.pengguna?.sertifikat || [],
+          keahlian_pengguna: app.pengguna?.keahlian_pengguna || [],
+
+          // ✅ Jadwal wawancara milik lamaran ini, field persis Prisma
+          jadwal_wawancara: (app.jadwal_wawancara || []).map((s) => ({
+            id: s.id,
+            jenis: s.jenis,
+            tanggal_waktu: s.tanggal_waktu,
+            status: s.status,
+            sudah_selesai: s.sudah_selesai,
+            status_kehadiran: s.status_kehadiran,
+          })),
+        };
+      });
+
+      return res.json({
+        message: "Daftar lamaran",
+        data: formattedApplications,
+      });
     } catch (err) {
       console.error("GetAll Error:", err);
       return res.status(500).json({ error: err.message });
@@ -116,21 +198,23 @@ module.exports = {
       const { type = "cv" } = req.query;
 
       const app = await service.getApplicationFileById(id);
-      if (!app) return res.status(404).json({ message: "Lamaran tidak ditemukan" });
+      if (!app)
+        return res.status(404).json({ message: "Lamaran tidak ditemukan" });
 
       let base64, name, mime;
 
       if (type === "portfolio") {
-        base64 = app.portfolioData;
-        name = app.portfolioName || "portfolio.pdf";
-        mime = app.portfolioMime || "application/pdf";
+        base64 = app.data_portofolio;
+        name = app.nama_portofolio || "portfolio.pdf";
+        mime = app.mime_portofolio || "application/pdf";
       } else {
-        base64 = app.cvData;
-        name = app.cvName || "cv.pdf";
-        mime = app.cvMime || "application/pdf";
+        base64 = app.data_cv;
+        name = app.nama_cv || "cv.pdf";
+        mime = app.mime_cv || "application/pdf";
       }
 
-      if (!base64) return res.status(404).json({ message: `File ${type} tidak tersedia` });
+      if (!base64)
+        return res.status(404).json({ message: `File ${type} tidak tersedia` });
 
       const buffer = Buffer.from(base64, "base64");
 
@@ -152,12 +236,13 @@ module.exports = {
       const { status } = req.body;
       const { id } = req.params;
 
-      if (!status) return res.status(400).json({ message: "status wajib dikirim" });
+      if (!status)
+        return res.status(400).json({ message: "status wajib dikirim" });
 
       const updated = await service.updateApplicationStatus(id, status);
 
       return res.json({
-        message: "Status & stage lamaran diperbarui",
+        message: "Status & tahap lamaran diperbarui",
         data: updated,
       });
     } catch (err) {

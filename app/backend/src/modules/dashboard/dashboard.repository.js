@@ -17,51 +17,73 @@ function endOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
-// ✅ Normalisasi stage/status -> pipeline FE
+// ✅ Normalisasi tahap/status -> pipeline FE
 function normalizeStageTitle(app) {
-  const stage = String(app?.stage || "")
+  const stage = String(app?.tahap || "")
     .trim()
     .toLowerCase();
   const status = String(app?.status || "")
     .trim()
     .toLowerCase();
 
-  // accepted/rejected jangan masuk pipeline proses
+  // accepted/rejected (lama & baru) jangan masuk pipeline proses
   if (
     status.includes("accept") ||
     stage.includes("accept") ||
     status.includes("hired") ||
-    stage.includes("hired")
+    stage.includes("hired") ||
+    status.includes("diterima") ||
+    stage.includes("diterima")
   )
     return null;
-  if (status.includes("reject") || stage.includes("reject")) return null;
+  if (
+    status.includes("reject") ||
+    stage.includes("reject") ||
+    status.includes("ditolak") ||
+    stage.includes("ditolak")
+  )
+    return null;
 
   if (
     stage.includes("screan") ||
     stage.includes("screen") ||
-    status.includes("under review")
+    status.includes("under review") ||
+    status.includes("screan") ||
+    status.includes("screen")
   )
-    return "Under Review";
+    return "Screaning";
+
+  // ✅ Interview HC (lama) & Interview Pertama (baru)
   if (
     stage.includes("interview hc") ||
     stage.includes("interviewhc") ||
-    status.includes("interview hc")
+    stage.includes("interview pertama") ||
+    status.includes("interview hc") ||
+    status.includes("interview pertama")
   )
-    return "Interview HC";
+    return "Interview Pertama";
+
+  // ✅ Psikotes / Psikotes-Technical Test
   if (
     stage.includes("psikotes") ||
     stage.includes("psycho") ||
-    status.includes("psikotes")
+    stage.includes("technical") ||
+    status.includes("psikotes") ||
+    status.includes("technical")
   )
     return "Psikotes";
+
+  // ✅ Final Interview (lama) & Interview Kedua (baru)
   if (
     stage.includes("final interview") ||
     stage.includes("finalinterview") ||
-    status.includes("final interview")
+    stage.includes("interview kedua") ||
+    status.includes("final interview") ||
+    status.includes("interview kedua")
   )
-    return "Final Interview";
+    return "Interview Kedua";
 
-  return "Under Review";
+  return "Screaning";
 }
 
 module.exports = {
@@ -71,65 +93,42 @@ module.exports = {
   endOfMonth,
   normalizeStageTitle,
 
-  // JOB
+  // LOWONGAN
   countJobsTotal() {
-    return prisma.job.count();
+    return prisma.lowongan.count();
   },
   countJobsActive() {
-    return prisma.job.count({ where: { status: "active" } });
+    return prisma.lowongan.count({ where: { status: "active" } });
   },
 
-  // APPLICATION
+  // LAMARAN
   countAllApplications() {
-    return prisma.application.count();
+    return prisma.lamaran.count();
   },
   countApplicationsBetween(start, end) {
-    return prisma.application.count({
-      where: { appliedAt: { gte: start, lte: end } },
-    });
-  },
-  countAcceptedBetween(start, end) {
-    return prisma.application.count({
-      where: {
-        appliedAt: {
-          gte: start,
-          lte: end,
-        },
-        OR: [
-          { status: { contains: "accept" } },
-          { stage: { contains: "accept" } },
-          { status: { contains: "hired" } },
-          { stage: { contains: "hired" } },
-        ],
-      },
+    return prisma.lamaran.count({
+      where: { tanggal_melamar: { gte: start, lte: end } },
     });
   },
   findLatestApplicationsToday(start, end, limit = 8) {
-    return prisma.application.findMany({
-      where: { appliedAt: { gte: start, lte: end } },
-      orderBy: { appliedAt: "desc" },
+    return prisma.lamaran.findMany({
+      where: { tanggal_melamar: { gte: start, lte: end } },
+      orderBy: { tanggal_melamar: "desc" },
       take: limit,
       include: {
-        user: { include: { profile: true } },
-        job: true,
+        pengguna: { include: { profil: true } },
+        lowongan: true,
       },
     });
   },
 
   findAllApplicationsForPipeline() {
-    return prisma.application.findMany({
+    return prisma.lamaran.findMany({
       select: {
         id: true,
         status: true,
-        stage: true,
+        tahap: true,
       },
-    });
-  },
-
-  // REPORTS (opsional)
-  findLatestReport() {
-    return prisma.reports.findFirst({
-      orderBy: { createdAt: "desc" },
     });
   },
 };

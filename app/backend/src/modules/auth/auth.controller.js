@@ -10,43 +10,32 @@ const baseCookieOptions = {
   path: "/",
 };
 
+const LONG_LIVED_MAX_AGE = 10 * 365 * 24 * 60 * 60 * 1000;
+
 const setCookies = (res, accessToken, refreshToken) => {
   if (accessToken) {
     res.cookie("accessToken", accessToken, {
       ...baseCookieOptions,
-      maxAge: 2 * 60 * 60 * 1000,
+      maxAge: LONG_LIVED_MAX_AGE,
     });
   }
-
   if (refreshToken) {
     res.cookie("refreshToken", refreshToken, {
       ...baseCookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: LONG_LIVED_MAX_AGE,
     });
   }
 };
 
-/* =========================================================
-   ✅ OTP REGISTER FLOW (FAST)
-   - Endpoint /register hanya menyimpan OTP + payload (cepat)
-   - Pengiriman email OTP dilakukan di BACKGROUND dari service
-   ========================================================= */
+// ⚠️ FIX: body sekarang dibaca dengan nama kolom Prisma (nama, nik, nomor_hp)
 const register = async (req, res) => {
   try {
-    const { name, email, password, NIK, nomorHp } = req.body;
-
-    const result = await authService.requestRegisterOtp({
-      name,
-      email,
-      password,
-      NIK,
-      nomorHp,
-    });
-
+    const { nama, email, password, nik, nomor_hp } = req.body;
+    const result = await authService.requestRegisterOtp({ nama, email, password, nik, nomor_hp });
     return res.status(200).json({
       success: true,
       message: "OTP sedang dikirim. Silakan cek email kamu (dan folder spam).",
-      data: result, // { email }
+      data: result,
     });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
@@ -56,12 +45,7 @@ const register = async (req, res) => {
 const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
-
-    const { user } = await authService.verifyRegisterOtpAndCreateUser({
-      email,
-      otp,
-    });
-
+    const { user } = await authService.verifyRegisterOtpAndCreateUser({ email, otp });
     return res.status(200).json({
       success: true,
       message: "Email berhasil diverifikasi. Akun berhasil dibuat. Silakan login.",
@@ -75,9 +59,7 @@ const verifyOtp = async (req, res) => {
 const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
-
     await authService.resendRegisterOtp(email);
-
     return res.status(200).json({
       success: true,
       message: "OTP baru sudah dikirim ke email.",
@@ -88,17 +70,10 @@ const resendOtp = async (req, res) => {
   }
 };
 
-/* =========================================================
-   ✅ LOGIN FLOW
-   ========================================================= */
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    const { user, accessToken, refreshToken } = await authService.login(
-      email,
-      password
-    );
+    const { user, accessToken, refreshToken } = await authService.login(email, password);
 
     setCookies(res, accessToken, refreshToken);
 
@@ -106,6 +81,7 @@ const login = async (req, res) => {
       success: true,
       message: "Login Success",
       user,
+      accessToken,
     });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
@@ -115,16 +91,10 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
-
     await authService.logout(refreshToken);
-
     res.clearCookie("accessToken", baseCookieOptions);
     res.clearCookie("refreshToken", baseCookieOptions);
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged Out Successfully",
-    });
+    return res.status(200).json({ success: true, message: "Logged Out Successfully" });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -133,66 +103,48 @@ const logout = async (req, res) => {
 const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
-
     const result = await authService.refreshAccessToken(refreshToken);
     const accessToken = result?.accessToken;
 
     if (!accessToken) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Failed to refresh access token" });
+      return res.status(400).json({ success: false, message: "Failed to refresh access token" });
     }
 
     res.cookie("accessToken", accessToken, {
       ...baseCookieOptions,
-      maxAge: 15 * 60 * 1000,
+      maxAge: LONG_LIVED_MAX_AGE,
     });
 
-    return res
-      .status(200)
-      .json({ success: true, message: "Token refreshed successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully",
+      accessToken,
+    });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
 
-/* =========================================================
-   ✅ PROFILE
-   ========================================================= */
 const getProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId)
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
     const profile = await authService.getProfile(userId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Profile fetched successfully",
-      data: profile,
-    });
+    return res.status(200).json({ success: true, message: "Profile fetched successfully", data: profile });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
 
+// ⚠️ FIX: `data.tanggalLahir` -> `data.tanggal_lahir` (nama kolom Prisma)
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId)
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
     const data = req.body;
-    if (data.tanggalLahir) data.tanggalLahir = new Date(data.tanggalLahir);
-
+    if (data.tanggal_lahir) data.tanggal_lahir = new Date(data.tanggal_lahir);
     const updatedProfile = await authService.updateProfile(userId, data);
-
-    return res.status(200).json({
-      success: true,
-      message: "Profile updated successfully",
-      data: updatedProfile,
-    });
+    return res.status(200).json({ success: true, message: "Profile updated successfully", data: updatedProfile });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -201,32 +153,19 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId)
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
     const { currentPassword, newPassword } = req.body;
-
-    const result = await authService.changePassword(
-      userId,
-      currentPassword,
-      newPassword
-    );
-
+    const result = await authService.changePassword(userId, currentPassword, newPassword);
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
 
-/* =========================================================
-   ✅ RESET PASSWORD
-   ========================================================= */
 const requestReset = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email)
-      return res.status(400).json({ success: false, message: "Email wajib diisi" });
-
+    if (!email) return res.status(400).json({ success: false, message: "Email wajib diisi" });
     const result = await authService.requestPasswordReset(email);
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
@@ -240,14 +179,9 @@ const requestReset = async (req, res) => {
 const confirmReset = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
-
     if (!token || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Token & password baru wajib diisi",
-      });
+      return res.status(400).json({ success: false, message: "Token & password baru wajib diisi" });
     }
-
     const result = await authService.confirmPasswordReset(token, newPassword);
     return res.status(200).json({ success: true, ...result });
   } catch (error) {

@@ -1,7 +1,6 @@
-import React, { Fragment, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   Eye,
-  Download,
   Calendar,
   User,
   Clock,
@@ -9,48 +8,118 @@ import {
   AlertCircle,
   TrendingUp,
   XCircle,
-  ChevronDown,
-  MoreHorizontal,
+  Award,
+  CalendarX,
 } from "lucide-react";
-import { Listbox, Transition } from "@headlessui/react";
-import axiosInstance from "../../../../api/axiosInstance";
-import { stageFlow, blockedScoreStages, API_APPLICANTS } from "../utils/constants";
 import { formatDate, getProgress } from "../utils/helpers";
 
-const ApplicantTable = ({
-  loading,
-  applicants,
-  onDetail,
-  onDownloadCV,
-  onDownloadPortofolio,
-  setApplicants,
-  onOpenStatusModal,
-}) => {
+// ✅ Map dari label tahap (yang dipakai di UI) ke `jenis` mentah yang
+// tersimpan di kolom jadwal_wawancara.jenis (enum jenis_jadwal_wawancara)
+const STAGE_TO_SCHEDULE_TYPE = {
+  "Interview Pertama": "InterviewHC",
+  Psikotes: "Psikotes",
+  "Interview Kedua": "FinalInterview",
+};
+
+// Stage yang butuh jadwal (di luar ini, catatan tidak ditampilkan)
+const SCHEDULABLE_STAGES = Object.keys(STAGE_TO_SCHEDULE_TYPE);
+
+const ApplicantTable = ({ loading, applicants, onDetail }) => {
   const normalizeStatus = (raw) => {
     const s = String(raw || "").trim();
     const low = s.toLowerCase();
 
-    if (low === "screaning" || low === "screening" || low === "under-review" || low === "under review" || low === "under_review")
+    if (
+      low === "screaning" ||
+      low === "screening" ||
+      low === "under-review" ||
+      low === "under review" ||
+      low === "under_review"
+    )
       return "Screaning";
 
-    if (low === "interview hc" || low === "interview-hc" || low === "interviewhc")
-      return "Interview HC";
+    if (
+      low === "interview hc" ||
+      low === "interview-hc" ||
+      low === "interviewhc" ||
+      low === "interview pertama" ||
+      low === "interview-pertama" ||
+      low === "interviewpertama"
+    )
+      return "Interview Pertama";
 
     if (
       low === "psikotes" ||
-      low === "psychotest" ||
-      low === "psycho test" ||
+      low === "psikotes/technical test" ||
       low === "technical test" ||
-      low === "psikotes/technical test"
-    ) return "Psikotes/Technical Test";
+      low === "psychotest" ||
+      low === "psycho test"
+    )
+      return "Psikotes";
 
-    if (low === "final interview" || low === "final-interview" || low === "finalinterview")
-      return "Final Interview";
+    if (
+      low === "final interview" ||
+      low === "final-interview" ||
+      low === "finalinterview" ||
+      low === "interview kedua" ||
+      low === "interview-kedua" ||
+      low === "interviewkedua"
+    )
+      return "Interview Kedua";
 
-    if (low === "accepted" || low === "accept") return "Accepted";
-    if (low.startsWith("rejected") || low === "reject") return "Rejected";
+    if (
+      low === "final result" ||
+      low === "final-result" ||
+      low === "offering/final result" ||
+      low === "offering-final-result" ||
+      low.includes("offering")
+    )
+      return "Final Result";
+
+    if (low === "accepted" || low === "accept" || low === "diterima")
+      return "Diterima";
+    if (low.startsWith("rejected") || low === "reject" || low.startsWith("ditolak"))
+      return "Ditolak";
 
     return s;
+  };
+
+  // =====================================================
+  // ✅ Cari jadwal terbaru untuk stage tertentu, cocokkan lewat field
+  // `jenis` mentah (InterviewHC/Psikotes/FinalInterview), abaikan jadwal
+  // yang sudah dibatalkan ("canceled").
+  // =====================================================
+  const findScheduleForStage = (applicant, normalizedStage) => {
+    const scheduleType = STAGE_TO_SCHEDULE_TYPE[normalizedStage];
+    if (!scheduleType) return null;
+
+    // ✅ field mentah dari application.controller.js getAll: jadwal_wawancara
+    const list = Array.isArray(applicant?.jadwal_wawancara)
+      ? applicant.jadwal_wawancara
+      : [];
+
+    // list sudah diurutkan terbaru dulu dari backend (orderBy created_at desc)
+    return (
+      list.find(
+        (s) => s?.jenis === scheduleType && s?.status !== "canceled",
+      ) || null
+    );
+  };
+
+  // Mengembalikan { text, scheduled } atau null kalau tidak perlu ditampilkan
+  const getScheduleNote = (applicant, normalizedStage) => {
+    if (!SCHEDULABLE_STAGES.includes(normalizedStage)) return null;
+
+    const schedule = findScheduleForStage(applicant, normalizedStage);
+
+    if (!schedule || !schedule.tanggal_waktu) {
+      return { text: "Belum dijadwalkan", scheduled: false };
+    }
+
+    return {
+      text: `Terjadwal: ${formatDate(schedule.tanggal_waktu)}`,
+      scheduled: true,
+    };
   };
 
   const getStatusIcon = (statusRaw) => {
@@ -58,20 +127,22 @@ const ApplicantTable = ({
 
     const icons = {
       Screaning: Clock,
-      "Interview HC": User,
-      "Psikotes/Technical Test": AlertCircle,
-      "Final Interview": TrendingUp,
-      Accepted: Check,
-      Rejected: XCircle,
+      "Interview Pertama": User,
+      Psikotes: AlertCircle,
+      "Interview Kedua": TrendingUp,
+      "Final Result": Award,
+      Diterima: Check,
+      Ditolak: XCircle,
     };
 
     const colors = {
       Screaning: "text-orange-500",
-      "Interview HC": "text-blue-500",
-      "Psikotes/Technical Test": "text-purple-500",
-      "Final Interview": "text-green-500",
-      Accepted: "text-green-600",
-      Rejected: "text-red-600",
+      "Interview Pertama": "text-blue-500",
+      Psikotes: "text-purple-500",
+      "Interview Kedua": "text-green-500",
+      "Final Result": "text-teal-600",
+      Diterima: "text-green-600",
+      Ditolak: "text-red-600",
     };
 
     const Icon = icons[status] || Clock;
@@ -83,41 +154,24 @@ const ApplicantTable = ({
     const status = normalizeStatus(statusRaw);
     const colors = {
       Screaning: "bg-orange-100 text-orange-600",
-      "Interview HC": "bg-blue-100 text-blue-600",
-      "Psikotes/Technical Test": "bg-purple-100 text-purple-600",
-      "Final Interview": "bg-green-100 text-green-600",
-      Accepted: "bg-green-200 text-green-700",
-      Rejected: "bg-red-100 text-red-700",
+      "Interview Pertama": "bg-blue-100 text-blue-600",
+      Psikotes: "bg-purple-100 text-purple-600",
+      "Interview Kedua": "bg-green-100 text-green-600",
+      "Final Result": "bg-teal-100 text-teal-600",
+      Diterima: "bg-green-200 text-green-700",
+      Ditolak: "bg-red-100 text-red-700",
     };
     return colors[status] || "bg-gray-100 text-gray-600";
   };
 
-  const isFinalStatus = (statusRaw) => {
+  const isScoreAvailable = (statusRaw) => {
     const status = normalizeStatus(statusRaw);
-    return status === "Accepted" || status.startsWith("Rejected");
+    return status !== "Screaning" && status !== "Interview Pertama";
   };
 
-  const isScoreBlocked = (statusRaw) => {
-    const status = normalizeStatus(statusRaw);
-    const normalizedBlocked = blockedScoreStages.map(normalizeStatus);
-    return normalizedBlocked.includes(status);
-  };
-
-  const handleScoreChange = async (id, newScore) => {
-    const val = newScore === "" ? null : parseInt(newScore, 10);
-
-    // optimistik UI
-    setApplicants((prev) => prev.map((a) => (a.id === id ? { ...a, score: val } : a)));
-
-    try {
-      await axiosInstance.put(`${API_APPLICANTS}/${id}/score`, {
-        score: newScore === "" ? null : Number(newScore),
-      });
-    } catch (e) {
-      console.error("Gagal update score:", e);
-    }
-  };
-
+  // ✅ `a` = satu item dari response application.controller.js `getAll`:
+  // { id, status, tahap, skor, tanggal_melamar, pengguna: { nama, email, profil },
+  //   lowongan: { judul }, jadwal_wawancara: [...] }
   const normalizedApplicants = useMemo(() => {
     return (applicants || []).map((a) => ({
       ...a,
@@ -147,16 +201,25 @@ const ApplicantTable = ({
       </thead>
 
       <tbody className="divide-y divide-gray-200">
-        {normalizedApplicants.map((a, idx) => {
+        {normalizedApplicants.map((a) => {
           const st = a._statusNormalized;
+          const scheduleNote = getScheduleNote(a, st);
+
+          // ✅ Nama, email, foto — dari relasi `pengguna` (raw Prisma)
+          const applicantName = a.pengguna?.nama || "-";
+          const applicantEmail = a.pengguna?.email || "-";
+          const applicantPhoto = a.pengguna?.profil?.foto_profil || null;
+
+          // ✅ Posisi — dari relasi `lowongan.judul`
+          const positionText = a.lowongan?.judul || "-";
 
           return (
             <tr key={a.id} className="hover:bg-gray-50 transition-colors">
               <td className="p-4">
                 <div className="flex items-center gap-3">
-                  {a.avatar ? (
+                  {applicantPhoto ? (
                     <img
-                      src={a.avatar}
+                      src={applicantPhoto}
                       alt=""
                       className="w-10 h-10 rounded-full object-cover border"
                     />
@@ -166,72 +229,46 @@ const ApplicantTable = ({
                     </div>
                   )}
                   <div>
-                    <p className="font-semibold text-sm">{a.name}</p>
-                    <p className="text-xs text-gray-500">{a.email}</p>
+                    <p className="font-semibold text-sm">{applicantName}</p>
+                    <p className="text-xs text-gray-500">{applicantEmail}</p>
                   </div>
                 </div>
               </td>
 
-              <td className="p-4 text-sm font-medium">{a.position}</td>
+              <td className="p-4 text-sm font-medium">{positionText}</td>
 
               <td className="p-4 text-center">
-                <Listbox
-                  value={st}
-                  onChange={(val) => onOpenStatusModal(a, val)}
-                  disabled={isFinalStatus(st)}
-                >
-                  <div className="relative inline-block w-48">
-                    <Listbox.Button
-                      className={`flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-semibold ${getBadgeColor(st)}`}
+                <div className="flex flex-col items-center gap-1">
+                  <span
+                    className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold w-48 mx-auto ${getBadgeColor(st)}`}
+                  >
+                    {getStatusIcon(st)}
+                    <span>{st}</span>
+                  </span>
+
+                  {/* ✅ catatan jadwal di bawah badge tahap seleksi */}
+                  {scheduleNote && (
+                    <span
+                      className={`inline-flex items-center gap-1 text-[11px] mt-0.5 ${
+                        scheduleNote.scheduled
+                          ? "text-gray-400"
+                          : "text-red-500 font-medium"
+                      }`}
                     >
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(st)}
-                        <span>{st}</span>
-                      </div>
-                      <ChevronDown className="h-3 w-3 opacity-60" />
-                    </Listbox.Button>
-
-                    <Transition as={Fragment} leave="transition ease-in duration-100 opacity-0">
-                      <Listbox.Options className="absolute mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 max-h-60 overflow-auto focus:outline-none text-left">
-                        {stageFlow.map((step) => (
-                          <Listbox.Option
-                            key={step.stage}
-                            value={step.stage}
-                            className={({ active }) =>
-                              `px-3 py-2 cursor-pointer text-xs ${
-                                active ? "bg-sky-50 text-sky-700" : "text-gray-700"
-                              }`
-                            }
-                          >
-                            {step.stage}
-                          </Listbox.Option>
-                        ))}
-
-                        <div className="border-t border-gray-100 my-1" />
-
-                        <Listbox.Option
-                          value="Accepted"
-                          className="px-3 py-2 cursor-pointer text-xs font-bold text-green-600 hover:bg-green-50"
-                        >
-                          TERIMA
-                        </Listbox.Option>
-
-                        <Listbox.Option
-                          value="Rejected"
-                          className="px-3 py-2 cursor-pointer text-xs font-bold text-red-600 hover:bg-red-50"
-                        >
-                          TOLAK
-                        </Listbox.Option>
-                      </Listbox.Options>
-                    </Transition>
-                  </div>
-                </Listbox>
+                      
+                      {scheduleNote.text}
+                    </span>
+                  )}
+                </div>
               </td>
 
               <td className="p-4">
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="h-1.5 bg-gray-100 rounded-full w-20 overflow-hidden">
-                    <div className="h-full bg-sky-500" style={{ width: `${getProgress(st)}%` }} />
+                    <div
+                      className="h-full bg-sky-500"
+                      style={{ width: `${getProgress(st)}%` }}
+                    />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500">
                     {getProgress(st)}%
@@ -240,72 +277,37 @@ const ApplicantTable = ({
               </td>
 
               <td className="p-4 text-center">
-                {!isScoreBlocked(st) ? (
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={a.score ?? ""}
-                    disabled={st !== "Psikotes/Technical Test" && a.score !== null}
-                    onChange={(e) => handleScoreChange(a.id, e.target.value)}
-                    className={`w-14 text-center border border-gray-400 rounded-md p-1 text-xs transition-all ${
-                      st !== "Psikotes/Technical Test" && a.score !== null
-                        ? "bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200"
-                        : "focus:ring-2 focus:ring-sky-200 outline-none"
+                {isScoreAvailable(st) ? (
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[3rem] px-2 py-1 rounded-md text-xs font-bold ${
+                      a.skor !== null && a.skor !== undefined
+                        ? "bg-sky-50 text-sky-700 border border-sky-200"
+                        : "bg-gray-50 text-gray-400 border border-gray-200"
                     }`}
-                  />
+                    title="Diambil otomatis dari hasil Psikotest"
+                  >
+                    {a.skor !== null && a.skor !== undefined ? a.skor : "-"}
+                  </span>
                 ) : (
-                  <span className="text-xs text-gray-400 italic">Locked</span>
+                  <span className="text-xs text-gray-400 italic">Belum Psikotes</span>
                 )}
               </td>
 
               <td className="p-4 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5" />
-                  {formatDate(a.appliedDate)}
+                  {formatDate(a.tanggal_melamar)}
                 </div>
               </td>
 
-              <td className="p-4 text-right relative">
-                <Listbox>
-                  <div className="relative inline-block">
-                    <Listbox.Button className="p-1 rounded hover:bg-gray-100">
-                      <MoreHorizontal className="h-5 w-5 text-gray-500" />
-                    </Listbox.Button>
-
-                    <Transition as={Fragment} leave="transition duration-100 opacity-0">
-                      <Listbox.Options
-                        className={`absolute right-0 w-40 bg-white border border-gray-300 rounded-lg shadow-xl z-50 focus:outline-none ${
-                          idx >= normalizedApplicants.length - 2 ? "bottom-full mb-1" : "mt-1"
-                        }`}
-                      >
-                        <Listbox.Option
-                          value="detail"
-                          onClick={() => onDetail(a)}
-                          className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                        >
-                          <Eye className="h-4 w-4" /> Lihat Detail
-                        </Listbox.Option>
-
-                        <Listbox.Option
-                          value="cv"
-                          onClick={() => onDownloadCV(a)}
-                          className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                        >
-                          <Download className="h-4 w-4" /> Download CV
-                        </Listbox.Option>
-
-                        <Listbox.Option
-                          value="portofolio"
-                          onClick={() => onDownloadPortofolio(a)}
-                          className="px-3 py-2 text-sm rounded-md flex items-center gap-2 cursor-pointer hover:bg-sky-100 hover:text-sky-700"
-                        >
-                          <Download className="h-4 w-4" /> Portofolio
-                        </Listbox.Option>
-                      </Listbox.Options>
-                    </Transition>
-                  </div>
-                </Listbox>
+              <td className="p-4 text-right">
+                <button
+                  onClick={() => onDetail(a)}
+                  className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-sky-100 hover:text-sky-600 transition-colors"
+                  title="Lihat Detail"
+                >
+                  <Eye className="h-5 w-5" />
+                </button>
               </td>
             </tr>
           );

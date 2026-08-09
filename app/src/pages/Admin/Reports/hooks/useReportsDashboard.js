@@ -1,30 +1,44 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import axiosInstance from "../../../../api/axiosInstance";
 import { API_REPORTS, chartColors20, periodOptions } from "../utils/constants";
+import { toISORange } from "../utils/dateUtils";
 
-const LS_KEYS = { trend: "reports_period_trend" };
-const defaultMonthly = { id: "monthly", label: "Bulanan" };
-
-const findPeriodById = (id) => {
-  const found = periodOptions.find((p) => p.id === id);
-  return found || defaultMonthly;
+const LS_KEYS = {
+  granularity: "reports_trend_granularity",
+  range: "reports_trend_range",
 };
 
-const getInitialTrendPeriod = () => {
+const defaultGranularity = periodOptions.find((g) => g.id === "monthly");
+
+const getInitialGranularity = () => {
   try {
-    const saved = localStorage.getItem(LS_KEYS.trend);
-    if (saved) return findPeriodById(saved);
+    const saved = localStorage.getItem(LS_KEYS.granularity);
+    const found = periodOptions.find((g) => g.id === saved);
+    if (found) return found;
   } catch (e) {
     void e;
   }
-  return defaultMonthly;
+  return defaultGranularity;
+};
+
+const getInitialRange = () => {
+  try {
+    const saved = localStorage.getItem(LS_KEYS.range);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    void e;
+  }
+  return null; // null = belum ada custom range, pakai mode default
 };
 
 export function useReportsDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  const [trendPeriod, setTrendPeriod] = useState(() => getInitialTrendPeriod());
+  // trendPeriod di sini = granularitas aktif (harian/mingguan/bulanan/tahunan)
+  const [trendPeriod, setTrendPeriod] = useState(() => getInitialGranularity());
+  // dateRange = { start: "2024-01", end: "2025-11" } atau null jika belum di-custom
+  const [dateRange, setDateRange] = useState(() => getInitialRange());
 
   const [trendData, setTrendData] = useState({ labels: [], applications: [] });
   const [acceptanceData, setAcceptanceData] = useState({ labels: [], values: [] });
@@ -33,21 +47,40 @@ export function useReportsDashboard() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEYS.trend, trendPeriod?.id || "monthly");
+      localStorage.setItem(LS_KEYS.granularity, trendPeriod?.id || "monthly");
     } catch (e) {
       void e;
     }
   }, [trendPeriod?.id]);
 
+  useEffect(() => {
+    try {
+      if (dateRange) {
+        localStorage.setItem(LS_KEYS.range, JSON.stringify(dateRange));
+      } else {
+        localStorage.removeItem(LS_KEYS.range);
+      }
+    } catch (e) {
+      void e;
+    }
+  }, [dateRange]);
+
+  const applyRange = useCallback((range) => setDateRange(range), []);
+  const clearRange = useCallback(() => setDateRange(null), []);
+
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
 
-      const trendId = trendPeriod?.id || "monthly";
+      const granularityId = trendPeriod?.id || "monthly";
 
-      // ✅ axiosInstance: baseURL sudah /api, jadi cukup endpoint
+      // Susun params untuk trend chart: mode custom (rentang tanggal) vs mode biasa
+      const trendParams = dateRange?.start && dateRange?.end
+        ? { ...toISORange(dateRange.start, dateRange.end), granularity: granularityId }
+        : { period: granularityId };
+
       const [resTrend, resStatus, resPos] = await Promise.all([
-        axiosInstance.get(`${API_REPORTS}/charts`, { params: { period: trendId } }),
+        axiosInstance.get(`${API_REPORTS}/charts`, { params: trendParams }),
         axiosInstance.get(`${API_REPORTS}/charts`, { params: { period: "monthly" } }),
         axiosInstance.get(`${API_REPORTS}/metrics`, { params: { period: "monthly" } }),
       ]);
@@ -68,9 +101,7 @@ export function useReportsDashboard() {
       const safeList = Array.isArray(positionDetails) ? positionDetails : [];
 
       const colors =
-        Array.isArray(chartColors20) && chartColors20.length
-          ? chartColors20
-          : ["#3B82F6"];
+        Array.isArray(chartColors20) && chartColors20.length ? chartColors20 : ["#3B82F6"];
 
       setDetailedPositions(
         safeList.map((p, idx) => ({
@@ -86,7 +117,7 @@ export function useReportsDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [trendPeriod?.id]);
+  }, [trendPeriod?.id, dateRange?.start, dateRange?.end]);
 
   useEffect(() => {
     fetchAll();
@@ -96,8 +127,11 @@ export function useReportsDashboard() {
     () => ({
       trendPeriod,
       setTrendPeriod,
+      dateRange,
+      applyRange,
+      clearRange,
     }),
-    [trendPeriod]
+    [trendPeriod, dateRange, applyRange, clearRange]
   );
 
   const dataState = useMemo(
@@ -111,13 +145,13 @@ export function useReportsDashboard() {
     [trendData, acceptanceData, detailedPositions, showFullPositionList]
   );
 
-  const exportParams = useMemo(
-    () => ({
-      trendPeriodId: trendPeriod?.id || "monthly",
-      fixedPeriod: "monthly",
-    }),
-    [trendPeriod?.id]
-  );
+  const exportParams = useMemo(() => {
+    const base = { trendPeriodId: trendPeriod?.id || "monthly", fixedPeriod: "monthly" };
+    if (dateRange?.start && dateRange?.end) {
+      return { ...base, ...toISORange(dateRange.start, dateRange.end) };
+    }
+    return base;
+  }, [trendPeriod?.id, dateRange?.start, dateRange?.end]);
 
   return {
     loading,

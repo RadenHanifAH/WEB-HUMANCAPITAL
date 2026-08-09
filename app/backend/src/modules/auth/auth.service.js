@@ -2,48 +2,111 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const redisClient = require("../../config/redis");
 const authRepository = require("./auth.repository");
 const { sendResetPasswordEmail, sendOtpEmail } = require("./mail.service");
 
-/* =========================
-   Token helpers
-   ========================= */
 const generateTokens = (user) => {
-  const payload = { id: user.id, email: user.email, role: user.role };
+  const payload = { id: user.id, email: user.email, role: user.peran };
 
-  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: "15m",
-  });
+  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET);
 
   const refreshToken = jwt.sign(
     { id: user.id },
     process.env.REFRESH_TOKEN_SECRET,
-    { expiresIn: "7d" }
   );
 
   return { accessToken, refreshToken };
 };
 
+const hashToken = (token) =>
+  crypto.createHash("sha256").update(token).digest("hex");
+
 const storeRefreshToken = async (userId, refreshToken) => {
-  await redisClient.set(`refresh_token:${userId}`, refreshToken, {
-    EX: 7 * 24 * 60 * 60,
-  });
+  await authRepository.saveRefreshTokenHash(userId, hashToken(refreshToken));
 };
 
-/* =========================================================
-   ✅ OTP REGISTER FLOW (FAST + NON-BLOCKING EMAIL)
-   ========================================================= */
-const OTP_TTL_SEC = 5 * 60;
+// Field profil dikirim/diterima PERSIS sesuai nama kolom model `profil`
+// di schema.prisma: nik, jenis_kelamin, nomor_hp, tempat_lahir,
+// tanggal_lahir, alamat, foto_profil, tentang.
+
+// Whitelist kolom `profil` yang boleh di-upsert lewat PUT /auth/profile,
+// supaya body request tidak bisa menulis kolom lain sembarangan.
+const ALLOWED_PROFIL_FIELDS = [
+  "nik",
+  "jenis_kelamin",
+  "nomor_hp",
+  "tempat_lahir",
+  "tanggal_lahir",
+  "alamat",
+  "foto_profil",
+  "tentang",
+];
+
+function pickAllowedProfilFields(data) {
+  const result = {};
+  for (const key of ALLOWED_PROFIL_FIELDS) {
+    if (data[key] !== undefined) result[key] = data[key];
+  }
+  return result;
+}
+
+// Bentuk "safeUser" final, dipakai di login, verifyRegisterOtpAndCreateUser,
+// getProfile, DAN updateProfile, supaya bentuknya SELALU sama persis di
+// semua endpoint. Field mengikuti nama kolom Prisma langsung (nama,
+// peran, divisi, created_at), dan `profil` dikirim nested apa adanya
+// (nik, jenis_kelamin, nomor_hp, dst — persis nama kolom model `profil`).
+function toSafeUser(user) {
+  const profil = user.profil
+    ? {
+        nik: user.profil.nik,
+        jenis_kelamin: user.profil.jenis_kelamin,
+        nomor_hp: user.profil.nomor_hp,
+        tempat_lahir: user.profil.tempat_lahir,
+        tanggal_lahir: user.profil.tanggal_lahir,
+        alamat: user.profil.alamat,
+        foto_profil: user.profil.foto_profil,
+        tentang: user.profil.tentang,
+      }
+    : {
+        nik: null,
+        jenis_kelamin: null,
+        nomor_hp: null,
+        tempat_lahir: null,
+        tanggal_lahir: null,
+        alamat: null,
+        foto_profil: null,
+        tentang: null,
+      };
+
+  return {
+    id: user.id,
+    nama: user.nama,
+    email: user.email,
+    peran: user.peran,
+    divisi: user.divisi,
+    created_at: user.created_at,
+    profil,
+  };
+}
+
+const OTP_TTL_MS = 5 * 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+
 const makeOtp = () => String(Math.floor(100000 + Math.random() * 900000));
-const normEmail = (email) => String(email || "").trim().toLowerCase();
+const normEmail = (email) =>
+  String(email || "")
+    .trim()
+    .toLowerCase();
 
-const otpKey = (email) => `otp_register:${normEmail(email)}`;
-const pendingKey = (email) => `otp_register_payload:${normEmail(email)}`;
-
-const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
-  if (!name || !email || !password) {
-    throw new Error("Nama, email, dan password wajib diisi");
+const requestRegisterOtp = async ({
+  nama,
+  email,
+  password,
+  nik,
+  nomor_hp,
+}) => {
+  if (!nama || !email || !password) {
+    throw new Error("Nama lengkap, email, dan password wajib diisi");
   }
 
   const cleanEmail = normEmail(email);
@@ -52,41 +115,20 @@ const requestRegisterOtp = async ({ name, email, password, NIK, nomorHp }) => {
   if (existingUser) throw new Error("Email sudah digunakan");
 
   const otp = makeOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const passwordHash = await bcrypt.hash(password, 10);
 
-  await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
-  await redisClient.set(
-    pendingKey(cleanEmail),
-    JSON.stringify({
-      name,
-      email: cleanEmail,
-      password,
-      NIK,
-      nomorHp,
-    }),
-    { EX: OTP_TTL_SEC }
-  );
+  await authRepository.upsertPendingRegistration(cleanEmail, {
+    nama,
+    hash_password: passwordHash,
+    nik: nik || "",
+    nomor_hp: nomor_hp || "",
+    hash_otp: otpHash,
+    otp_kadaluarsa: new Date(Date.now() + OTP_TTL_MS),
+    percobaan: 0,
+  });
 
-  // ✅ NON-BLOCKING
-  sendOtpEmail(cleanEmail, otp)
-    .then((info) => {
-      console.log("[OTP EMAIL] SENT", {
-        to: cleanEmail,
-        messageId: info?.messageId,
-        accepted: info?.accepted,
-        rejected: info?.rejected,
-        response: info?.response,
-      });
-    })
-    .catch((e) => {
-      console.error("[OTP EMAIL] FAILED", {
-        to: cleanEmail,
-        message: e?.message,
-        code: e?.code,
-        responseCode: e?.responseCode,
-        command: e?.command,
-        response: e?.response,
-      });
-    });
+  sendOtpEmail(cleanEmail, otp).catch(console.error);
 
   return { email: cleanEmail };
 };
@@ -96,62 +138,73 @@ const verifyRegisterOtpAndCreateUser = async ({ email, otp }) => {
 
   const cleanEmail = normEmail(email);
 
-  const storedOtp = await redisClient.get(otpKey(cleanEmail));
-  if (!storedOtp) {
+  const pending = await authRepository.findPendingByEmail(cleanEmail);
+  if (!pending) {
+    throw new Error(
+      "Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.",
+    );
+  }
+
+  if (pending.otp_kadaluarsa.getTime() < Date.now()) {
+    await authRepository.deletePendingByEmail(cleanEmail);
     throw new Error("OTP sudah kadaluarsa. Silakan kirim ulang OTP.");
   }
 
-  if (String(storedOtp) !== String(otp)) throw new Error("OTP salah.");
-
-  const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr) {
-    throw new Error("Data pendaftaran tidak ditemukan / kadaluarsa. Ulangi daftar.");
+  if (pending.percobaan >= MAX_OTP_ATTEMPTS) {
+    await authRepository.deletePendingByEmail(cleanEmail);
+    throw new Error("Terlalu banyak percobaan salah. Silakan daftar ulang.");
   }
 
-  const payload = JSON.parse(payloadStr);
+  const isOtpValid = await bcrypt.compare(String(otp), pending.hash_otp);
+  if (!isOtpValid) {
+    await authRepository.incrementPendingAttempt(cleanEmail);
+    throw new Error("OTP salah.");
+  }
 
-  const existingUser = await authRepository.findUserByEmail(payload.email);
+  const existingUser = await authRepository.findUserByEmail(pending.email);
   if (existingUser) {
-    await redisClient.del(otpKey(cleanEmail));
-    await redisClient.del(pendingKey(cleanEmail));
+    await authRepository.deletePendingByEmail(cleanEmail);
     throw new Error("Email sudah digunakan");
   }
 
-  const hashedPassword = await bcrypt.hash(payload.password, 10);
-
   const user = await authRepository.createUser({
-    name: payload.name,
-    email: payload.email,
-    password: hashedPassword,
-    profile: { create: { NIK: payload.NIK, nomorHp: payload.nomorHp } },
+    nama: pending.nama,
+    email: pending.email,
+    password: pending.hash_password,
+    profil: {
+      create: {
+        nik: pending.nik,
+        nomor_hp: pending.nomor_hp,
+      },
+    },
   });
 
-  await redisClient.del(otpKey(cleanEmail));
-  await redisClient.del(pendingKey(cleanEmail));
+  // ⚠️ FIX: pendaftaran_tertunda TIDAK dihapus lagi setelah user berhasil
+  // dibuat. Record-nya cuma disambungkan ke user baru lewat pengguna_id,
+  // supaya riwayat proses pendaftaran (OTP) tetap ada & tersambung ke akun.
+  await authRepository.linkPendingToUser(cleanEmail, user.id);
 
-  const safeUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    createdAt: user.createdAt,
-    profile: user.profile || null,
-  };
-
-  return { user: safeUser };
+  return { user: toSafeUser(user) };
 };
 
 const resendRegisterOtp = async (email) => {
   const cleanEmail = normEmail(email);
   if (!cleanEmail) throw new Error("Email wajib diisi");
 
-  const payloadStr = await redisClient.get(pendingKey(cleanEmail));
-  if (!payloadStr) {
-    throw new Error("Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.");
+  const pending = await authRepository.findPendingByEmail(cleanEmail);
+  if (!pending) {
+    throw new Error(
+      "Tidak ada proses pendaftaran aktif. Silakan isi form daftar lagi.",
+    );
   }
 
   const otp = makeOtp();
-  await redisClient.set(otpKey(cleanEmail), otp, { EX: OTP_TTL_SEC });
+  const otpHash = await bcrypt.hash(otp, 10);
+
+  await authRepository.updatePendingOtp(cleanEmail, {
+    hash_otp: otpHash,
+    otp_kadaluarsa: new Date(Date.now() + OTP_TTL_MS),
+  });
 
   try {
     await sendOtpEmail(cleanEmail, otp);
@@ -170,9 +223,6 @@ const resendRegisterOtp = async (email) => {
   return true;
 };
 
-/* =========================================================
-   ✅ LOGIN / LOGOUT / REFRESH
-   ========================================================= */
 const login = async (email, password) => {
   const user = await authRepository.findUserByEmail(normEmail(email));
   if (!user) throw new Error("Email tidak ditemukan");
@@ -183,21 +233,17 @@ const login = async (email, password) => {
   const { accessToken, refreshToken } = generateTokens(user);
   await storeRefreshToken(user.id, refreshToken);
 
-  const safeUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    profile: user.profile || null,
-  };
+  authRepository.updateLastLogin(user.id).catch((err) => {
+    console.error("Gagal update lastLoginAt:", err.message);
+  });
 
-  return { user: safeUser, accessToken, refreshToken };
+  return { user: toSafeUser(user), accessToken, refreshToken };
 };
 
 const logout = async (refreshToken) => {
   if (!refreshToken) return;
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-  await redisClient.del(`refresh_token:${decoded.id}`);
+  await authRepository.clearRefreshTokenHash(decoded.id);
 };
 
 const refreshAccessToken = async (refreshToken) => {
@@ -205,64 +251,65 @@ const refreshAccessToken = async (refreshToken) => {
 
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-  const storedToken = await redisClient.get(`refresh_token:${decoded.id}`);
-  if (!storedToken || storedToken !== refreshToken) {
-    throw new Error("Invalid refresh token");
-  }
-
   const user = await authRepository.findUserById(decoded.id);
   if (!user) throw new Error("User not found");
 
-  const payload = { id: user.id, email: user.email, role: user.role };
-  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: "15m",
-  });
+  const incomingHash = hashToken(refreshToken);
+  if (!user.hash_refresh_token || user.hash_refresh_token !== incomingHash) {
+    throw new Error("Invalid refresh token");
+  }
+
+  const payload = { id: user.id, email: user.email, role: user.peran };
+
+  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET);
 
   return { accessToken };
 };
 
-/* =========================================================
-   ✅ PROFILE / CHANGE PASSWORD / RESET PASSWORD
-   ========================================================= */
-const getProfile = async (userId) => authRepository.findUserById(userId);
+const getProfile = async (userId) => {
+  const userData = await authRepository.findUserByIdSafe(userId);
+  if (!userData) return null;
+  return toSafeUser(userData);
+};
 
-/**
- * ✅ FIX: Sinkronkan Profile.fullName dengan User.name
- * - kalau frontend kirim "fullName" => update Profile.fullName & User.name
- * - kalau frontend kirim "name"     => update User.name & Profile.fullName
- */
+// ⚠️ FIX: body request dibaca langsung dengan nama kolom Prisma.
+// `nama` tetap dipisah (kolom tabel pengguna, bukan tabel profil),
+// sisanya (nik, jenis_kelamin, nomor_hp, tempat_lahir, tanggal_lahir,
+// alamat, foto_profil, tentang) di-upsert ke tabel profil apa adanya.
+//
+// ✅ FIX: return value sekarang HARUS bentuk `toSafeUser()` yang sama
+// persis dengan login()/getProfile() — { id, nama, email, peran, divisi,
+// created_at, profil: { nik, jenis_kelamin, ... } } — bukan object flat
+// seperti sebelumnya. Ini supaya frontend (ProfilePage.jsx) bisa
+// langsung `setUser(res.data.data)` tanpa perlu menyusun ulang manual
+// jadi nested, dan bentuk `user` di store selalu konsisten di semua
+// endpoint (login, checkAuth, updateProfile).
 const updateProfile = async (userId, data) => {
   const existingUser = await authRepository.findUserById(userId);
-  if (!existingUser) throw new Error("Profile not found");
 
-  const incomingName =
-    (data?.name && String(data.name).trim()) ||
-    (data?.fullName && String(data.fullName).trim()) ||
-    null;
-
-  const profilePayload = { ...data };
-
-  // Profile tidak punya kolom "name"
-  if (profilePayload?.name !== undefined) delete profilePayload.name;
-
-  if (incomingName) {
-    profilePayload.fullName = incomingName;
+  if (!existingUser) {
+    throw new Error("Profile not found");
   }
 
-  const updatedProfile = await authRepository.updateProfile(userId, profilePayload);
+  const { nama, ...restFrontendData } = data;
 
-  if (incomingName) {
-    await authRepository.updateUserName(userId, incomingName);
+  if (nama?.trim()) {
+    await authRepository.updateUserFullName(userId, nama.trim());
   }
 
-  return updatedProfile;
+  const profilData = pickAllowedProfilFields(restFrontendData);
+  await authRepository.updateProfile(userId, profilData);
+
+  const refreshedUser = await authRepository.findUserById(userId);
+  return toSafeUser(refreshedUser);
 };
 
 const changePassword = async (userId, currentPassword, newPassword) => {
   if (!currentPassword || !newPassword) {
     throw new Error("Password saat ini & password baru wajib diisi");
   }
-  if (newPassword.length < 6) throw new Error("Password baru minimal 6 karakter");
+  if (newPassword.length < 6)
+    throw new Error("Password baru minimal 6 karakter");
 
   const user = await authRepository.findUserById(userId);
   if (!user) throw new Error("User tidak ditemukan");
@@ -271,7 +318,8 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   if (!ok) throw new Error("Password saat ini salah");
 
   const sameAsOld = await bcrypt.compare(newPassword, user.password);
-  if (sameAsOld) throw new Error("Password baru tidak boleh sama dengan password lama");
+  if (sameAsOld)
+    throw new Error("Password baru tidak boleh sama dengan password lama");
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   await authRepository.updateUserPassword(userId, hashedPassword);

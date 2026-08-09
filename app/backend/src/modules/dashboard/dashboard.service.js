@@ -16,47 +16,41 @@ module.exports = {
     const todayStart = repo.startOfDay(now);
     const todayEnd = repo.endOfDay(now);
 
-    const monthStart = repo.startOfMonth(now);
-    const monthEnd = repo.endOfMonth(now);
-
     const [
       totalPositionsCount,
       activePositionsCount,
       totalApplications,
       applicationsToday,
-      acceptedThisMonth,
       latestAppsRows,
       pipelineRows,
-      latestReport,
     ] = await Promise.all([
       repo.countJobsTotal(),
       repo.countJobsActive(),
       repo.countAllApplications(),
       repo.countApplicationsBetween(todayStart, todayEnd),
-      repo.countAcceptedBetween(monthStart, monthEnd),
       repo.findLatestApplicationsToday(todayStart, todayEnd, 8),
       repo.findAllApplicationsForPipeline(),
-      repo.findLatestReport(),
+      // repo.findLatestReport(), // ❌ Dihapus
     ]);
 
-    // ✅ Latest Applications (hari ini)
+    // ✅ FIX: ambil nama dari pengguna.nama, foto dari profil.foto_profil
     const latestApplications = (latestAppsRows || []).map((a) => {
-      const name = a.user?.profile?.fullName || a.user?.name || "Unknown";
       return {
         id: a.id,
-        name,
-        position: a.job?.title || "-",
-        status: a.stage || a.status || "Under Review",
-        time: a.appliedAt ? formatTimeId(a.appliedAt) : "-",
+        name: a.pengguna?.nama || "Unknown",
+        fotoProfile: a.pengguna?.profil?.foto_profil || null,
+        position: a.lowongan?.judul || "-",
+        status: a.tahap || a.status || "Screaning",
+        time: a.tanggal_melamar ? formatTimeId(a.tanggal_melamar) : "-",
       };
     });
 
-    // ✅ Pipeline
+    // ✅ Pipeline (nama stage baru)
     const counts = {
-      "Under Review": 0,
-      "Interview HC": 0,
+      "Screaning": 0,
+      "Interview Pertama": 0,
       Psikotes: 0,
-      "Final Interview": 0,
+      "Interview Kedua": 0,
     };
 
     for (const a of pipelineRows || []) {
@@ -69,16 +63,16 @@ module.exports = {
 
     const pipeline = [
       {
-        title: "Under Review",
+        title: "Screaning",
         color: "text-orange-500",
-        count: counts["Under Review"] || 0,
-        value: Math.round(((counts["Under Review"] || 0) / totalPipeline) * 100),
+        count: counts["Screaning"] || 0,
+        value: Math.round(((counts["Screaning"] || 0) / totalPipeline) * 100),
       },
       {
-        title: "Interview HC",
+        title: "Interview Pertama",
         color: "text-blue-500",
-        count: counts["Interview HC"] || 0,
-        value: Math.round(((counts["Interview HC"] || 0) / totalPipeline) * 100),
+        count: counts["Interview Pertama"] || 0,
+        value: Math.round(((counts["Interview Pertama"] || 0) / totalPipeline) * 100),
       },
       {
         title: "Psikotes",
@@ -87,10 +81,10 @@ module.exports = {
         value: Math.round(((counts["Psikotes"] || 0) / totalPipeline) * 100),
       },
       {
-        title: "Final Interview",
+        title: "Interview Kedua",
         color: "text-green-500",
-        count: counts["Final Interview"] || 0,
-        value: Math.round(((counts["Final Interview"] || 0) / totalPipeline) * 100),
+        count: counts["Interview Kedua"] || 0,
+        value: Math.round(((counts["Interview Kedua"] || 0) / totalPipeline) * 100),
       },
     ];
 
@@ -98,13 +92,12 @@ module.exports = {
       stats: {
         totalApplications,
         applicationsToday,
-        acceptedThisMonth,
       },
       activePositionsCount,
       totalPositionsCount,
       latestApplications,
       pipeline,
-      reportSnapshot: latestReport || null,
+      reportSnapshot: null, // ✅ Dibuat null default
     };
   },
 };
