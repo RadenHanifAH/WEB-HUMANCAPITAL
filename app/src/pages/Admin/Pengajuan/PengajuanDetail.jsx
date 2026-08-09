@@ -20,7 +20,7 @@ import {
   PencilLine,
 } from "lucide-react";
 import PengajuanBadge from "./PengajuanBadge";
-import { approvePengajuan, rejectPengajuan } from "./pengajuanService";
+import { approvePengajuan, rejectPengajuan } from "./PengajuanService";
 
 export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
   const [catatan, setCatatan] = useState("");
