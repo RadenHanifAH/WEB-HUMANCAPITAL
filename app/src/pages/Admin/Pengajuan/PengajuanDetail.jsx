@@ -52,7 +52,9 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
       (t) => (
         <div
           className={`${
-            t.visible ? "animate-in slide-in-from-left-5 fade-in" : "animate-out fade-out"
+            t.visible
+              ? "animate-in slide-in-from-left-5 fade-in"
+              : "animate-out fade-out"
           } bg-white border border-amber-200 rounded-xl shadow-lg flex items-start gap-3 p-4 w-full max-w-sm`}
         >
           <span className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
@@ -75,7 +77,7 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
           </button>
         </div>
       ),
-      { position: "bottom-left", duration: 8000 }
+      { position: "bottom-left", duration: 8000 },
     );
   };
 
@@ -162,7 +164,10 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
 
         {/* Meta chips */}
         <div className="flex flex-wrap gap-1.5 mt-3">
-          <Chip icon={CalendarDays} text={formatTanggal(pengajuan.tanggal_permintaan)} />
+          <Chip
+            icon={CalendarDays}
+            text={formatTanggal(pengajuan.tanggal_permintaan)}
+          />
           <Chip icon={Users} text={`${pengajuan.jumlah} Orang`} />
           {pengajuan.status_karyawan && (
             <Chip icon={Briefcase} text={pengajuan.status_karyawan} />
@@ -187,7 +192,10 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
           <Section icon={ListChecks} title="Tugas Utama">
             <ul className="space-y-1.5">
               {tugasUtama.map((t, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-sm text-gray-700"
+                >
                   <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                     {i + 1}
                   </span>
@@ -270,8 +278,12 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">Level</th>
-                    <th className="text-center px-3 py-2 font-medium">Kebutuhan</th>
-                    <th className="text-center px-3 py-2 font-medium">Existing</th>
+                    <th className="text-center px-3 py-2 font-medium">
+                      Kebutuhan
+                    </th>
+                    <th className="text-center px-3 py-2 font-medium">
+                      Existing
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -381,7 +393,9 @@ function Section({ icon: Icon, title, children }) {
 function KVRow({ label, value }) {
   return (
     <div className="flex gap-2 text-sm">
-      <span className="text-gray-400 shrink-0 w-28 text-xs pt-0.5">{label}</span>
+      <span className="text-gray-400 shrink-0 w-28 text-xs pt-0.5">
+        {label}
+      </span>
       <span className="text-gray-700 font-medium">{value}</span>
     </div>
   );

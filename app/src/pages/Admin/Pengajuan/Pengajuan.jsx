@@ -21,8 +21,8 @@ import { getPengajuanList, getPengajuanStats } from "./PengajuanService";
 
 // ⬅️ "Draft" dihapus, hanya sisakan status yang relevan untuk workflow review
 const STATUS_OPTIONS = [
-  { value: "",         label: "Semua Status" },
-  { value: "PENDING",  label: "Menunggu Review" },
+  { value: "", label: "Semua Status" },
+  { value: "PENDING", label: "Menunggu Review" },
   { value: "APPROVED", label: "Disetujui" },
   { value: "REJECTED", label: "Ditolak" },
 ];
@@ -60,13 +60,18 @@ const STAT_CARDS = [
 const LIMIT = 10;
 
 export default function AdminPengajuanPage() {
-  const [items, setItems]     = useState([]);
-  const [stats, setStats]     = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [items, setItems] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+  });
   const [selected, setSelected] = useState(null);
-  const [search, setSearch]   = useState("");
-  const [status, setStatus]   = useState("");
-  const [page, setPage]       = useState(1);
-  const [total, setTotal]     = useState(0);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -88,7 +93,9 @@ export default function AdminPengajuanPage() {
     }
   }, [search, status, page]);
 
-  useEffect(() => { fetchList(); }, [fetchList]);
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
 
   // Tutup dropdown filter kalau klik di luar area filter
   useEffect(() => {
@@ -103,8 +110,15 @@ export default function AdminPengajuanPage() {
   }, [filterOpen]);
 
   // Reset ke page 1 kalau search/filter berubah
-  const handleSearch = (val) => { setSearch(val); setPage(1); };
-  const handleStatus = (val) => { setStatus(val); setPage(1); setFilterOpen(false); };
+  const handleSearch = (val) => {
+    setSearch(val);
+    setPage(1);
+  };
+  const handleStatus = (val) => {
+    setStatus(val);
+    setPage(1);
+    setFilterOpen(false);
+  };
 
   const handleAction = () => {
     fetchList();
@@ -116,7 +130,9 @@ export default function AdminPengajuanPage() {
   const formatTanggal = (d) =>
     d
       ? new Date(d).toLocaleDateString("id-ID", {
-          day: "numeric", month: "short", year: "numeric",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
         })
       : "—";
 
@@ -145,7 +161,9 @@ export default function AdminPengajuanPage() {
           >
             <div>
               <p className="text-xs text-gray-500">{label}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats[key] ?? 0}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {stats[key] ?? 0}
+              </p>
             </div>
             <Icon className={`w-5 h-5 ${color}`} />
           </div>
@@ -154,11 +172,9 @@ export default function AdminPengajuanPage() {
 
       {/* ── Main Layout ── */}
       <div className="flex gap-5 items-start">
-
         {/* ── Left: Table ── */}
         {/* ⬅️ overflow-hidden DIHAPUS dari sini agar dropdown filter tidak terpotong */}
         <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm">
-
           {/* Toolbar */}
           <div className="relative flex items-center gap-3 px-4 py-3 border-b border-gray-100">
             <div className="relative flex-1">
@@ -183,7 +199,9 @@ export default function AdminPengajuanPage() {
                 }`}
               >
                 <Filter className="w-4 h-4" />
-                {status ? STATUS_OPTIONS.find((o) => o.value === status)?.label : "Filter"}
+                {status
+                  ? STATUS_OPTIONS.find((o) => o.value === status)?.label
+                  : "Filter"}
                 <ChevronDown className="w-3 h-3" />
               </button>
               {filterOpen && (
@@ -213,7 +231,9 @@ export default function AdminPengajuanPage() {
                 <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
                   <th className="text-left px-4 py-3 font-medium">ID</th>
                   <th className="text-left px-4 py-3 font-medium">Tanggal</th>
-                  <th className="text-left px-4 py-3 font-medium">Divisi / Dept</th>
+                  <th className="text-left px-4 py-3 font-medium">
+                    Divisi / Dept
+                  </th>
                   <th className="text-left px-4 py-3 font-medium">Posisi</th>
                   <th className="text-left px-4 py-3 font-medium">Jumlah</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
@@ -232,11 +252,16 @@ export default function AdminPengajuanPage() {
                   <tr>
                     <td colSpan={7} className="text-center py-14 text-gray-400">
                       <AlertCircle className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-                      <p className="font-medium">Tidak ada pengajuan ditemukan</p>
+                      <p className="font-medium">
+                        Tidak ada pengajuan ditemukan
+                      </p>
                       {(search || status) && (
                         <button
                           className="text-sky-500 text-xs mt-1 underline"
-                          onClick={() => { handleSearch(""); handleStatus(""); }}
+                          onClick={() => {
+                            handleSearch("");
+                            handleStatus("");
+                          }}
                         >
                           Reset filter
                         </button>
@@ -263,8 +288,12 @@ export default function AdminPengajuanPage() {
                       <td className="px-4 py-3 text-gray-800 font-medium text-xs">
                         {item.departemen || "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700 text-xs">{item.posisi}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{item.jumlah} Org</td>
+                      <td className="px-4 py-3 text-gray-700 text-xs">
+                        {item.posisi}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">
+                        {item.jumlah} Org
+                      </td>
                       <td className="px-4 py-3">
                         <PengajuanBadge status={item.status} />
                       </td>
@@ -282,20 +311,33 @@ export default function AdminPengajuanPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
               <span>
-                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} dari {total} pengajuan
+                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} dari{" "}
+                {total} pengajuan
               </span>
               <div className="flex gap-1">
-                <PagBtn disabled={page === 1} onClick={() => setPage((p) => p - 1)}>‹</PagBtn>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <PagBtn
-                    key={p}
-                    active={p === page}
-                    onClick={() => setPage(p)}
-                  >
-                    {p}
-                  </PagBtn>
-                ))}
-                <PagBtn disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>›</PagBtn>
+                <PagBtn
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  ‹
+                </PagBtn>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (p) => (
+                    <PagBtn
+                      key={p}
+                      active={p === page}
+                      onClick={() => setPage(p)}
+                    >
+                      {p}
+                    </PagBtn>
+                  ),
+                )}
+                <PagBtn
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  ›
+                </PagBtn>
               </div>
             </div>
           )}
@@ -312,7 +354,9 @@ export default function AdminPengajuanPage() {
           ) : (
             <div className="bg-white border border-dashed border-gray-200 rounded-xl p-10 text-center text-gray-400">
               <Eye className="w-10 h-10 mx-auto mb-3 text-gray-200" />
-              <p className="font-medium text-gray-500 text-sm">Pilih pengajuan</p>
+              <p className="font-medium text-gray-500 text-sm">
+                Pilih pengajuan
+              </p>
               <p className="text-xs mt-1 text-gray-400">
                 Klik salah satu baris untuk melihat detail lengkap.
               </p>
