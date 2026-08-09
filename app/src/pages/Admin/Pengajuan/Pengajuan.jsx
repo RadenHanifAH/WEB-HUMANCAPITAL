@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import PengajuanDetail from "./PengajuanDetail";
 import PengajuanBadge from "./PengajuanBadge";
-import { getPengajuanList, getPengajuanStats } from "./pengajuanService";
+import { getPengajuanList, getPengajuanStats } from "./PengajuanService";
 
 // ⬅️ "Draft" dihapus, hanya sisakan status yang relevan untuk workflow review
 const STATUS_OPTIONS = [
