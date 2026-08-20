@@ -32,7 +32,7 @@ app.use(cookieParser());
 // ✅ 2) cors untuk credentials
 app.use(
   cors({
-    origin: ["https://web-humancapital.vercel.app", "http://localhost:5173"],
+    origin: ["https://syaamil-careers.vercel.app", "http://localhost:5173"],
     credentials: true,
   }),
 );
