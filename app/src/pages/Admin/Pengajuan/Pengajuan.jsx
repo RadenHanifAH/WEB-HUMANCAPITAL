@@ -136,10 +136,9 @@ export default function AdminPengajuanPage() {
         })
       : "—";
 
-  const generateSDMId = (id, createdAt) => {
-    const year = new Date(createdAt).getFullYear();
-    return `#SDM-${year}-${String(id).padStart(3, "0")}`;
-  };
+  // ✅ FIX: ID diganti menjadi nomor urut berdasarkan posisi baris di halaman
+  // saat ini (bukan lagi format #SDM-xxx).
+  const generateRowNumber = (index) => (page - 1) * LIMIT + index + 1;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -229,7 +228,7 @@ export default function AdminPengajuanPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                  <th className="text-left px-4 py-3 font-medium">ID</th>
+                  <th className="text-left px-4 py-3 font-medium">No</th>
                   <th className="text-left px-4 py-3 font-medium">Tanggal</th>
                   <th className="text-left px-4 py-3 font-medium">
                     Divisi / Dept
@@ -269,7 +268,7 @@ export default function AdminPengajuanPage() {
                     </td>
                   </tr>
                 ) : (
-                  items.map((item) => (
+                  items.map((item, index) => (
                     <tr
                       key={item.id}
                       onClick={() => setSelected(item)}
@@ -280,7 +279,7 @@ export default function AdminPengajuanPage() {
                       }`}
                     >
                       <td className="px-4 py-3 font-mono text-xs text-sky-600 font-semibold whitespace-nowrap">
-                        {generateSDMId(item.id, item.createdAt)}
+                        {generateRowNumber(index)}
                       </td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
                         {formatTanggal(item.tanggalPermintaan)}
