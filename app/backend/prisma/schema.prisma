@@ -330,6 +330,7 @@ model pengajuan_sdm {
   // Informasi dasar
   departemen         String   @default("")
   posisi              String   @default("") @db.VarChar(255)
+  lokasi              String   @default("") @db.VarChar(255)
   tanggal_permintaan  DateTime @default(now())
   alasan              String?  @db.Text
 

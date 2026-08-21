@@ -103,6 +103,7 @@ module.exports = {
             ? new Date(body.tanggal_permintaan)
             : new Date(),
           posisi: body.posisi ?? "",
+          lokasi: body.lokasi ?? "", // ✅ TAMBAHKAN INI
           alasan: body.alasan ?? "",
           jumlah: body.jumlah ?? 1,
           status_karyawan: body.status_karyawan ?? "",
@@ -178,6 +179,7 @@ module.exports = {
             ? new Date(body.tanggal_permintaan)
             : existing.tanggal_permintaan,
           posisi: body.posisi ?? existing.posisi,
+          lokasi: body.lokasi ?? existing.lokasi, // ✅ TAMBAHKAN INI
           alasan: body.alasan ?? existing.alasan,
           jumlah: body.jumlah ?? existing.jumlah,
           status_karyawan: body.status_karyawan ?? existing.status_karyawan,

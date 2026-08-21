@@ -35,6 +35,7 @@ const FASILITAS_OPTIONS = [
   "Tunj. Makan",
   "Pulsa/Data",
 ];
+const LOKASI_OPTIONS = ["Bandung", "Surabaya", "Jakarta"];
 const PETA_LEVEL_DEFAULT = [
   { level: "Operator", requirement: "", existing: "" },
   { level: "Supervisor / Staf", requirement: "", existing: "" },
@@ -86,6 +87,7 @@ export default function PengajuanSDM() {
     getTodayDateInputValue(),
   );
   const [posisi, setPosisi] = useState("");
+  const [lokasi, setLokasi] = useState("");
   const [alasan, setAlasan] = useState("");
 
   const [jumlah, setJumlah] = useState(1);
@@ -162,6 +164,7 @@ export default function PengajuanSDM() {
     departemen,
     tanggal_permintaan: tanggalPermintaan || undefined,
     posisi,
+    lokasi,
     alasan: alasan || null,
     jumlah: Number(jumlah) || 1,
     status_karyawan: statusKaryawan,
@@ -184,8 +187,8 @@ export default function PengajuanSDM() {
   });
 
   const handleSubmit = async () => {
-    if (!departemen || !posisi) {
-      toast.error("Departemen dan Posisi wajib diisi.");
+    if (!departemen || !posisi || !lokasi) {
+      toast.error("Departemen, Posisi, dan Lokasi wajib diisi.");
       return;
     }
 
@@ -268,7 +271,7 @@ export default function PengajuanSDM() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm text-gray-600 mb-1.5">
                 Posisi Pekerjaan / Jabatan
               </label>
@@ -279,6 +282,24 @@ export default function PengajuanSDM() {
                 placeholder="Contoh: Senior Graphic Designer"
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1.5">
+                Lokasi Penempatan
+              </label>
+              <select
+                value={lokasi}
+                onChange={(e) => setLokasi(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              >
+                <option value="">Pilih Lokasi</option>
+                {LOKASI_OPTIONS.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="md:col-span-2">

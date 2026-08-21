@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   User,
   PencilLine,
+  MapPin,
 } from "lucide-react";
 import PengajuanBadge from "./PengajuanBadge";
 import { approvePengajuan, rejectPengajuan } from "./PengajuanService";
@@ -171,6 +172,9 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
           <Chip icon={Users} text={`${pengajuan.jumlah} Orang`} />
           {pengajuan.status_karyawan && (
             <Chip icon={Briefcase} text={pengajuan.status_karyawan} />
+          )}
+          {pengajuan.lokasi && (
+            <Chip icon={MapPin} text={pengajuan.lokasi} />
           )}
           {namaPengaju && <Chip icon={User} text={namaPengaju} />}
         </div>

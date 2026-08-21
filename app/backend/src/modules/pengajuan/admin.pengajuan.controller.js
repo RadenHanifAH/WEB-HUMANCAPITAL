@@ -1,7 +1,9 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { notifyUser, notifyAdmins } = require("../notifications/notify.helper");
-const { NOTIFICATION_TYPES } = require("../notifications/notifications.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../notifications/notifications.service");
 
 function mapStatusKaryawanToJobType(statusKaryawan = "") {
   const s = (statusKaryawan || "").toLowerCase();
@@ -15,28 +17,32 @@ function mapStatusKaryawanToJobType(statusKaryawan = "") {
 
 // p = row dari model pengajuan_sdm (snake_case, sesuai schema.prisma)
 function buildJobDraftFromPengajuan(p) {
-  const tugasUtama       = Array.isArray(p.tugas_utama) ? p.tugas_utama : [];
-  const keahlian         = Array.isArray(p.keahlian) ? p.keahlian : [];
-  const statusPerkawinan = Array.isArray(p.status_perkawinan) ? p.status_perkawinan : [];
-  const komputerSkills   = Array.isArray(p.keahlian_komputer) ? p.keahlian_komputer : [];
-  const fasilitas        = Array.isArray(p.fasilitas) ? p.fasilitas : [];
+  const tugasUtama = Array.isArray(p.tugas_utama) ? p.tugas_utama : [];
+  const keahlian = Array.isArray(p.keahlian) ? p.keahlian : [];
+  const statusPerkawinan = Array.isArray(p.status_perkawinan)
+    ? p.status_perkawinan
+    : [];
+  const komputerSkills = Array.isArray(p.keahlian_komputer)
+    ? p.keahlian_komputer
+    : [];
+  const fasilitas = Array.isArray(p.fasilitas) ? p.fasilitas : [];
 
   const descriptionParts = [];
 
   descriptionParts.push(
     `Kami membuka kesempatan bagi Anda untuk bergabung sebagai ${p.posisi || "anggota tim"} di divisi ${p.departemen || "kami"}. ` +
-    `Posisi ini terbuka untuk ${p.jumlah || 1} orang dengan status ${p.status_karyawan || "karyawan"}.`
+      `Posisi ini terbuka untuk ${p.jumlah || 1} orang dengan status ${p.status_karyawan || "karyawan"}.`,
   );
 
   if (tugasUtama.length) {
     descriptionParts.push(
-      `Tanggung jawab utama Anda meliputi:\n${tugasUtama.map((t) => `• ${t}`).join("\n")}`
+      `Tanggung jawab utama Anda meliputi:\n${tugasUtama.map((t) => `• ${t}`).join("\n")}`,
     );
   }
 
   if (fasilitas.length) {
     descriptionParts.push(
-      `Kami menawarkan berbagai fasilitas dan benefit, di antaranya:\n${fasilitas.map((f) => `• ${f}`).join("\n")}`
+      `Kami menawarkan berbagai fasilitas dan benefit, di antaranya:\n${fasilitas.map((f) => `• ${f}`).join("\n")}`,
     );
   }
 
@@ -45,11 +51,15 @@ function buildJobDraftFromPengajuan(p) {
   requirementParts.push(`Pendidikan minimal ${p.pendidikan_terakhir || "S1"}`);
 
   if (p.usia_min || p.usia_maks) {
-    requirementParts.push(`Usia antara ${p.usia_min ?? "-"} hingga ${p.usia_maks ?? "-"} tahun`);
+    requirementParts.push(
+      `Usia antara ${p.usia_min ?? "-"} hingga ${p.usia_maks ?? "-"} tahun`,
+    );
   }
 
   if (statusPerkawinan.length) {
-    requirementParts.push(`Status pernikahan: ${statusPerkawinan.join(" atau ")}`);
+    requirementParts.push(
+      `Status pernikahan: ${statusPerkawinan.join(" atau ")}`,
+    );
   }
 
   if (p.pengalaman) {
@@ -62,12 +72,14 @@ function buildJobDraftFromPengajuan(p) {
 
   if (p.bahasa_asing) {
     requirementParts.push(
-      `Mampu berbahasa ${p.bahasa_asing} minimal level ${p.level_bahasa_asing || "dasar"}`
+      `Mampu berbahasa ${p.bahasa_asing} minimal level ${p.level_bahasa_asing || "dasar"}`,
     );
   }
 
   if (komputerSkills.length) {
-    requirementParts.push(`Menguasai aplikasi komputer: ${komputerSkills.join(", ")}`);
+    requirementParts.push(
+      `Menguasai aplikasi komputer: ${komputerSkills.join(", ")}`,
+    );
   }
 
   requirementParts.push(`Berkomitmen, jujur, dan mampu bekerja dalam tim`);
@@ -78,28 +90,27 @@ function buildJobDraftFromPengajuan(p) {
   // Field-field ini harus cocok dengan model `lowongan` di schema.prisma
   return {
     pengajuan_sdm_id: p.id, // ✅ TAMBAHKAN INI agar relasi terhubung
-    judul:       p.posisi || "Tanpa Judul",
-    departemen:  p.departemen || null,
-    lokasi:      "Kantor Pusat",
-    jenis:       mapStatusKaryawanToJobType(p.status_karyawan) || "FullTime",
-    deskripsi:   descriptionParts.join("\n\n"),
+    judul: p.posisi || "Tanpa Judul",
+    departemen: p.departemen || null,
+    lokasi: p.lokasi || "Bandung", // ✅ pakai lokasi dari pengajuan, fallback default
+    jenis: mapStatusKaryawanToJobType(p.status_karyawan) || "FullTime",
+    deskripsi: descriptionParts.join("\n\n"),
     persyaratan: requirementParts.join("\n"),
-    tenggat:     defaultDeadline,
-    status:      "draft",
+    tenggat: defaultDeadline,
+    status: "draft",
   };
 }
 
 module.exports = {
-
   // ── GET /api/admin/pengajuan/stats ─────────────────────────────
   async getStats(req, res) {
     try {
       const [total, pending, approved, rejected, draft] = await Promise.all([
         prisma.pengajuan_sdm.count(),
-        prisma.pengajuan_sdm.count({ where: { status: "PENDING"  } }),
+        prisma.pengajuan_sdm.count({ where: { status: "PENDING" } }),
         prisma.pengajuan_sdm.count({ where: { status: "APPROVED" } }),
         prisma.pengajuan_sdm.count({ where: { status: "REJECTED" } }),
-        prisma.pengajuan_sdm.count({ where: { status: "DRAFT"    } }),
+        prisma.pengajuan_sdm.count({ where: { status: "DRAFT" } }),
       ]);
 
       return res.status(200).json({
@@ -108,7 +119,13 @@ module.exports = {
       });
     } catch (e) {
       console.error("Admin Stats Error:", e);
-      return res.status(500).json({ success: false, message: "Gagal memuat statistik", error: e?.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Gagal memuat statistik",
+          error: e?.message,
+        });
     }
   },
 
@@ -122,7 +139,7 @@ module.exports = {
       const where = {
         ...(search && {
           OR: [
-            { posisi:     { contains: search } },
+            { posisi: { contains: search } },
             { departemen: { contains: search } },
           ],
         }),
@@ -147,7 +164,13 @@ module.exports = {
       return res.status(200).json({ success: true, data: { items, total } });
     } catch (e) {
       console.error("Admin List Error:", e);
-      return res.status(500).json({ success: false, message: "Gagal memuat daftar pengajuan", error: e?.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Gagal memuat daftar pengajuan",
+          error: e?.message,
+        });
     }
   },
 
@@ -165,26 +188,36 @@ module.exports = {
       });
 
       if (!item) {
-        return res.status(404).json({ success: false, message: "Pengajuan tidak ditemukan" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Pengajuan tidak ditemukan" });
       }
 
       return res.status(200).json({ success: true, data: item });
     } catch (e) {
       console.error("Admin Detail Error:", e);
-      return res.status(500).json({ success: false, message: "Gagal memuat detail pengajuan", error: e?.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Gagal memuat detail pengajuan",
+          error: e?.message,
+        });
     }
   },
 
   // ── POST /api/admin/pengajuan/:id/approve ─────────────────────
   async approve(req, res) {
     try {
-      const id      = parseInt(req.params.id);
+      const id = parseInt(req.params.id);
       const catatan = req.body?.catatan ?? null;
 
       const existing = await prisma.pengajuan_sdm.findUnique({ where: { id } });
 
       if (!existing) {
-        return res.status(404).json({ success: false, message: "Pengajuan tidak ditemukan" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Pengajuan tidak ditemukan" });
       }
       if (existing.status !== "PENDING") {
         return res.status(400).json({
@@ -192,10 +225,10 @@ module.exports = {
           message: "Hanya pengajuan berstatus PENDING yang dapat disetujui",
         });
       }
-      
+
       // Cek apakah pengajuan ini sudah punya lowongan terkait via relasi
       if (existing.lowongan) {
-         return res.status(400).json({
+        return res.status(400).json({
           success: false,
           message: "Pengajuan ini sudah memiliki lowongan terkait",
         });
@@ -205,17 +238,17 @@ module.exports = {
 
       // Transaksi: buat lowongan siap-publish + update status pengajuan sekaligus
       const [updated, newJob] = await prisma.$transaction(async (tx) => {
-        const job = await tx.lowongan.create({ 
+        const job = await tx.lowongan.create({
           data: jobPayload,
-          include: { pengajuan_sdm: true }
+          include: { pengajuan_sdm: true },
         });
 
         const updatedPengajuan = await tx.pengajuan_sdm.update({
           where: { id },
           data: {
-            status:           "APPROVED",
-            catatan_admin:    catatan,
-            ditinjau:         new Date(),
+            status: "APPROVED",
+            catatan_admin: catatan,
+            ditinjau: new Date(),
             // ❌ lowongan_id dihapus karena relasi sudah diatur lewat lowongan.pengajuan_sdm_id
           },
         });
@@ -246,14 +279,20 @@ module.exports = {
       });
     } catch (e) {
       console.error("Admin Approve Error:", e);
-      return res.status(500).json({ success: false, message: "Gagal menyetujui pengajuan", error: e?.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Gagal menyetujui pengajuan",
+          error: e?.message,
+        });
     }
   },
 
   // ── POST /api/admin/pengajuan/:id/reject ──────────────────────
   async reject(req, res) {
     try {
-      const id      = parseInt(req.params.id);
+      const id = parseInt(req.params.id);
       const catatan = req.body?.catatan ?? "";
 
       if (!catatan.trim()) {
@@ -266,7 +305,9 @@ module.exports = {
       const existing = await prisma.pengajuan_sdm.findUnique({ where: { id } });
 
       if (!existing) {
-        return res.status(404).json({ success: false, message: "Pengajuan tidak ditemukan" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Pengajuan tidak ditemukan" });
       }
       if (existing.status !== "PENDING") {
         return res.status(400).json({
@@ -278,9 +319,9 @@ module.exports = {
       const updated = await prisma.pengajuan_sdm.update({
         where: { id },
         data: {
-          status:           "REJECTED",
-          catatan_admin:    catatan,
-          ditinjau:         new Date(),
+          status: "REJECTED",
+          catatan_admin: catatan,
+          ditinjau: new Date(),
         },
       });
 
@@ -299,7 +340,13 @@ module.exports = {
       });
     } catch (e) {
       console.error("Admin Reject Error:", e);
-      return res.status(500).json({ success: false, message: "Gagal menolak pengajuan", error: e?.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Gagal menolak pengajuan",
+          error: e?.message,
+        });
     }
   },
 };

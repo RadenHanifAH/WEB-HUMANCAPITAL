@@ -136,6 +136,18 @@ export default function AdminPengajuanPage() {
         })
       : "—";
 
+  // ✅ FIX: ambil tanggal dari kemungkinan nama field apapun yang dikirim
+  // backend — camelCase (tanggalPermintaan), snake_case
+  // (tanggal_permintaan), sampai fallback ke createdAt kalau field
+  // tanggal permintaan memang tidak ada. Ini supaya tanggal tetap muncul
+  // walau format field dari API belum konsisten dengan form pengajuan.
+  const getTanggalPengajuan = (item) =>
+    item?.tanggalPermintaan ??
+    item?.tanggal_permintaan ??
+    item?.createdAt ??
+    item?.created_at ??
+    null;
+
   // ✅ FIX: ID diganti menjadi nomor urut berdasarkan posisi baris di halaman
   // saat ini (bukan lagi format #SDM-xxx).
   const generateRowNumber = (index) => (page - 1) * LIMIT + index + 1;
@@ -282,7 +294,7 @@ export default function AdminPengajuanPage() {
                         {generateRowNumber(index)}
                       </td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                        {formatTanggal(item.tanggalPermintaan)}
+                        {formatTanggal(getTanggalPengajuan(item))}
                       </td>
                       <td className="px-4 py-3 text-gray-800 font-medium text-xs">
                         {item.departemen || "—"}
