@@ -173,7 +173,7 @@ class ReportsService {
       }),
       prisma.arsip.count({
         where: {
-          status_akhir: "Ditolak",
+          status_akhir: "Rejected",
           tanggal_keputusan: { gte: startDate, lte: endDate },
         },
       }),
