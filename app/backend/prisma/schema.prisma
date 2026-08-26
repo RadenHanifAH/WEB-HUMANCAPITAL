@@ -153,9 +153,9 @@ model keahlian_pengguna {
 model dokumen_pengguna {
   id              Int     @id @default(autoincrement())
   pengguna_id     Int     @unique(map: "DokumenPengguna_pengguna_id_key")
-  url_cv          String?
+  url_cv          String? @db.LongText
   nama_cv         String?
-  url_portofolio  String?
+  url_portofolio  String? @db.LongText
   nama_portofolio String?
 
   pengguna pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade, map: "DokumenPengguna_pengguna_id_fkey")

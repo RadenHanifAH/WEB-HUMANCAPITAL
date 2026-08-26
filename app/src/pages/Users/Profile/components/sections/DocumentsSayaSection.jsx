@@ -14,7 +14,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 const resolveFileUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
   return BASE_URL + path;
 };
 
