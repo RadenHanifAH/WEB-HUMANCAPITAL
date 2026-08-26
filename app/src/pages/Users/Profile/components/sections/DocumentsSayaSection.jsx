@@ -13,8 +13,8 @@ const resolveFileUrl = (path) => {
   ) {
     return path;
   }
-  // Legacy path lama belum termasuk prefix /api
-  const normalizedPath = path.startsWith("/api")
+  // Cuma tambahkan /api kalau memang belum ada di depan path
+  const normalizedPath = path.startsWith("/api/")
     ? path
     : `/api${path.startsWith("/") ? path : `/${path}`}`;
   return BASE_URL + normalizedPath;
