@@ -182,17 +182,65 @@ const STAGE_KEY_TO_SCHEDULE_TYPE = {
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
+// ✅ FIX: sekarang juga mengenali Data URI base64 (data:application/pdf;base64,...)
+// yang dihasilkan oleh sistem upload dokumen yang baru (documents.service.js
+// fileToDataUri). Sebelumnya path seperti ini malah digabung dengan BASE_URL,
+// menghasilkan URL rusak (mis. "https://...railway.appdata:application/pdf...").
 const resolveFileUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
 
-  // ✅ FIX: applicant.cvDownloadUrl / portfolioDownloadUrl dari backend
-  // sudah termasuk prefix "/api/...", sementara BASE_URL juga sudah
-  // mengandung "/api" di akhirnya -> kalau digabung apa adanya jadi
-  // dobel "/api/api/...". Buang trailing "/api" dari BASE_URL dulu
-  // sebelum digabung, supaya hasil akhirnya cuma satu "/api".
+  // applicant.cvDownloadUrl / portfolioDownloadUrl dari backend sudah
+  // termasuk prefix "/api/...", sementara BASE_URL juga sudah mengandung
+  // "/api" di akhirnya -> kalau digabung apa adanya jadi dobel "/api/api/...".
+  // Buang trailing "/api" dari BASE_URL dulu sebelum digabung, supaya hasil
+  // akhirnya cuma satu "/api".
   const origin = BASE_URL.replace(/\/api\/?$/, "");
   return origin + path;
+};
+
+// ✅ NEW: Chrome/browser modern memblokir navigasi langsung ke data: URL
+// lewat klik <a target="_blank"> (dianggap potensi phishing). Solusinya:
+// konversi Data URI -> Blob -> Object URL saat diklik, baru dibuka di tab
+// baru. Untuk URL biasa (http/https), tetap buka langsung seperti biasa.
+// (disamakan dengan DokumenSayaSection.jsx supaya perilakunya konsisten
+// antara sisi user & sisi admin)
+const openFile = (url) => {
+  if (!url) return;
+
+  if (url.startsWith("data:")) {
+    try {
+      const [header, base64] = url.split(",");
+      const mimeMatch = header.match(/data:(.*);base64/);
+      const mime = mimeMatch?.[1] || "application/octet-stream";
+
+      const byteString = atob(base64);
+      const bytes = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        bytes[i] = byteString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+
+      // Bersihkan object URL setelah tab baru sempat memuatnya
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (err) {
+      console.error("Gagal membuka dokumen:", err);
+    }
+    return;
+  }
+
+  // URL biasa (http/https) -> buka langsung
+  window.open(url, "_blank", "noopener,noreferrer");
 };
 
 // ✅ Kelengkapan data pribadi — langsung baca field mentah model `profil`
@@ -247,6 +295,11 @@ const EmptyRow = ({ text }) => (
   <p className="text-sm text-gray-400 italic">{text}</p>
 );
 
+// ✅ FIX: href diganti jadi tombol dengan onClick={() => openFile(href)},
+// bukan lagi <a href target="_blank"> langsung. Ini supaya dokumen yang
+// tersimpan sebagai Data URI base64 tetap bisa dibuka (di-convert ke Blob
+// URL dulu), karena browser modern memblokir window.open/klik langsung ke
+// data: URL.
 const DocRow = ({ ok, okLabel, badLabel, href, optional }) => (
   <div
     className={
@@ -272,14 +325,14 @@ const DocRow = ({ ok, okLabel, badLabel, href, optional }) => (
       </span>
     </div>
     {ok && href && (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => openFile(href)}
         className="text-gray-400 hover:text-sky-600"
+        title="Buka dokumen di tab baru"
       >
         <Download className="h-4 w-4" />
-      </a>
+      </button>
     )}
   </div>
 );
@@ -706,15 +759,16 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                               : "Tidak memiliki batas waktu masa aktif"}
                           </p>
                           {item.file_sertifikat && (
-                            <a
-                              href={resolveFileUrl(item.file_sertifikat)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFile(resolveFileUrl(item.file_sertifikat))
+                              }
                               className="inline-flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700 mt-1"
                             >
                               Lihat Sertifikat
                               <Download className="w-3.5 h-3.5" />
-                            </a>
+                            </button>
                           )}
                         </div>
                       </div>

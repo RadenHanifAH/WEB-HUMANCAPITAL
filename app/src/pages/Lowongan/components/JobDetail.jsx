@@ -5,7 +5,56 @@ import {
   Calendar,
   ArrowLeft,
   AlertCircle,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
+
+// ✅ NEW: resolver status lamaran -> label + warna yang ditampilkan.
+// applicationStatus.status dari backend bisa berupa:
+//   - "Screaning" | "Interview Pertama" | "Psikotes" | "Interview Kedua" | "Final Result"
+//   - "rejected-at-<stage-slug>"  -> Ditolak
+//   - "Diterima"                  -> Diterima
+// Sebelumnya komponen ini HANYA membaca `tahap` (yang tetap berisi stage
+// TERAKHIR sebelum ditolak, mis. "Interview Pertama"), makanya status
+// yang tampil ke user tidak pernah berubah jadi "Ditolak" walau lamaran
+// sudah ditolak di backend.
+const resolveApplicationDisplay = (applicationStatus) => {
+  const statusRaw = String(applicationStatus?.status || "");
+  const tahapRaw = String(applicationStatus?.tahap || "");
+  const low = statusRaw.toLowerCase();
+
+  const isRejected = low.startsWith("rejected-at-") || low.includes("ditolak");
+  const isAccepted = low === "diterima" || low.includes("accept") || low.includes("diterima");
+
+  if (isRejected) {
+    return {
+      label: "Ditolak",
+      sublabel: tahapRaw ? `Tidak lolos pada tahap ${tahapRaw}` : null,
+      dotClass: "bg-red-600",
+      textClass: "text-red-700",
+      boxClass: "border-red-100 bg-red-50",
+    };
+  }
+
+  if (isAccepted) {
+    return {
+      label: "Diterima",
+      sublabel: null,
+      dotClass: "bg-green-600",
+      textClass: "text-green-700",
+      boxClass: "border-green-100 bg-green-50",
+    };
+  }
+
+  // Masih berjalan -> tampilkan tahap seperti sebelumnya
+  return {
+    label: tahapRaw || "-",
+    sublabel: null,
+    dotClass: "bg-sky-600",
+    textClass: "text-sky-700",
+    boxClass: "border-sky-100 bg-sky-50",
+  };
+};
 
 function JobDetail({
   job,
@@ -30,6 +79,10 @@ function JobDetail({
     if (profileIncomplete) return "Lengkapi Profil Terlebih Dahulu";
     return "Lamar Sekarang";
   };
+
+  const display = applicationStatus
+    ? resolveApplicationDisplay(applicationStatus)
+    : null;
 
   return (
     <>
@@ -94,20 +147,31 @@ function JobDetail({
       <p className="text-gray-700 mt-1 whitespace-pre-line">{job.description}</p>
 
       {/* STATUS LAMARAN */}
-      {applicationStatus && (
-        <div className="mt-6 rounded-xl border border-sky-100 bg-sky-50 p-4">
+      {/* ✅ FIX: sekarang membaca applicationStatus.status (bukan cuma
+          tahap) supaya bisa mendeteksi lamaran yang sudah Ditolak /
+          Diterima dan menampilkan label yang sesuai, bukan tahap
+          terakhir sebelum keputusan diambil. */}
+      {display && (
+        <div className={`mt-6 rounded-xl border p-4 ${display.boxClass}`}>
           <p className="text-sm text-gray-500 mb-1">Status Lamaran</p>
 
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-sky-600" />
+            {display.label === "Ditolak" ? (
+              <XCircle size={16} className="text-red-600" />
+            ) : display.label === "Diterima" ? (
+              <CheckCircle2 size={16} className="text-green-600" />
+            ) : (
+              <div className={`w-2.5 h-2.5 rounded-full ${display.dotClass}`} />
+            )}
 
-            {/* ✅ Persis field yang dikirim application.controller.js ->
-                checkApplication(): { id, status, tahap, tanggal_melamar}.
-                Tidak ada field "stage", makanya sebelumnya selalu kosong. */}
-            <p className="font-semibold text-sky-700">
-              {applicationStatus.tahap}
+            <p className={`font-semibold ${display.textClass}`}>
+              {display.label}
             </p>
           </div>
+
+          {display.sublabel && (
+            <p className="text-xs text-gray-500 mt-1">{display.sublabel}</p>
+          )}
         </div>
       )}
 

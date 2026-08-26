@@ -1,4 +1,5 @@
 const repo = require("./documents.repository");
+const prisma = require("../../config/prisma");
 
 const isValidUrl = (value) => {
   try {
@@ -18,6 +19,53 @@ const fileToDataUri = (file) => {
   return `data:${file.mimetype};base64,${base64}`;
 };
 
+const guessMimeFromName = (name) => {
+  if (!name) return "application/pdf";
+  const ext = String(name).toLowerCase().split(".").pop();
+  if (ext === "pdf") return "application/pdf";
+  return "application/octet-stream";
+};
+
+// ✅ NEW: sinkronkan CV/portofolio yang baru diupload ke SEMUA lamaran
+// milik user yang masih AKTIF (belum Ditolak / belum Diterima). Supaya
+// admin yang membuka detail lamaran ("Lamaran Saya") juga melihat versi
+// CV/portofolio TERBARU, bukan snapshot lama di saat user pertama kali
+// melamar.
+//
+// Lamaran yang statusnya sudah final (Ditolak / Diterima) SENGAJA tidak
+// disentuh — supaya riwayat CV yang dipakai HR mengambil keputusan tetap
+// utuh sebagai snapshot historis. Kalau ke depan mau semua ikut
+// disinkronkan (termasuk yang sudah final), tinggal hapus filter status
+// di bawah.
+const syncActiveApplications = async (userId, { field, base64, mime, name, size }) => {
+  if (!base64) return;
+
+  const isCv = field === "cv";
+
+  const data = isCv
+    ? {
+        data_cv: base64,
+        mime_cv: mime,
+        nama_cv: name,
+        ukuran_cv: size,
+      }
+    : {
+        data_portofolio: base64,
+        mime_portofolio: mime,
+        nama_portofolio: name,
+        ukuran_portofolio: size,
+      };
+
+  await prisma.lamaran.updateMany({
+    where: {
+      pengguna_id: Number(userId),
+      status: { not: "Diterima" },
+      NOT: { status: { startsWith: "rejected-at-" } },
+    },
+    data,
+  });
+};
+
 const getDocuments = (userId) => repo.getByUserId(userId);
 
 /**
@@ -33,7 +81,18 @@ const uploadCv = async (userId, file) => {
   const url_cv = fileToDataUri(file);
   const nama_cv = file.originalname;
 
-  return repo.upsertCv(userId, { url_cv, nama_cv });
+  const result = await repo.upsertCv(userId, { url_cv, nama_cv });
+
+  // ✅ Sinkronkan ke lamaran aktif milik user ini
+  await syncActiveApplications(userId, {
+    field: "cv",
+    base64: file.buffer.toString("base64"),
+    mime: file.mimetype || guessMimeFromName(nama_cv),
+    name: nama_cv,
+    size: file.buffer.length,
+  });
+
+  return result;
 };
 
 /**
@@ -47,7 +106,21 @@ const uploadPortfolioFile = async (userId, file) => {
   const url_portofolio = fileToDataUri(file);
   const nama_portofolio = file.originalname;
 
-  return repo.upsertPortfolio(userId, { url_portofolio, nama_portofolio });
+  const result = await repo.upsertPortfolio(userId, {
+    url_portofolio,
+    nama_portofolio,
+  });
+
+  // ✅ Sinkronkan ke lamaran aktif milik user ini
+  await syncActiveApplications(userId, {
+    field: "portfolio",
+    base64: file.buffer.toString("base64"),
+    mime: file.mimetype || guessMimeFromName(nama_portofolio),
+    name: nama_portofolio,
+    size: file.buffer.length,
+  });
+
+  return result;
 };
 
 /**
@@ -62,6 +135,9 @@ const setPortfolioLink = async (userId, link) => {
     throw new Error("Link portofolio tidak valid, gunakan format URL (https://...)");
   }
 
+  // ⚠️ Catatan: portofolio berupa LINK eksternal tidak disimpan sebagai
+  // file/base64, jadi tidak ada yang perlu disinkronkan ke tabel lamaran
+  // (kolom data_portofolio di lamaran memang khusus untuk file upload).
   return repo.upsertPortfolio(userId, {
     url_portofolio: link.trim(),
     nama_portofolio: null, // null artinya ini link, bukan file upload
