@@ -13,7 +13,11 @@ const resolveFileUrl = (path) => {
   ) {
     return path;
   }
-  return BASE_URL + path;
+  // Legacy path lama belum termasuk prefix /api
+  const normalizedPath = path.startsWith("/api")
+    ? path
+    : `/api${path.startsWith("/") ? path : `/${path}`}`;
+  return BASE_URL + normalizedPath;
 };
 
 // ✅ BARU: Chrome/browser modern memblokir navigasi langsung ke data: URL
