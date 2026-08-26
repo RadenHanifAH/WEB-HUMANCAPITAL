@@ -54,7 +54,7 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 //     ? require("fs").readdirSync(path.join(UPLOADS_DIR, "certificates"))
 //     : "FOLDER NOT FOUND",
 // );
-app.use("/uploads", express.static(UPLOADS_DIR));
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 // ===== Routes =====
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);

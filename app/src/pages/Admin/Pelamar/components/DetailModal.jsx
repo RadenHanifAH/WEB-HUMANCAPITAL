@@ -30,7 +30,9 @@ const toKebab = (val) =>
 // ✅ Resolver stage/status dari backend (Prisma: `tahap` / `status`) menjadi
 // key kebab-case internal yang dipakai UI.
 const resolveStageKey = (raw) => {
-  let s = String(raw || "").trim().toLowerCase();
+  let s = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (!s) return "";
 
   if (s.startsWith("rejected-at-")) {
@@ -47,11 +49,20 @@ const resolveStageKey = (raw) => {
     return "screaning";
 
   if (
-    ["interview-hc", "interviewhc", "interview-pertama", "interviewpertama"].includes(norm)
+    [
+      "interview-hc",
+      "interviewhc",
+      "interview-pertama",
+      "interviewpertama",
+    ].includes(norm)
   )
     return "interview-pertama";
 
-  if (norm.includes("psikotes") || norm.includes("psycho") || norm.includes("technical"))
+  if (
+    norm.includes("psikotes") ||
+    norm.includes("psycho") ||
+    norm.includes("technical")
+  )
     return "psikotes";
 
   if (
@@ -66,7 +77,11 @@ const resolveStageKey = (raw) => {
   if (norm.includes("offering") || norm.includes("final-result"))
     return "final-result";
 
-  if (norm.includes("accept") || norm.includes("hired") || norm.includes("diterima"))
+  if (
+    norm.includes("accept") ||
+    norm.includes("hired") ||
+    norm.includes("diterima")
+  )
     return "final-result";
 
   if (norm.includes("reject") || norm.includes("ditolak")) return "screaning";
@@ -77,8 +92,18 @@ const resolveStageKey = (raw) => {
 const hasValue = (v) => String(v ?? "").trim().length > 0;
 
 const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 const formatDate = (val) => {
@@ -215,22 +240,25 @@ const EmptyRow = ({ text }) => (
   <p className="text-sm text-gray-400 italic">{text}</p>
 );
 
-const DocRow = ({ ok, okLabel, badLabel, href }) => (
+const DocRow = ({ ok, okLabel, badLabel, href, optional }) => (
   <div
     className={
       "flex items-center justify-between gap-3 px-2 py-2 rounded-lg " +
-      (ok ? "" : "bg-red-50")
+      (!ok && !optional ? "bg-red-50" : "")
     }
   >
     <div className="flex items-center gap-3">
       {ok ? (
         <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+      ) : optional ? (
+        <CheckCircle className="h-5 w-5 text-gray-300 shrink-0" />
       ) : (
         <XCircle className="h-5 w-5 text-red-500 shrink-0" />
       )}
       <span
         className={
-          "text-sm font-medium " + (ok ? "text-gray-800" : "text-red-600")
+          "text-sm font-medium " +
+          (ok ? "text-gray-800" : optional ? "text-gray-400" : "text-red-600")
         }
       >
         {ok ? okLabel : badLabel}
@@ -249,23 +277,6 @@ const DocRow = ({ ok, okLabel, badLabel, href }) => (
   </div>
 );
 
-// ✅ `applicant` = satu item dari response application.controller.js `getAll`,
-// bentuknya persis Prisma:
-// {
-//   id, status, tahap, skor, cvDownloadUrl, portfolioDownloadUrl,
-//   pengguna: { nama, email, profil: { nik, jenis_kelamin, nomor_hp,
-//     tempat_lahir, tanggal_lahir, alamat, foto_profil, tentang } },
-//   lowongan: { judul },
-//   pengalaman_kerja: [{ jabatan, perusahaan, jenis_pekerjaan, lokasi,
-//     bulan_mulai, tahun_mulai, bulan_selesai, tahun_selesai, sedang_bekerja }],
-//   pendidikan: [{ institusi, jurusan, gelar, tanggal_mulai, tanggal_selesai,
-//     sedang_berlangsung }],
-//   organisasi: [{ peran, nama_organisasi, tanggal_mulai, tanggal_selesai,
-//     sedang_berlangsung, deskripsi }],
-//   sertifikat: [{ nama, penerbit, diterbitkan, kadaluarsa, file_sertifikat }],
-//   keahlian_pengguna: [{ nama }],
-//   jadwal_wawancara: [{ jenis, tanggal_waktu, status, sudah_selesai, status_kehadiran }],
-// }
 const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
   const [optimisticStage, setOptimisticStage] = useState(null);
 
@@ -308,7 +319,9 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
   const educations = applicant.pendidikan || [];
   const organizations = applicant.organisasi || [];
   const certificates = applicant.sertifikat || [];
-  const skills = (applicant.keahlian_pengguna || []).filter((s) => hasValue(s?.nama));
+  const skills = (applicant.keahlian_pengguna || []).filter((s) =>
+    hasValue(s?.nama),
+  );
   const schedules = applicant.jadwal_wawancara || [];
 
   const cvUrl = resolveFileUrl(applicant.cvDownloadUrl);
@@ -320,7 +333,8 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
   const status = toKebab(statusRaw);
 
   const isAccepted = status === "diterima" || status.includes("accept");
-  const isRejected = status.startsWith("rejected-at-") || status.includes("ditolak");
+  const isRejected =
+    status.startsWith("rejected-at-") || status.includes("ditolak");
 
   // ✅ Saat ditolak, `tahap` menyimpan stage terakhir sebelum penolakan
   // (lihat application.service.js updateApplicationStatus).
@@ -390,8 +404,6 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
         ? "Ditolak"
         : stageLabel(currentKey || resolveStageKey(tahapRaw || statusRaw))
       : "-";
-
-  const sertifikatLengkap = certificates.length > 0;
 
   const showActionCard = !isAccepted && !isRejected;
   const isAtFinalResult = currentKey === "final-result";
@@ -493,11 +505,14 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                     label="Tanggal Lahir"
                     value={
                       profil.tanggal_lahir
-                        ? new Date(profil.tanggal_lahir).toLocaleDateString("id-ID", {
-                            day: "2-digit",
-                            month: "long",
-                            year: "numeric",
-                          })
+                        ? new Date(profil.tanggal_lahir).toLocaleDateString(
+                            "id-ID",
+                            {
+                              day: "2-digit",
+                              month: "long",
+                              year: "numeric",
+                            },
+                          )
                         : "-"
                     }
                     icon={CalendarDays}
@@ -509,7 +524,11 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                 <SectionHeader icon={MapPin} title="Kontak & Lokasi" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-6">
                   <Field label="Email" value={pengguna.email} icon={Mail} />
-                  <Field label="No. Handphone" value={profil.nomor_hp} icon={Phone} />
+                  <Field
+                    label="No. Handphone"
+                    value={profil.nomor_hp}
+                    icon={Phone}
+                  />
                   <Field
                     label="Alamat Domisili"
                     value={profil.alamat}
@@ -546,21 +565,29 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                           </h4>
                           <p className="text-sm text-gray-600">
                             {item.perusahaan}
-                            {item.jenis_pekerjaan ? " · " + item.jenis_pekerjaan : ""}
+                            {item.jenis_pekerjaan
+                              ? " · " + item.jenis_pekerjaan
+                              : ""}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
                             {item.bulan_mulai && item.tahun_mulai
-                              ? MONTHS[item.bulan_mulai - 1] + " " + item.tahun_mulai
+                              ? MONTHS[item.bulan_mulai - 1] +
+                                " " +
+                                item.tahun_mulai
                               : "-"}{" "}
                             -{" "}
                             {item.sedang_bekerja
                               ? "Sekarang"
                               : item.bulan_selesai && item.tahun_selesai
-                                ? MONTHS[item.bulan_selesai - 1] + " " + item.tahun_selesai
+                                ? MONTHS[item.bulan_selesai - 1] +
+                                  " " +
+                                  item.tahun_selesai
                                 : "-"}
                           </p>
                           {item.lokasi && (
-                            <p className="text-xs text-gray-400">{item.lokasi}</p>
+                            <p className="text-xs text-gray-400">
+                              {item.lokasi}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -590,7 +617,9 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                               {item.institusi}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              {[item.gelar, item.jurusan].filter(Boolean).join(" - ") || "-"}
+                              {[item.gelar, item.jurusan]
+                                .filter(Boolean)
+                                .join(" - ") || "-"}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">
                               {formatMonthYear(item.tanggal_mulai)} -{" "}
@@ -621,7 +650,9 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                           <h4 className="font-semibold text-gray-900 text-sm">
                             {item.peran}
                           </h4>
-                          <p className="text-sm text-gray-600">{item.nama_organisasi}</p>
+                          <p className="text-sm text-gray-600">
+                            {item.nama_organisasi}
+                          </p>
                           <p className="text-xs text-gray-400 mt-1">
                             {formatMonthYear(item.tanggal_mulai)} -{" "}
                             {item.sedang_berlangsung
@@ -657,12 +688,14 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                           <p className="text-sm text-gray-600">
                             {item.penerbit}
                             {item.diterbitkan
-                              ? " · Dikeluarkan " + formatMonthYear(item.diterbitkan)
+                              ? " · Dikeluarkan " +
+                                formatMonthYear(item.diterbitkan)
                               : ""}
                           </p>
                           <p className="text-xs text-gray-400 mt-0.5">
                             {item.kadaluarsa
-                              ? "Berlaku hingga " + formatMonthYear(item.kadaluarsa)
+                              ? "Berlaku hingga " +
+                                formatMonthYear(item.kadaluarsa)
                               : "Tidak memiliki batas waktu masa aktif"}
                           </p>
                           {item.file_sertifikat && (
@@ -707,7 +740,9 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
             <div className="space-y-6">
               {/* Progress Seleksi */}
               <Card>
-                <h3 className="text-sm font-bold text-gray-900 mb-5">Progress Seleksi</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-5">
+                  Progress Seleksi
+                </h3>
                 <div className="relative pl-1">
                   {STAGE_FLOW.map((key, idx) => {
                     const state = stageState(idx);
@@ -760,7 +795,8 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
 
                     const scheduleNote = getScheduleNote(key);
                     const showScheduleNote =
-                      scheduleNote && (scheduleNote.scheduled || state === "current");
+                      scheduleNote &&
+                      (scheduleNote.scheduled || state === "current");
 
                     return (
                       <div key={key} className="flex gap-3">
@@ -833,13 +869,9 @@ const DetailModal = ({ applicant, onClose, onAcc, onReject, onAccept }) => {
                   <DocRow
                     ok={Boolean(portfolioUrl)}
                     okLabel="Portofolio Terupload"
-                    badLabel="Portofolio Belum Diupload"
+                    badLabel="Portofolio Belum Diupload (Opsional)"
                     href={portfolioUrl}
-                  />
-                  <DocRow
-                    ok={sertifikatLengkap}
-                    okLabel="Sertifikat"
-                    badLabel="Sertifikat"
+                    optional
                   />
                 </div>
               </Card>
