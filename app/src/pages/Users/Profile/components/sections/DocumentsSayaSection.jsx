@@ -1,21 +1,55 @@
 import React, { useRef, useState } from "react";
-import {
-  FileText,
-  Link2,
-  Upload,
-  Loader2 as LoaderIcon,
-} from "lucide-react";
+import { FileText, Link2, Upload, Loader2 as LoaderIcon } from "lucide-react";
 import axios from "../../../../../api/axiosInstance";
 
-// ✅ Sama seperti CertificateModal.jsx — url_cv/url_portofolio dari backend
-// berupa path relatif ("/uploads/documents/xxx.pdf"), perlu digabung
-// dengan origin API supaya bisa dibuka dari frontend (beda port/origin).
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 const resolveFileUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
   return BASE_URL + path;
+};
+
+// ✅ BARU: Chrome/browser modern memblokir navigasi langsung ke data: URL
+// lewat klik <a target="_blank"> (dianggap potensi phishing). Solusinya:
+// konversi Data URI -> Blob -> Object URL saat diklik, baru dibuka di tab
+// baru. Untuk URL biasa (http/https), tetap buka langsung seperti biasa.
+const openFile = (url) => {
+  if (!url) return;
+
+  if (url.startsWith("data:")) {
+    try {
+      const [header, base64] = url.split(",");
+      const mimeMatch = header.match(/data:(.*);base64/);
+      const mime = mimeMatch?.[1] || "application/octet-stream";
+
+      const byteString = atob(base64);
+      const bytes = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        bytes[i] = byteString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+
+      // Bersihkan object URL setelah tab baru sempat memuatnya
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (err) {
+      console.error("Gagal membuka dokumen:", err);
+    }
+    return;
+  }
+
+  // URL biasa (http/https) -> buka langsung
+  window.open(url, "_blank", "noopener,noreferrer");
 };
 
 const DokumenSayaSection = ({
@@ -31,18 +65,15 @@ const DokumenSayaSection = ({
   const [cvError, setCvError] = useState(null);
   const [portfolioError, setPortfolioError] = useState(null);
 
-  // ✅ Persis nama kolom model `dokumen_pengguna` di schema.prisma:
-  // url_cv, nama_cv, url_portofolio, nama_portofolio
   const hasCv = Boolean(documents?.url_cv);
   const hasPortfolio = Boolean(documents?.url_portofolio);
-  // nama_portofolio null -> berarti yang tersimpan adalah LINK, bukan file upload
   const portfolioIsLink = hasPortfolio && !documents?.nama_portofolio;
 
   const cvUrl = resolveFileUrl(documents?.url_cv);
   const portfolioUrl = resolveFileUrl(documents?.url_portofolio);
-  // Kalau link eksternal (bukan file upload), tampilkan & buka apa adanya,
-  // tidak perlu digabung dengan BASE_URL.
-  const portfolioHref = portfolioIsLink ? documents?.url_portofolio : portfolioUrl;
+  const portfolioHref = portfolioIsLink
+    ? documents?.url_portofolio
+    : portfolioUrl;
 
   const handlePickCv = () => cvInputRef.current?.click();
   const handlePickPortfolioFile = () => portfolioInputRef.current?.click();
@@ -122,15 +153,14 @@ const DokumenSayaSection = ({
         <div className="flex items-center gap-2 mb-3">
           <FileText className="w-5 h-5 text-sky-600 flex-shrink-0" />
           {hasCv && cvUrl ? (
-            <a
-              href={cvUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-sky-700 hover:underline truncate"
+            <button
+              type="button"
+              onClick={() => openFile(cvUrl)}
+              className="text-sm font-medium text-sky-700 hover:underline truncate text-left"
               title="Buka CV di tab baru"
             >
               {documents.nama_cv || "CV"}
-            </a>
+            </button>
           ) : (
             <span className="text-sm font-medium text-gray-800 truncate">
               Belum ada CV diunggah
@@ -175,17 +205,26 @@ const DokumenSayaSection = ({
           <Link2 className="w-5 h-5 text-sky-600 flex-shrink-0" />
 
           {hasPortfolio ? (
-            <a
-              href={portfolioHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-sky-700 hover:underline truncate"
-              title="Buka portofolio di tab baru"
-            >
-              {portfolioIsLink
-                ? documents.url_portofolio
-                : documents.nama_portofolio || "Portofolio"}
-            </a>
+            portfolioIsLink ? (
+              <a
+                href={portfolioHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-sky-700 hover:underline truncate"
+                title="Buka portofolio di tab baru"
+              >
+                {documents.url_portofolio}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openFile(portfolioHref)}
+                className="text-sm font-medium text-sky-700 hover:underline truncate text-left"
+                title="Buka portofolio di tab baru"
+              >
+                {documents.nama_portofolio || "Portofolio"}
+              </button>
+            )
           ) : (
             <span className="text-sm font-medium text-gray-800">
               Portofolio
