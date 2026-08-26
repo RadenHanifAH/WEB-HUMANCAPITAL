@@ -183,9 +183,16 @@ function mapStatusToStage(statusRaw = "") {
   return "Screaning";
 }
 
-function readDocumentFileAsBase64(fileUrl) {
+function extractCvBase64(fileUrl) {
   if (!fileUrl) return null;
 
+  if (fileUrl.startsWith("data:")) {
+    const commaIdx = fileUrl.indexOf(",");
+    if (commaIdx === -1) return null;
+    return fileUrl.slice(commaIdx + 1);
+  }
+
+  // Fallback: pola lama (path disk)
   const fileName = path.basename(fileUrl);
   const filePath = path.join(UPLOAD_DIR, fileName);
 
@@ -274,7 +281,7 @@ module.exports = {
       where: { pengguna_id: Number(userId) },
     });
 
-    const cvBase64 = readDocumentFileAsBase64(profileDocs?.url_cv);
+    const cvBase64 = extractCvBase64(profileDocs?.url_cv);
 
     if (!cvBase64 && !isAdmin) {
       const err = new Error(
@@ -290,7 +297,7 @@ module.exports = {
     let portfolioSize = null;
 
     if (profileDocs?.url_portofolio && profileDocs?.nama_portofolio) {
-      portfolioBase64 = readDocumentFileAsBase64(profileDocs.url_portofolio);
+      portfolioBase64 = extractCvBase64(profileDocs.url_portofolio);
       if (portfolioBase64) {
         portfolioName = profileDocs.nama_portofolio;
         portfolioMime = guessMimeFromName(profileDocs.nama_portofolio);
@@ -422,11 +429,9 @@ module.exports = {
     const pengalamanKerjaComplete =
       (fullProfile?.pengalaman_kerja?.length || 0) > 0;
 
-    const pendidikanComplete =
-      (fullProfile?.pendidikan?.length || 0) > 0;
+    const pendidikanComplete = (fullProfile?.pendidikan?.length || 0) > 0;
 
-    const skillsComplete =
-      (fullProfile?.keahlian_pengguna?.length || 0) > 0;
+    const skillsComplete = (fullProfile?.keahlian_pengguna?.length || 0) > 0;
 
     const sections = {
       cv: hasCv,
@@ -446,8 +451,7 @@ module.exports = {
       sections,
       missing,
       optional: {
-        pengalamanOrganisasi:
-          (fullProfile?.organisasi?.length || 0) > 0,
+        pengalamanOrganisasi: (fullProfile?.organisasi?.length || 0) > 0,
         sertifikat: (fullProfile?.sertifikat?.length || 0) > 0,
         portfolio: Boolean(profileDocs?.url_portofolio),
       },

@@ -185,7 +185,14 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 const resolveFileUrl = (path) => {
   if (!path) return null;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return BASE_URL + path;
+
+  // ✅ FIX: applicant.cvDownloadUrl / portfolioDownloadUrl dari backend
+  // sudah termasuk prefix "/api/...", sementara BASE_URL juga sudah
+  // mengandung "/api" di akhirnya -> kalau digabung apa adanya jadi
+  // dobel "/api/api/...". Buang trailing "/api" dari BASE_URL dulu
+  // sebelum digabung, supaya hasil akhirnya cuma satu "/api".
+  const origin = BASE_URL.replace(/\/api\/?$/, "");
+  return origin + path;
 };
 
 // ✅ Kelengkapan data pribadi — langsung baca field mentah model `profil`
