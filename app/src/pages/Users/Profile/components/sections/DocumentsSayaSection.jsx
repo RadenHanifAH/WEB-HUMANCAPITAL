@@ -13,10 +13,9 @@ const resolveFileUrl = (path) => {
   ) {
     return path;
   }
-  // Cuma tambahkan /api kalau memang belum ada di depan path
-  const normalizedPath = path.startsWith("/api/")
-    ? path
-    : `/api${path.startsWith("/") ? path : `/${path}`}`;
+  // Cukup pastikan ada leading slash, JANGAN tambahin /api lagi
+  // karena BASE_URL (VITE_API_URL) sudah termasuk /api
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return BASE_URL + normalizedPath;
 };
 
