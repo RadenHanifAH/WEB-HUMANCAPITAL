@@ -1,8 +1,4 @@
-const fs = require("fs");
-const path = require("path");
 const repo = require("./documents.repository");
-
-const UPLOAD_DIR = path.join(__dirname, "../../../uploads/documents");
 
 const isValidUrl = (value) => {
   try {
@@ -13,19 +9,13 @@ const isValidUrl = (value) => {
   }
 };
 
-// Hapus file fisik lama di disk (dipakai saat CV/portofolio diganti)
-const removeOldFile = (oldUrl) => {
-  if (!oldUrl) return;
-  if (!oldUrl.startsWith("/uploads/documents/")) return; // jangan hapus link eksternal
-
-  const fileName = path.basename(oldUrl);
-  const filePath = path.join(UPLOAD_DIR, fileName);
-
-  fs.unlink(filePath, (err) => {
-    if (err && err.code !== "ENOENT") {
-      console.error("Gagal menghapus file lama:", err.message);
-    }
-  });
+// ✅ Ubah file upload (buffer di memory, dari multer.memoryStorage())
+// menjadi Data URI base64, supaya tersimpan langsung di kolom DB
+// (url_cv / url_portofolio) — tidak lagi ditulis ke disk lokal server,
+// jadi tidak akan hilang saat Railway redeploy/restart container.
+const fileToDataUri = (file) => {
+  const base64 = file.buffer.toString("base64");
+  return `data:${file.mimetype};base64,${base64}`;
 };
 
 const getDocuments = (userId) => repo.getByUserId(userId);
@@ -38,10 +28,9 @@ const uploadCv = async (userId, file) => {
     throw new Error("File CV wajib diunggah (PDF)");
   }
 
-  const existing = await repo.getByUserId(userId);
-  if (existing?.url_cv) removeOldFile(existing.url_cv);
-
-  const url_cv = `/uploads/documents/${file.filename}`;
+  // Tidak perlu lagi removeOldFile() — tidak ada file fisik di disk,
+  // upsert ke DB otomatis menimpa Data URI lama dengan yang baru.
+  const url_cv = fileToDataUri(file);
   const nama_cv = file.originalname;
 
   return repo.upsertCv(userId, { url_cv, nama_cv });
@@ -55,10 +44,7 @@ const uploadPortfolioFile = async (userId, file) => {
     throw new Error("File portofolio wajib diunggah (PDF)");
   }
 
-  const existing = await repo.getByUserId(userId);
-  if (existing?.url_portofolio) removeOldFile(existing.url_portofolio);
-
-  const url_portofolio = `/uploads/documents/${file.filename}`;
+  const url_portofolio = fileToDataUri(file);
   const nama_portofolio = file.originalname;
 
   return repo.upsertPortfolio(userId, { url_portofolio, nama_portofolio });
@@ -76,10 +62,6 @@ const setPortfolioLink = async (userId, link) => {
     throw new Error("Link portofolio tidak valid, gunakan format URL (https://...)");
   }
 
-  const existing = await repo.getByUserId(userId);
-  // Kalau sebelumnya berupa file upload, hapus file lama karena diganti link
-  if (existing?.url_portofolio) removeOldFile(existing.url_portofolio);
-
   return repo.upsertPortfolio(userId, {
     url_portofolio: link.trim(),
     nama_portofolio: null, // null artinya ini link, bukan file upload
@@ -87,14 +69,10 @@ const setPortfolioLink = async (userId, link) => {
 };
 
 const deleteCv = async (userId) => {
-  const existing = await repo.getByUserId(userId);
-  if (existing?.url_cv) removeOldFile(existing.url_cv);
   return repo.deleteCv(userId);
 };
 
 const deletePortfolio = async (userId) => {
-  const existing = await repo.getByUserId(userId);
-  if (existing?.url_portofolio) removeOldFile(existing.url_portofolio);
   return repo.deletePortfolio(userId);
 };
 

@@ -1,34 +1,16 @@
 // src/middleware/uploadDocument.js
 //
-// Middleware ini TERPISAH dari middleware/upload.js yang dipakai module
-// application (yang menyimpan ke memory/buffer untuk disimpan sebagai
-// Base64 di DB). Middleware ini menyimpan file ke DISK, karena dokumen
-// profil disimpan sebagai path/URL, bukan Base64.
+// ✅ UPDATE: sekarang pakai memoryStorage — dokumen profil (CV/portofolio)
+// disimpan sebagai Data URI Base64 langsung di kolom DB (url_cv /
+// url_portofolio, tipe LONGTEXT), BUKAN lagi ke disk. File dari sini
+// diproses documents.service.js lewat file.buffer, bukan file.filename.
+// Ini penting khususnya untuk Railway, karena disk container-nya
+// ephemeral (hilang tiap redeploy) — jadi file tidak boleh disimpan
+// ke disk sama sekali kalau mau persisten.
 
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
-const UPLOAD_DIR = path.join(__dirname, "../../uploads/documents");
-
-// Pastikan folder upload ada
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
-  },
-  filename: (req, file, cb) => {
-    const userId = req.user?.id || "unknown";
-    const ext = path.extname(file.originalname);
-    const fieldPrefix = file.fieldname; // "cv" atau "portfolio"
-    const timestamp = Date.now();
-
-    cb(null, `${fieldPrefix}_${userId}_${timestamp}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   if (file.fieldname === "cv" && file.mimetype !== "application/pdf") {
@@ -45,7 +27,7 @@ const fileFilter = (req, file, cb) => {
 const uploadDocument = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 // ✅ PENTING: export instance Multer mentah (BUKAN object berisi fungsi
