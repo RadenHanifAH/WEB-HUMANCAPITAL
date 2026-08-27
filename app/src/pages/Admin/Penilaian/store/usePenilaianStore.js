@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import { create } from "zustand";
-import * as penilaianApi from "./api/PenilaianApi";
+import * as penilaianApi from "../api/PenilaianApi";
 
 const usePenilaianStore = create((set, get) => ({
   // ---------- state ----------
