@@ -19,41 +19,64 @@ import {
 } from "./utils/pdfGenerators";
 import PdfPreviewModal from "./components/PdfPreviewModal";
 
-// ✅ Label & warna badge tahap seleksi
-const STAGE_BADGE = {
-  Screaning: { label: "Screening", tone: "bg-gray-100 text-gray-600" },
-  "Interview Pertama": {
+// ✅ Normalisasi string stage: lowercase + buang spasi & slash,
+// supaya "Interview Pertama", "InterviewPertama", "interview-pertama"
+// dll semua dianggap sama. Ini fix untuk bug tab terkunci.
+const normalizeStage = (s = "") =>
+  String(s).toLowerCase().replace(/[\s/_-]+/g, "");
+
+// ✅ Daftar aturan badge tahap seleksi, dicocokkan pakai normalizeStage
+// jadi tidak peduli backend kirim dengan/tanpa spasi.
+const STAGE_BADGE_RULES = [
+  {
+    match: ["screaning", "screening"],
+    label: "Screening",
+    tone: "bg-gray-100 text-gray-600",
+  },
+  {
+    match: ["interviewpertama", "interviewhc"],
     label: "Interview Tahap 1",
     tone: "bg-blue-50 text-blue-600",
   },
-  "Interview HC": {
-    label: "Interview Tahap 1",
-    tone: "bg-blue-50 text-blue-600",
-  },
-  Psikotes: { label: "Psikotes", tone: "bg-amber-50 text-amber-600" },
-  "Psikotes/Technical Test": {
+  {
+    match: ["psikotes", "technicaltest", "technical"],
     label: "Psikotes",
     tone: "bg-amber-50 text-amber-600",
   },
-  "Interview Kedua": {
+  {
+    match: ["interviewkedua", "finalinterview"],
     label: "Interview Tahap 2",
     tone: "bg-indigo-50 text-indigo-600",
   },
-  "Final Interview": {
-    label: "Interview Tahap 2",
-    tone: "bg-indigo-50 text-indigo-600",
+  {
+    match: ["finalresult", "offering"],
+    label: "Final Result",
+    tone: "bg-green-50 text-green-600",
   },
-  "Final Result": { label: "Final Result", tone: "bg-green-50 text-green-600" },
+];
+
+const getStageMeta = (stage) => {
+  const n = normalizeStage(stage);
+  const found = STAGE_BADGE_RULES.find((rule) =>
+    rule.match.some((m) => n.includes(m)),
+  );
+  return (
+    found || {
+      label: stage || "-",
+      tone: "bg-gray-100 text-gray-600",
+    }
+  );
 };
 
 // ✅ HELPER: Mengubah stage menjadi angka level untuk validasi tab
+// (dinormalisasi juga, ini akar penyebab semua tab ke-lock)
 const getStageLevel = (stage = "") => {
-  const s = String(stage).toLowerCase();
-  if (s.includes("screaning")) return 0;
-  if (s.includes("interview pertama") || s.includes("interview hc")) return 1;
+  const s = normalizeStage(stage);
+  if (s.includes("screaning") || s.includes("screening")) return 0;
+  if (s.includes("interviewpertama") || s.includes("interviewhc")) return 1;
   if (s.includes("psikotes") || s.includes("technical")) return 2;
-  if (s.includes("interview kedua") || s.includes("final interview")) return 3;
-  if (s.includes("final result") || s.includes("offering")) return 4;
+  if (s.includes("interviewkedua") || s.includes("finalinterview")) return 3;
+  if (s.includes("finalresult") || s.includes("offering")) return 4;
   return 0;
 };
 
@@ -100,7 +123,8 @@ const Avatar = ({ name, src, size = 44 }) =>
     </div>
   );
 
-// ✅ FIX: StageBadge sekarang mengecek status Ditolak (Merah) & Diterima (Hijau)
+// ✅ FIX: StageBadge sekarang mengecek status Ditolak (Merah) & Diterima (Hijau),
+// dan pakai getStageMeta (normalized) untuk label tahap
 const StageBadge = ({ stage, status }) => {
   const rawStatus = String(status || stage || "").toLowerCase();
 
@@ -119,10 +143,7 @@ const StageBadge = ({ stage, status }) => {
     );
   }
 
-  const meta = STAGE_BADGE[stage] || {
-    label: stage || "-",
-    tone: "bg-gray-100 text-gray-600",
-  };
+  const meta = getStageMeta(stage);
   return (
     <span
       className={`text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${meta.tone}`}
@@ -450,10 +471,10 @@ const DokumenPenilaian = () => {
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   const active = activeDocTab === tab.key;
-                  
+
                   // ✅ Kunci tab jika tahap kandidat belum sampai ke level tersebut
                   const isAccessible = candidateLevel >= tab.level;
-                  
+
                   const hasData =
                     tab.key === "psikotes"
                       ? !!selected.psikotest
