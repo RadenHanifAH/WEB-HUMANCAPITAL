@@ -70,7 +70,25 @@ const getStageMeta = (stage) => {
 
 // ✅ HELPER: Mengubah stage menjadi angka level untuk validasi tab
 // (dinormalisasi juga, ini akar penyebab semua tab ke-lock)
-const getStageLevel = (stage = "") => {
+//
+// 🔧 FIX (2026-08-28): kandidat yang statusnya sudah final ("Diterima" /
+// "Ditolak") memiliki nilai stage/status yang tidak match pola manapun
+// di bawah, sehingga selalu fallback ke level 0 dan mengunci SEMUA tab.
+// Padahal kandidat yang sudah diterima/ditolak pasti sudah melewati
+// seluruh tahap seleksi, jadi seharusnya semua tab tetap bisa dibuka
+// agar admin bisa meninjau ulang dokumen penilaiannya.
+const getStageLevel = (stage = "", status = "") => {
+  const rawStatus = normalizeStage(status || stage);
+  if (
+    rawStatus.includes("diterima") ||
+    rawStatus.includes("accept") ||
+    rawStatus.includes("hired") ||
+    rawStatus.includes("ditolak") ||
+    rawStatus.includes("reject")
+  ) {
+    return 4; // level maksimum -> semua tab terbuka
+  }
+
   const s = normalizeStage(stage);
   if (s.includes("screaning") || s.includes("screening")) return 0;
   if (s.includes("interviewpertama") || s.includes("interviewhc")) return 1;
@@ -303,9 +321,10 @@ const DokumenPenilaian = () => {
   const selected = filtered.find((d) => d.applicationId === selectedId) || null;
 
   // ✅ FIX: Otomatis pindah ke tab sesuai tahap kandidat saat dipilih
+  // (sekarang ikut mempertimbangkan status final Diterima/Ditolak)
   useEffect(() => {
     if (selected) {
-      const level = getStageLevel(selected.stage);
+      const level = getStageLevel(selected.stage, selected.status);
       if (level >= 3) setActiveDocTab("interview2");
       else if (level >= 2) setActiveDocTab("psikotes");
       else setActiveDocTab("interview1");
@@ -330,7 +349,9 @@ const DokumenPenilaian = () => {
   };
 
   // ✅ Ambil level tahap kandidat yang sedang dipilih
-  const candidateLevel = getStageLevel(selected?.stage);
+  // (kandidat Diterima/Ditolak dianggap sudah di level maksimum,
+  // sehingga semua tab dokumen penilaian tetap bisa dibuka)
+  const candidateLevel = getStageLevel(selected?.stage, selected?.status);
 
   return (
     <div className="p-4 md:p-6">
