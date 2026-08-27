@@ -21,11 +21,19 @@ const normalizeStage = (stage) => {
   return stage;
 };
 
+// ✅ FIX: sebelumnya `s.includes("reject")` saja — tidak cocok untuk
+// status Indonesia "Ditolak" (lowercase: "ditolak"). Itu sebabnya badge
+// untuk pelamar yang DITOLAK jatuh ke default abu-abu (stageBadgeClass
+// tidak mengenali "ditolak" sebagai tahap final).
+//
+// Sekarang kita tangkap dua-duanya: "reject" (English) MAUPUN "ditolak"
+// (Bahasa Indonesia). Sama untuk "Diterima" / "accept" / "hired".
 const getFinalBadge = (statusRaw) => {
   const s = String(statusRaw || "").trim().toLowerCase();
   if (!s) return null;
 
-  if (s.includes("reject")) return { text: "DITOLAK", cls: "bg-red-100 text-red-700" };
+  if (s.includes("reject") || s.includes("ditolak"))
+    return { text: "DITOLAK", cls: "bg-red-100 text-red-700" };
 
   if (s.includes("accept") || s.includes("hired") || s.includes("diterima"))
     return { text: "DITERIMA", cls: "bg-green-100 text-green-700" };
