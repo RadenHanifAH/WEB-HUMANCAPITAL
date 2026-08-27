@@ -10,6 +10,7 @@ import {
   Mail,
   Briefcase,
   FileText,
+  Lock,
 } from "lucide-react";
 import usePenilaianStore from "./store/usePenilaianStore";
 import {
@@ -18,9 +19,7 @@ import {
 } from "./utils/pdfGenerators";
 import PdfPreviewModal from "./components/PdfPreviewModal";
 
-// ✅ Label & warna badge tahap seleksi di kartu daftar pelamar, mendukung
-// nama LAMA (Interview HC, Final Interview, dst) & nama BARU sekaligus,
-// sinkron dengan VALID_STAGES di application.service.js.
+// ✅ Label & warna badge tahap seleksi
 const STAGE_BADGE = {
   Screaning: { label: "Screening", tone: "bg-gray-100 text-gray-600" },
   "Interview Pertama": {
@@ -45,6 +44,17 @@ const STAGE_BADGE = {
     tone: "bg-indigo-50 text-indigo-600",
   },
   "Final Result": { label: "Final Result", tone: "bg-green-50 text-green-600" },
+};
+
+// ✅ HELPER: Mengubah stage menjadi angka level untuk validasi tab
+const getStageLevel = (stage = "") => {
+  const s = String(stage).toLowerCase();
+  if (s.includes("screaning")) return 0;
+  if (s.includes("interview pertama") || s.includes("interview hc")) return 1;
+  if (s.includes("psikotes") || s.includes("technical")) return 2;
+  if (s.includes("interview kedua") || s.includes("final interview")) return 3;
+  if (s.includes("final result") || s.includes("offering")) return 4;
+  return 0;
 };
 
 const formatRelativeTime = (dateInput) => {
@@ -90,7 +100,25 @@ const Avatar = ({ name, src, size = 44 }) =>
     </div>
   );
 
-const StageBadge = ({ stage }) => {
+// ✅ FIX: StageBadge sekarang mengecek status Ditolak (Merah) & Diterima (Hijau)
+const StageBadge = ({ stage, status }) => {
+  const rawStatus = String(status || stage || "").toLowerCase();
+
+  if (rawStatus.includes("reject") || rawStatus.includes("ditolak")) {
+    return (
+      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-red-100 text-red-700">
+        Ditolak
+      </span>
+    );
+  }
+  if (rawStatus.includes("accept") || rawStatus.includes("diterima") || rawStatus.includes("hired")) {
+    return (
+      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-700">
+        Diterima
+      </span>
+    );
+  }
+
   const meta = STAGE_BADGE[stage] || {
     label: stage || "-",
     tone: "bg-gray-100 text-gray-600",
@@ -103,24 +131,6 @@ const StageBadge = ({ stage }) => {
     </span>
   );
 };
-
-// ⛔ FIX: SummaryCard (kartu bordered untuk Skor Akhir / Kesimpulan / IQ Score)
-// sudah tidak dipakai lagi di PsikotesTab sesuai permintaan, tapi komponennya
-// tetap disimpan di sini kalau-kalau dibutuhkan lagi di tempat lain nanti.
-const SummaryCard = ({ label, value, valueClass = "text-gray-900", sub }) => (
-  <div className="border border-gray-100 rounded-xl p-4">
-    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1.5">
-      {label}
-    </p>
-    <p className={`text-xl font-bold ${valueClass}`}>{value || "-"}</p>
-    {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-  </div>
-);
-
-/* ---------------------------------------------------------- */
-/* Kartu Berkas — seluruh kartu bisa langsung diklik untuk buka */
-/* preview PDF, tanpa tombol terpisah.                          */
-/* ---------------------------------------------------------- */
 
 const DocumentFileCard = ({
   title,
@@ -156,10 +166,6 @@ const DocumentFileCard = ({
   </button>
 );
 
-/* ---------- Isi tab Psikotes: sekarang berupa berkas PDF ---------- */
-// ✅ FIX: kartu ringkasan (Skor Akhir / Kesimpulan / IQ Score) dan baris
-// info "Tanggal Test / Tester / Diperiksa" di bagian bawah DIHAPUS sesuai
-// permintaan. Sekarang tab ini hanya menampilkan kartu berkas PDF-nya.
 const PsikotesTab = ({ data, candidate, onOpenPdf }) => {
   if (!data) {
     return (
@@ -191,11 +197,6 @@ const PsikotesTab = ({ data, candidate, onOpenPdf }) => {
   );
 };
 
-/* ---------- Isi tab Interview (dipakai untuk tahap 1 & 2): berupa berkas PDF ---------- */
-// ✅ FIX: dokumen pendukung (foto/PDF) yang diunggah kandidat SUDAH
-// digabungkan otomatis ke dalam PDF ringkasan wawancara oleh
-// generateInterviewPdf (lihat utils/pdfGenerators.js) — jadi cukup 1 kartu
-// berkas saja di sini, tidak perlu kartu terpisah untuk file upload lagi.
 const InterviewTab = ({
   data,
   stageLabel,
@@ -239,9 +240,9 @@ const InterviewTab = ({
 };
 
 const TABS = [
-  { key: "interview1", label: "Interview Tahap 1", icon: ClipboardCheck },
-  { key: "psikotes", label: "Psikotes", icon: Brain },
-  { key: "interview2", label: "Interview Tahap 2", icon: Star },
+  { key: "interview1", label: "Interview Tahap 1", icon: ClipboardCheck, level: 1 },
+  { key: "psikotes", label: "Psikotes", icon: Brain, level: 2 },
+  { key: "interview2", label: "Interview Tahap 2", icon: Star, level: 3 },
 ];
 
 const DokumenPenilaian = () => {
@@ -249,7 +250,6 @@ const DokumenPenilaian = () => {
   const [selectedId, setSelectedId] = useState(null);
   const [activeDocTab, setActiveDocTab] = useState("interview1");
 
-  // ✅ State untuk modal preview PDF (dokumen dibuat baru setiap kali dibuka)
   const [pdfModal, setPdfModal] = useState({
     open: false,
     fileName: "",
@@ -273,8 +273,6 @@ const DokumenPenilaian = () => {
     );
   }, [documentsList, search]);
 
-  // Auto-pilih kandidat pertama begitu data list tersedia, supaya panel
-  // kanan tidak kosong saat halaman pertama kali dibuka.
   useEffect(() => {
     if (!selectedId && filtered.length > 0) {
       setSelectedId(filtered[0].applicationId);
@@ -283,8 +281,16 @@ const DokumenPenilaian = () => {
 
   const selected = filtered.find((d) => d.applicationId === selectedId) || null;
 
-  // Badge "X Baru": kandidat yang salah satu hasil penilaiannya diperbarui
-  // dalam 3 hari terakhir.
+  // ✅ FIX: Otomatis pindah ke tab sesuai tahap kandidat saat dipilih
+  useEffect(() => {
+    if (selected) {
+      const level = getStageLevel(selected.stage);
+      if (level >= 3) setActiveDocTab("interview2");
+      else if (level >= 2) setActiveDocTab("psikotes");
+      else setActiveDocTab("interview1");
+    }
+  }, [selectedId, filtered]);
+
   const newCount = useMemo(() => {
     const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
     return documentsList.filter(
@@ -294,9 +300,6 @@ const DokumenPenilaian = () => {
     ).length;
   }, [documentsList]);
 
-  // ✅ Dipanggil dari DocumentFileCard di masing-masing tab untuk membuka
-  // preview PDF. `buildDoc` dieksekusi di dalam modal saat modal terbuka,
-  // supaya PDF selalu dibuat ulang dari data terbaru.
   const handleOpenPdf = ({ fileName, buildDoc }) => {
     setPdfModal({ open: true, fileName, buildDoc });
   };
@@ -304,6 +307,9 @@ const DokumenPenilaian = () => {
   const handleClosePdf = () => {
     setPdfModal({ open: false, fileName: "", buildDoc: null });
   };
+
+  // ✅ Ambil level tahap kandidat yang sedang dipilih
+  const candidateLevel = getStageLevel(selected?.stage);
 
   return (
     <div className="p-4 md:p-6">
@@ -358,10 +364,7 @@ const DokumenPenilaian = () => {
                 <button
                   key={d.applicationId}
                   type="button"
-                  onClick={() => {
-                    setSelectedId(d.applicationId);
-                    setActiveDocTab("interview1");
-                  }}
+                  onClick={() => setSelectedId(d.applicationId)}
                   className={`w-full text-left flex items-start gap-3 rounded-xl px-3 py-3 mb-1 transition ${
                     active ? "bg-blue-50" : "hover:bg-gray-50"
                   }`}
@@ -379,7 +382,8 @@ const DokumenPenilaian = () => {
                       {d.position}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <StageBadge stage={d.stage} />
+                      {/* ✅ Kirim status ke StageBadge supaya warnanya merah jika ditolak */}
+                      <StageBadge stage={d.stage} status={d.status} />
                       <span className="text-[11px] text-gray-400 whitespace-nowrap">
                         {formatRelativeTime(d.lastUpdatedAt)}
                       </span>
@@ -446,29 +450,38 @@ const DokumenPenilaian = () => {
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   const active = activeDocTab === tab.key;
+                  
+                  // ✅ Kunci tab jika tahap kandidat belum sampai ke level tersebut
+                  const isAccessible = candidateLevel >= tab.level;
+                  
                   const hasData =
                     tab.key === "psikotes"
                       ? !!selected.psikotest
                       : tab.key === "interview1"
                         ? !!selected.interview1
                         : !!selected.interview2;
+
                   return (
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setActiveDocTab(tab.key)}
+                      // ✅ Cegah klik jika tab terkunci
+                      onClick={() => isAccessible && setActiveDocTab(tab.key)}
+                      disabled={!isAccessible}
                       className={`relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition ${
-                        active
-                          ? "text-sky-600"
-                          : "text-gray-500 hover:text-gray-800"
+                        !isAccessible
+                          ? "text-gray-300 cursor-not-allowed"
+                          : active
+                            ? "text-sky-600"
+                            : "text-gray-500 hover:text-gray-800"
                       }`}
                     >
-                      <Icon size={14} />
+                      {isAccessible ? <Icon size={14} /> : <Lock size={12} />}
                       {tab.label}
-                      {!hasData && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 ml-1" />
+                      {hasData && isAccessible && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 ml-1" />
                       )}
-                      {active && (
+                      {active && isAccessible && (
                         <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-sky-600 rounded-full" />
                       )}
                     </button>
@@ -508,7 +521,6 @@ const DokumenPenilaian = () => {
         </div>
       </div>
 
-      {/* ✅ Modal preview PDF — dibuka langsung dengan mengklik kartu berkas */}
       <PdfPreviewModal
         open={pdfModal.open}
         onClose={handleClosePdf}
