@@ -21,7 +21,6 @@ const TYPE_FILTER_STORAGE_KEY = "schedules_type_filter";
 
 export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState("");
@@ -51,29 +50,27 @@ export default function SchedulesPage() {
     setConfirmState((prev) => ({ ...prev, open: false }));
 
   const totalPages = Math.max(1, Math.ceil((data.total || 0) / data.pageSize));
-  const hasMore = data.page < totalPages;
 
-  const load = async ({ page = data.page, append = false } = {}) => {
+  const load = async ({ page = data.page } = {}) => {
     try {
-      append ? setLoadingMore(true) : setLoading(true);
+      setLoading(true);
       const res = await fetchSchedules({
         date: selectedDate,
         type: typeFilter,
         page,
         pageSize: data.pageSize,
       });
-      setData((prev) => ({
-        items: append ? [...prev.items, ...(res.items || [])] : res.items || [],
+      setData({
+        items: res.items || [],
         total: res.total || 0,
         page: res.page || page,
-        pageSize: res.pageSize || prev.pageSize,
-      }));
+        pageSize: res.pageSize || data.pageSize,
+      });
     } catch (e) {
       console.error(e);
       toast.error("Gagal memuat jadwal");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
@@ -161,6 +158,7 @@ export default function SchedulesPage() {
         await deleteSchedule(id);
         toast.success("Jadwal dihapus");
 
+        // Jika hapus item terakhir di halaman selain halaman 1, balik ke halaman sebelumnya
         const willBeEmpty = data.items.length === 1 && data.page > 1;
         await load({ page: willBeEmpty ? data.page - 1 : data.page });
       },
@@ -236,18 +234,6 @@ export default function SchedulesPage() {
           </div>
         )}
       </div>
-
-      {!loading && hasMore && (
-        <div className="flex justify-center mt-6">
-          <button
-            onClick={() => load({ page: data.page + 1, append: true })}
-            disabled={loadingMore}
-            className="flex items-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 w-full sm:w-auto justify-center"
-          >
-            {loadingMore ? "Memuat..." : "Load More Schedules"}
-          </button>
-        </div>
-      )}
 
       <Pagination
         page={data.page}
