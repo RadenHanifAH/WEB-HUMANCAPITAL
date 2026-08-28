@@ -61,7 +61,20 @@ class ReportsService {
 
   monthLabel(d) {
     const x = new Date(d);
-    const names = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const names = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
+    ];
     return `${names[x.getMonth()]} ${x.getFullYear()}`;
   }
 
@@ -93,7 +106,8 @@ class ReportsService {
     const ym = this.keyYM(bucketMonthDate);
     const label = `${this.monthLabel(bucketMonthDate)} - Minggu ${week}`;
     const key = `${ym}|W${week}`;
-    const sortKey = bucketMonthDate.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000;
+    const sortKey =
+      bucketMonthDate.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000;
 
     return { key, label, sortKey };
   }
@@ -119,13 +133,17 @@ class ReportsService {
         startDate = this.startOfDay(this.addDays(now, -7 * 8));
         break;
       case "monthly":
-        startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth() - 11, 1));
+        startDate = this.startOfDay(
+          new Date(now.getFullYear(), now.getMonth() - 11, 1),
+        );
         break;
       case "yearly":
         startDate = this.startOfDay(new Date(now.getFullYear() - 4, 0, 1));
         break;
       default:
-        startDate = this.startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+        startDate = this.startOfDay(
+          new Date(now.getFullYear(), now.getMonth(), 1),
+        );
         break;
     }
 
@@ -167,13 +185,31 @@ class ReportsService {
     const [accepted, rejected] = await Promise.all([
       prisma.arsip.count({
         where: {
-          status_akhir: "Diterima",
+          status_akhir: {
+            in: [
+              "Diterima",
+              "diterima",
+              "DITERIMA",
+              "Accepted",
+              "accepted",
+              "ACCEPTED",
+            ],
+          },
           tanggal_keputusan: { gte: startDate, lte: endDate },
         },
       }),
       prisma.arsip.count({
         where: {
-          status_akhir: "Rejected",
+          status_akhir: {
+            in: [
+              "Ditolak",
+              "ditolak",
+              "DITOLAK",
+              "Rejected",
+              "rejected",
+              "REJECTED",
+            ],
+          },
           tanggal_keputusan: { gte: startDate, lte: endDate },
         },
       }),
@@ -186,8 +222,12 @@ class ReportsService {
   // Final status bucket (hanya untuk in_progress)
   // =========================
   getFinalBucket(app) {
-    const stage = String(app.tahap || "").toLowerCase().trim();
-    const status = String(app.status || "").toLowerCase().trim();
+    const stage = String(app.tahap || "")
+      .toLowerCase()
+      .trim();
+    const status = String(app.status || "")
+      .toLowerCase()
+      .trim();
 
     const accepted =
       stage === "accepted" ||
@@ -234,7 +274,11 @@ class ReportsService {
       if (p === "daily") {
         key = this.keyYMD(d);
         label = this.labelDMY(d);
-        sortKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        sortKey = new Date(
+          d.getFullYear(),
+          d.getMonth(),
+          d.getDate(),
+        ).getTime();
       } else if (p === "weekly") {
         const wk = this.getCustomWeeklyBucket(d);
         key = wk.key;
@@ -256,7 +300,9 @@ class ReportsService {
       trendMap.get(key).count += 1;
     }
 
-    const sorted = Array.from(trendMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+    const sorted = Array.from(trendMap.values()).sort(
+      (a, b) => a.sortKey - b.sortKey,
+    );
     return {
       labels: sorted.map((x) => x.label),
       applications: sorted.map((x) => x.count),
@@ -303,7 +349,10 @@ class ReportsService {
 
     const chartTrend = this.aggregateTrend(applications, p);
 
-    const { accepted, rejected } = await this.getArchiveCounts(startDate, endDate);
+    const { accepted, rejected } = await this.getArchiveCounts(
+      startDate,
+      endDate,
+    );
 
     let inProgress = 0;
     for (const a of applications) {
@@ -323,7 +372,11 @@ class ReportsService {
   // =========================
   // Trend + Status chart untuk CUSTOM DATE RANGE
   // =========================
-  async getReportsByCustomRange(startDateInput, endDateInput, granularity = "monthly") {
+  async getReportsByCustomRange(
+    startDateInput,
+    endDateInput,
+    granularity = "monthly",
+  ) {
     const g = this.normalizePeriod(granularity);
 
     const startDate = this.startOfDay(new Date(startDateInput));
@@ -333,7 +386,10 @@ class ReportsService {
 
     const chartTrend = this.aggregateTrend(applications, g);
 
-    const { accepted, rejected } = await this.getArchiveCounts(startDate, endDate);
+    const { accepted, rejected } = await this.getArchiveCounts(
+      startDate,
+      endDate,
+    );
 
     let inProgress = 0;
     for (const a of applications) {
@@ -382,7 +438,10 @@ class ReportsService {
       totalApplications: totalApps,
       accepted: acceptedCount,
       rejected: rejectedCount,
-      conversionRate: totalApps > 0 ? Number(((acceptedCount / totalApps) * 100).toFixed(1)) : 0,
+      conversionRate:
+        totalApps > 0
+          ? Number(((acceptedCount / totalApps) * 100).toFixed(1))
+          : 0,
       positionDetails,
     };
   }
@@ -390,7 +449,12 @@ class ReportsService {
   // =========================
   // Export builders
   // =========================
-  async buildDashboardExportData({ trendPeriod, positionPeriod, statusPeriod, dateRange = null }) {
+  async buildDashboardExportData({
+    trendPeriod,
+    positionPeriod,
+    statusPeriod,
+    dateRange = null,
+  }) {
     const tp = this.normalizePeriod(trendPeriod);
     const pp = this.normalizePeriod(positionPeriod);
     const sp = this.normalizePeriod(statusPeriod);
@@ -457,7 +521,11 @@ class ReportsService {
       row.font = { bold: true };
       row.alignment = { vertical: "middle" };
       row.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF2F2F2" },
+        };
       });
     };
 
@@ -480,7 +548,10 @@ class ReportsService {
       const ws = wb.addWorksheet(safeName(`Trend_${label}`));
 
       styleTitle(ws, `Trend - ${label}`);
-      ws.addRow(["Rentang", `${this.isoDate(dateRange?.startDate)} s/d ${this.isoDate(dateRange?.endDate)}`]);
+      ws.addRow([
+        "Rentang",
+        `${this.isoDate(dateRange?.startDate)} s/d ${this.isoDate(dateRange?.endDate)}`,
+      ]);
       ws.addRow([]);
 
       ws.addRow(["Label", "Jumlah"]);
@@ -489,7 +560,9 @@ class ReportsService {
       ws.views = [{ state: "frozen", ySplit: 4 }];
 
       const labels = Array.isArray(series?.labels) ? series.labels : [];
-      const vals = Array.isArray(series?.applications) ? series.applications : [];
+      const vals = Array.isArray(series?.applications)
+        ? series.applications
+        : [];
 
       if (!labels.length) ws.addRow(["Data kosong", 0]);
       else labels.forEach((l, i) => ws.addRow([l, vals[i] ?? 0]));
@@ -514,12 +587,18 @@ class ReportsService {
       ws.autoFilter = { from: "A3", to: "C3" };
       ws.views = [{ state: "frozen", ySplit: 3 }];
 
-      const pos = Array.isArray(report.positionDetails) ? report.positionDetails : [];
+      const pos = Array.isArray(report.positionDetails)
+        ? report.positionDetails
+        : [];
       if (!pos.length) {
         ws.addRow(["Data kosong", 0, 0]);
       } else {
         pos.forEach((p) => {
-          const r = ws.addRow([p.position || "-", p.count ?? 0, (p.percentage ?? 0) / 100]);
+          const r = ws.addRow([
+            p.position || "-",
+            p.count ?? 0,
+            (p.percentage ?? 0) / 100,
+          ]);
           r.getCell(3).numFmt = "0%";
         });
       }
@@ -564,7 +643,7 @@ class ReportsService {
             periodKey: per,
             series: trendExport.trends[per],
             dateRange: trendExport.dateRange,
-          })
+          }),
         );
       } else {
         const meta = report.dashboardMeta || {};
@@ -586,7 +665,7 @@ class ReportsService {
             periodKey: per,
             series: trendExport.trends[per],
             dateRange: trendExport.dateRange,
-          })
+          }),
         );
       } else {
         addTrendSheetFromSeries({
@@ -652,7 +731,9 @@ class ReportsService {
       .fontSize(9)
       .font("Helvetica-Bold")
       .fillColor(COLORS.muted)
-      .text("SISTEM MANAJEMEN REKRUTMEN", marginLeft, doc.y, { characterSpacing: 1.1 });
+      .text("SISTEM MANAJEMEN REKRUTMEN", marginLeft, doc.y, {
+        characterSpacing: 1.1,
+      });
 
     const printedAt = new Date().toLocaleString("id-ID", {
       dateStyle: "long",
@@ -662,13 +743,24 @@ class ReportsService {
       .fontSize(8.5)
       .font("Helvetica")
       .fillColor(COLORS.muted)
-      .text(`Dicetak: ${printedAt}`, marginLeft, 34, { width: usableWidth, align: "right" });
+      .text(`Dicetak: ${printedAt}`, marginLeft, 34, {
+        width: usableWidth,
+        align: "right",
+      });
 
     doc.moveDown(0.7);
-    doc.fontSize(20).font("Helvetica-Bold").fillColor(COLORS.primary).text(title, marginLeft);
+    doc
+      .fontSize(20)
+      .font("Helvetica-Bold")
+      .fillColor(COLORS.primary)
+      .text(title, marginLeft);
 
     doc.moveDown(0.15);
-    doc.fontSize(10.5).font("Helvetica").fillColor(COLORS.muted).text(subtitle, marginLeft);
+    doc
+      .fontSize(10.5)
+      .font("Helvetica")
+      .fillColor(COLORS.muted)
+      .text(subtitle, marginLeft);
 
     doc.moveDown(0.8);
     doc
@@ -697,7 +789,11 @@ class ReportsService {
 
     if (extraNote) {
       doc.moveDown(0.15);
-      doc.fontSize(9).font("Helvetica").fillColor(COLORS.muted).text(extraNote, marginLeft + 12);
+      doc
+        .fontSize(9)
+        .font("Helvetica")
+        .fillColor(COLORS.muted)
+        .text(extraNote, marginLeft + 12);
     }
 
     doc.moveDown(0.6);
@@ -710,7 +806,8 @@ class ReportsService {
     const topThreshold = doc.page.margins.top + 20;
     if (doc.y <= topThreshold) return;
 
-    const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const usableWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
     doc.moveDown(0.2);
     doc
@@ -727,12 +824,15 @@ class ReportsService {
 
   _drawTable(doc, { columns, rows, totalRow }) {
     const startX = doc.page.margins.left;
-    const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const usableWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const rowHeight = 22;
     const headerHeight = 26;
 
     const totalRatio = columns.reduce((sum, c) => sum + (c.ratio || 1), 0);
-    const colWidths = columns.map((c) => (usableWidth * (c.ratio || 1)) / totalRatio);
+    const colWidths = columns.map(
+      (c) => (usableWidth * (c.ratio || 1)) / totalRatio,
+    );
 
     const drawHeaderRow = () => {
       const y = doc.y;
@@ -791,7 +891,10 @@ class ReportsService {
     if (!rows.length) {
       this._ensureSpace(doc, rowHeight);
       const y = doc.y;
-      doc.fontSize(9.5).fillColor(COLORS.muted).text("Tidak ada data", startX + 8, y + 6);
+      doc
+        .fontSize(9.5)
+        .fillColor(COLORS.muted)
+        .text("Tidak ada data", startX + 8, y + 6);
       doc.y = y + rowHeight;
       doc.fillColor(COLORS.text);
     } else {
@@ -839,10 +942,20 @@ class ReportsService {
   }
 
   _addPositionsSection(doc, report) {
-    this._drawSectionTitle(doc, "Analitik Posisi", "Distribusi jumlah lamaran per posisi yang dibuka");
+    this._drawSectionTitle(
+      doc,
+      "Analitik Posisi",
+      "Distribusi jumlah lamaran per posisi yang dibuka",
+    );
 
-    const pos = Array.isArray(report.positionDetails) ? report.positionDetails : [];
-    const rows = pos.map((p) => [p.position || "-", p.count ?? 0, `${p.percentage ?? 0}%`]);
+    const pos = Array.isArray(report.positionDetails)
+      ? report.positionDetails
+      : [];
+    const rows = pos.map((p) => [
+      p.position || "-",
+      p.count ?? 0,
+      `${p.percentage ?? 0}%`,
+    ]);
     const totalCount = pos.reduce((s, p) => s + (Number(p.count) || 0), 0);
 
     this._drawTable(doc, {
@@ -859,7 +972,11 @@ class ReportsService {
   }
 
   _addStatusSection(doc, report) {
-    this._drawSectionTitle(doc, "Status Lamaran", "Ringkasan status akhir lamaran pada periode laporan");
+    this._drawSectionTitle(
+      doc,
+      "Status Lamaran",
+      "Ringkasan status akhir lamaran pada periode laporan",
+    );
 
     const acc = report.chartAcceptance || {};
     const labels = Array.isArray(acc.labels) ? acc.labels : [];
@@ -891,7 +1008,8 @@ class ReportsService {
       doc.switchToPage(i);
 
       const marginLeft = doc.page.margins.left;
-      const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const usableWidth =
+        doc.page.width - doc.page.margins.left - doc.page.margins.right;
       const bottom = doc.page.height - doc.page.margins.bottom + 14;
 
       doc
@@ -912,21 +1030,40 @@ class ReportsService {
       doc
         .fontSize(8)
         .fillColor(COLORS.muted)
-        .text(`Halaman ${i - range.start + 1} dari ${range.count}`, marginLeft, bottom, {
-          width: usableWidth,
-          align: "right",
-        });
+        .text(
+          `Halaman ${i - range.start + 1} dari ${range.count}`,
+          marginLeft,
+          bottom,
+          {
+            width: usableWidth,
+            align: "right",
+          },
+        );
     }
   }
 
   _reportTitles(type, report) {
     const TITLE_BY_TYPE = {
-      dashboard: ["LAPORAN REKRUTMEN", "Ringkasan Trend, Posisi, dan Status Lamaran"],
-      trend_analytics: ["LAPORAN TREND PELAMAR", "Analitik Trend Jumlah Pelamar"],
-      position_analytics: ["LAPORAN ANALITIK POSISI", "Distribusi Lamaran per Posisi"],
-      status_analytics: ["LAPORAN STATUS LAMARAN", "Ringkasan Status Diterima / Ditolak / Dalam Proses"],
+      dashboard: [
+        "LAPORAN REKRUTMEN",
+        "Ringkasan Trend, Posisi, dan Status Lamaran",
+      ],
+      trend_analytics: [
+        "LAPORAN TREND PELAMAR",
+        "Analitik Trend Jumlah Pelamar",
+      ],
+      position_analytics: [
+        "LAPORAN ANALITIK POSISI",
+        "Distribusi Lamaran per Posisi",
+      ],
+      status_analytics: [
+        "LAPORAN STATUS LAMARAN",
+        "Ringkasan Status Diterima / Ditolak / Dalam Proses",
+      ],
     };
-    return TITLE_BY_TYPE[type] || ["LAPORAN REKRUTMEN", "Laporan Rekrutmen Karyawan"];
+    return (
+      TITLE_BY_TYPE[type] || ["LAPORAN REKRUTMEN", "Laporan Rekrutmen Karyawan"]
+    );
   }
 
   async generatePDFBuffer(report, type = "dashboard") {
@@ -952,8 +1089,11 @@ class ReportsService {
         if (type === "dashboard") {
           const trendExport = report.trendExport;
           const meta = report.dashboardMeta || {};
-          const basePeriod = trendExport?.basePeriod || meta.trendPeriod || "monthly";
-          const series = trendExport?.trends ? trendExport.trends[basePeriod] : report.chartTrend;
+          const basePeriod =
+            trendExport?.basePeriod || meta.trendPeriod || "monthly";
+          const series = trendExport?.trends
+            ? trendExport.trends[basePeriod]
+            : report.chartTrend;
 
           this._addTrendSection(doc, {
             periodKey: basePeriod,
@@ -965,8 +1105,11 @@ class ReportsService {
           this._addStatusSection(doc, report);
         } else if (type === "trend_analytics") {
           const trendExport = report.trendExport;
-          const basePeriod = trendExport?.basePeriod || report.period || "monthly";
-          const series = trendExport?.trends ? trendExport.trends[basePeriod] : report.chartTrend;
+          const basePeriod =
+            trendExport?.basePeriod || report.period || "monthly";
+          const series = trendExport?.trends
+            ? trendExport.trends[basePeriod]
+            : report.chartTrend;
 
           this._addTrendSection(doc, {
             periodKey: basePeriod,
