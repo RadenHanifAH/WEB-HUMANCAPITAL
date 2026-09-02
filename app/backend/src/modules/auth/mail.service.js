@@ -1,5 +1,5 @@
 // src/modules/auth/mail.service.js
-const nodemailer = require("nodemailer");
+const axios = require("axios");
 
 /* =========================
    Helper: From
@@ -11,119 +11,75 @@ function getFrom() {
 }
 
 /* =========================================================
-   ✅ Nodemailer SMTP transporter
+   ✅ Brevo (Sendinblue) HTTP API client
+   Dipakai menggantikan Nodemailer SMTP karena banyak hosting
+   (Railway, Vercel, dll) memblokir/membatasi outbound SMTP
+   di port 587/465, sedangkan HTTPS (port 443) tidak diblokir.
    ========================================================= */
-const port = Number(process.env.SMTP_PORT || 587);
-const secure = String(process.env.SMTP_SECURE || "false") === "true" || port === 465;
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
-const smtpEnabled =
-  !!process.env.SMTP_HOST && !!process.env.SMTP_USER && !!process.env.SMTP_PASS;
+const brevoEnabled = !!process.env.BREVO_API_KEY;
 
-let transporter = null;
-
-if (smtpEnabled) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure, // true kalau port 465, false kalau 587 (STARTTLS)
-
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-
-    tls: {
-      rejectUnauthorized: false,
-    },
-
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-  });
+if (!brevoEnabled) {
+  console.log(
+    "[MAIL] BREVO_API_KEY belum dikonfigurasi di .env. Email tidak akan bisa terkirim."
+  );
 }
-
-// Verify SMTP saat startup (skip di production biar startup tidak lambat/timeout kalau port diblokir hosting)
-async function verifySmtpIfSafe() {
-  const isProd = process.env.NODE_ENV === "production";
-
-  if (!transporter) {
-    console.log("[MAIL] SMTP belum dikonfigurasi (cek SMTP_HOST/SMTP_USER/SMTP_PASS di .env). Email tidak akan bisa terkirim.");
-    return;
-  }
-
-  if (isProd) {
-    console.log("[MAIL] Production detected. SMTP verify di-skip untuk menghindari timeout.");
-    return;
-  }
-
-  try {
-    // ✅ Verifikasi tetap jalan seperti biasa (memastikan koneksi SMTP
-    // valid saat startup), hanya saja log "[SMTP] READY {...}" yang tadinya
-    // muncul di terminal SUDAH DIHAPUS sesuai permintaan.
-    await transporter.verify();
-  } catch (e) {
-    console.error("[SMTP] VERIFY FAILED", {
-      message: e?.message,
-      code: e?.code,
-      responseCode: e?.responseCode,
-      command: e?.command,
-      response: e?.response,
-    });
-  }
-}
-verifySmtpIfSafe();
 
 /* =========================================================
    ✅ Generic sender — dipakai oleh modul lain (mis. schedules)
-   supaya tidak perlu bikin transporter Nodemailer sendiri lagi.
+   supaya tidak perlu bikin client Brevo sendiri lagi.
+   Signature sama persis seperti versi SMTP sebelumnya, jadi
+   pemanggil (sendOtpEmail, sendResetPasswordEmail, dll) tidak
+   perlu diubah.
    ========================================================= */
 async function sendMail({ to, subject, html, text }) {
-  if (!transporter) {
-    throw new Error("SMTP belum dikonfigurasi. Cek SMTP_HOST, SMTP_USER, SMTP_PASS di .env.");
+  if (!brevoEnabled) {
+    throw new Error("BREVO_API_KEY belum dikonfigurasi. Cek .env / environment variables.");
   }
 
   const from = getFrom();
   if (!from.email) throw new Error("MAIL_FROM_EMAIL belum di-set");
 
   try {
-    const info = await transporter.sendMail({
-      from: `"${from.name}" <${from.email}>`,
+    const response = await axios.post(
+      BREVO_API_URL,
+      {
+        sender: { name: from.name, email: from.email },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text, // opsional, Brevo boleh terima salah satu (html/text)
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 10000, // 10 detik, biar tidak menggantung lama kalau ada masalah
+      }
+    );
+
+    console.log("[MAIL] SEND SUCCESS", {
       to,
       subject,
-      text,
-      html,
+      messageId: response.data?.messageId,
     });
-
-    console.log("[SMTP] MAIL SENT", {
-      to,
-      subject,
-      messageId: info?.messageId,
-      accepted: info?.accepted,
-      rejected: info?.rejected,
-      response: info?.response,
-    });
-
-    // ⚠️ Nodemailer kadang tidak throw walau server SMTP menolak alamat
-    // tujuan — cek manual di sini supaya tidak silent-fail.
-    if (info?.rejected && info.rejected.length > 0) {
-      throw new Error(`Email ditolak oleh server SMTP untuk: ${info.rejected.join(", ")}`);
-    }
 
     return {
-      messageId: info?.messageId,
-      accepted: info?.accepted,
-      rejected: info?.rejected,
-      provider: "smtp",
+      messageId: response.data?.messageId,
+      accepted: [to],
+      rejected: [],
+      provider: "brevo",
     };
   } catch (e) {
     console.error("[MAIL] SEND FAILED", {
       to,
       subject,
-      message: e?.message,
-      code: e?.code,
-      responseCode: e?.responseCode,
-      command: e?.command,
-      response: e?.response,
+      message: e?.response?.data?.message || e?.message,
+      status: e?.response?.status,
+      data: e?.response?.data,
     });
     throw e;
   }
@@ -131,6 +87,7 @@ async function sendMail({ to, subject, html, text }) {
 
 /* =========================================================
    Public functions (khusus auth: OTP & reset password)
+   — TIDAK ADA PERUBAHAN di bagian ini, tetap sama seperti kode asli
    ========================================================= */
 async function sendOtpEmail(to, otp) {
   const subject = "Kode OTP Verifikasi Email";

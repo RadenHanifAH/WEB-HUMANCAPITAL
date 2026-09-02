@@ -1,542 +1,461 @@
 /**
- * prisma/dummy_seed.js
+ * prisma/seed.js
  *
- * Menambahkan data dummy ke database.
- * TIDAK menghapus akun admin & pelamar yang sudah ada (id=1, id=2).
+ * Seed database dari dummy_data_humancapital_v12.sql — dikonversi otomatis
+ * jadi Prisma seed script. Semua data (termasuk dokumen CV/portofolio per
+ * pelamar) diambil APA ADANYA dari file seed-data.json (hasil parsing SQL),
+ * jadi setiap pelamar punya dokumennya sendiri-sendiri (bukan satu
+ * DUMMY_PDF yang dipakai bersama seperti di seed.js versi lama) dan bisa
+ * benar-benar diklik/di-download di aplikasi persis seperti kalau datanya
+ * diimport langsung dari SQL.
  *
- * Jalankan dengan: node prisma/dummy_seed.js
- * Dependencies: npm install bcryptjs
+ * Dependencies: npm install @prisma/client bcryptjs (bcryptjs tidak
+ * dipakai untuk generate hash baru — password di-copy langsung dari hash
+ * bcrypt yang sudah ada di SQL supaya kredensial login tetap identik
+ * dengan dump aslinya).
+ *
+ * Jalankan dengan: node prisma/seed.js
  */
 
+const path = require("path");
+const fs = require("fs");
 const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
-const DUMMY_PDF_BASE64 = "JVBERi0xLjQK";
+const DATA = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "seed-data.json"), "utf-8"),
+);
+
+// ── HELPERS ──────────────────────────────────────────────────────────────
+const toDate = (v) =>
+  v === null || v === undefined ? null : new Date(String(v).replace(" ", "T"));
+const toNum = (v) => (v === null || v === undefined ? null : Number(v));
+const toBool = (v) => (v === null || v === undefined ? null : Boolean(v));
 
 async function main() {
-  console.log("Mencari akun yang sudah ada...");
+  // ── 0. BERSIHKAN DATA LAMA (urutan mengikuti dependensi FK) ───────────
+  console.log("🧹 Membersihkan data lama...");
+  await prisma.notifikasi.deleteMany();
+  await prisma.pendaftaran_tertunda.deleteMany();
+  await prisma.arsip.deleteMany();
+  await prisma.hasil_wawancara.deleteMany();
+  await prisma.hasil_psikotes.deleteMany();
+  await prisma.jadwal_wawancara.deleteMany();
+  await prisma.lamaran.deleteMany();
+  await prisma.lowongan.deleteMany();
+  await prisma.pengajuan_sdm.deleteMany();
+  await prisma.dokumen_pengguna.deleteMany();
+  await prisma.keahlian_pengguna.deleteMany();
+  await prisma.sertifikat.deleteMany();
+  await prisma.organisasi.deleteMany();
+  await prisma.pengalaman_kerja.deleteMany();
+  await prisma.pendidikan.deleteMany();
+  await prisma.profil.deleteMany();
+  await prisma.pengguna.deleteMany();
+  console.log("✓ Data lama dibersihkan");
 
-  const admin = await prisma.pengguna.findUnique({
-    where: { email: "admin@gmail.com" },
-  });
-  const raden = await prisma.pengguna.findUnique({
-    where: { email: "radenhanifabdulhakim67@gmail.com" },
-  });
+  // Map dari id lama (di file SQL) -> id baru (hasil create Prisma), per tabel.
+  const idMap = {
+    pengguna: {},
+    pengajuan_sdm: {},
+    lowongan: {},
+    lamaran: {},
+  };
 
-  if (!admin || !raden) {
-    throw new Error(
-      "Akun admin@gmail.com atau radenhanifabdulhakim67@gmail.com tidak ditemukan. Cek dulu isi tabel pengguna."
-    );
-  }
-
-  const passwordHash = await bcrypt.hash("Pelamar123!", 10);
-
-  // ── 1. Lengkapi data pelamar yang sudah ada (raden) ────────────────────
-  console.log("Melengkapi profil untuk akun pelamar yang sudah ada...");
-
-  await prisma.profil.upsert({
-    where: { pengguna_id: raden.id },
-    update: {},
-    create: {
-      pengguna_id: raden.id,
-      nik: "3273010101990001",
-      jenis_kelamin: "Laki-laki",
-      nomor_hp: "081234567890",
-      tempat_lahir: "Bandung",
-      tanggal_lahir: new Date("1999-05-12"),
-      alamat: "Jl. Merdeka No. 10, Bandung",
-      tentang: "Fresh graduate Teknik Informatika, tertarik di bidang web development.",
-    },
-  });
-
-  await prisma.pendidikan.create({
-    data: {
-      pengguna_id: raden.id,
-      institusi: "Universitas Padjadjaran",
-      jurusan: "Teknik Informatika",
-      gelar: "S1",
-      tanggal_mulai: new Date("2018-08-01"),
-      tanggal_selesai: new Date("2022-07-01"),
-      sedang_berlangsung: false,
-    },
-  });
-
-  await prisma.pengalaman_kerja.create({
-    data: {
-      pengguna_id: raden.id,
-      jabatan: "Junior Web Developer",
-      perusahaan: "PT Digital Kreasi",
-      jenis_pekerjaan: "FullTime",
-      lokasi: "Bandung",
-      bulan_mulai: 8,
-      tahun_mulai: "2022",
-      bulan_selesai: 12,
-      tahun_selesai: "2023",
-      sedang_bekerja: false,
-    },
-  });
-
-  await prisma.keahlian_pengguna.createMany({
-    data: ["JavaScript", "React", "Node.js", "MySQL"].map((nama) => ({
-      pengguna_id: raden.id,
-      nama,
-    })),
-  });
-
-  await prisma.dokumen_pengguna.upsert({
-    where: { pengguna_id: raden.id },
-    update: {},
-    create: {
-      pengguna_id: raden.id,
-      url_cv: "cv/radenhanif.pdf",
-      nama_cv: "CV_Raden_Hanif.pdf",
-      url_portofolio: "portofolio/radenhanif.pdf",
-      nama_portofolio: "Portofolio_Raden_Hanif.pdf",
-    },
-  });
-
-  // ── 2. Tambah 3 pelamar baru ─────────────────────────────────────────────
-  console.log("Membuat 3 pelamar baru...");
-
-  const pelamarData = [
-    {
-      email: "citra.dewi@gmail.com",
-      nama: "Citra Dewi",
-      nik: "3273010404950004",
-      hp: "081234567804",
-      lahir: new Date("1995-04-04"),
-      tempat: "Surabaya",
-      tentang: "Berpengalaman sebagai UI/UX Designer selama 4 tahun.",
-      pendidikan: {
-        institusi: "Institut Teknologi Sepuluh Nopember",
-        jurusan: "Desain Komunikasi Visual",
-        gelar: "S1",
-        mulai: new Date("2013-08-01"),
-        selesai: new Date("2017-07-01"),
-      },
-      pengalaman: {
-        jabatan: "UI/UX Designer",
-        perusahaan: "PT Kreatif Nusantara",
-        jenis: "FullTime",
-        lokasi: "Surabaya",
-        bulanMulai: 1,
-        tahunMulai: "2018",
-        bekerja: true,
-      },
-      keahlian: ["Figma", "Adobe XD", "Wireframing"],
-    },
-    {
-      email: "doni.saputra@gmail.com",
-      nama: "Doni Saputra",
-      nik: "3273010505920005",
-      hp: "081234567805",
-      lahir: new Date("1992-05-05"),
-      tempat: "Yogyakarta",
-      tentang: "Data analyst dengan pengalaman di bidang keuangan.",
-      pendidikan: {
-        institusi: "Universitas Gadjah Mada",
-        jurusan: "Statistika",
-        gelar: "S1",
-        mulai: new Date("2010-08-01"),
-        selesai: new Date("2014-07-01"),
-      },
-      pengalaman: {
-        jabatan: "Data Analyst",
-        perusahaan: "PT Finansial Sejahtera",
-        jenis: "FullTime",
-        lokasi: "Yogyakarta",
-        bulanMulai: 3,
-        tahunMulai: "2015",
-        bulanSelesai: 6,
-        tahunSelesai: "2023",
-        bekerja: false,
-      },
-      keahlian: ["Python", "SQL", "Power BI"],
-    },
-    {
-      email: "eka.putri@gmail.com",
-      nama: "Eka Putri",
-      nik: "3273010606980006",
-      hp: "081234567806",
-      lahir: new Date("1998-06-06"),
-      tempat: "Semarang",
-      tentang: "HR generalist dengan minat besar di rekrutmen digital.",
-      pendidikan: {
-        institusi: "Universitas Diponegoro",
-        jurusan: "Manajemen SDM",
-        gelar: "S1",
-        mulai: new Date("2016-08-01"),
-        selesai: new Date("2020-07-01"),
-      },
-      pengalaman: {
-        jabatan: "HR Staff",
-        perusahaan: "PT Sumber Daya Insani",
-        jenis: "FullTime",
-        lokasi: "Semarang",
-        bulanMulai: 2,
-        tahunMulai: "2021",
-        bekerja: true,
-      },
-      keahlian: ["Rekrutmen", "Microsoft Excel", "Komunikasi"],
-    },
-  ];
-
-  const pelamarList = [];
-  for (const p of pelamarData) {
-    const user = await prisma.pengguna.create({
+  // ── 1. PENGGUNA (admin, divisi, pelamar lengkap & tidak lengkap) ──────
+  console.log("👤 Membuat pengguna...");
+  for (const row of DATA.pengguna) {
+    const created = await prisma.pengguna.create({
       data: {
-        email: p.email,
-        nama: p.nama,
-        password: passwordHash,
-        peran: "pelamar",
-        status_akun: "active",
-        profil: {
-          create: {
-            nik: p.nik,
-            jenis_kelamin: p.nama.endsWith("a") ? "Perempuan" : "Laki-laki",
-            nomor_hp: p.hp,
-            tempat_lahir: p.tempat,
-            tanggal_lahir: p.lahir,
-            alamat: `Jl. Contoh No. ${Math.floor(Math.random() * 100)}, ${p.tempat}`,
-            tentang: p.tentang,
-          },
-        },
-        pendidikan: {
-          create: {
-            institusi: p.pendidikan.institusi,
-            jurusan: p.pendidikan.jurusan,
-            gelar: p.pendidikan.gelar,
-            tanggal_mulai: p.pendidikan.mulai,
-            tanggal_selesai: p.pendidikan.selesai,
-            sedang_berlangsung: false,
-          },
-        },
-        pengalaman_kerja: {
-          create: {
-            jabatan: p.pengalaman.jabatan,
-            perusahaan: p.pengalaman.perusahaan,
-            jenis_pekerjaan: p.pengalaman.jenis,
-            lokasi: p.pengalaman.lokasi,
-            bulan_mulai: p.pengalaman.bulanMulai,
-            tahun_mulai: p.pengalaman.tahunMulai,
-            bulan_selesai: p.pengalaman.bulanSelesai ?? null,
-            tahun_selesai: p.pengalaman.tahunSelesai ?? null,
-            sedang_bekerja: p.pengalaman.bekerja,
-          },
-        },
-        keahlian_pengguna: {
-          create: p.keahlian.map((k) => ({ nama: k })),
-        },
-        dokumen_pengguna: {
-          create: {
-            url_cv: `cv/${p.email.split("@")[0]}.pdf`,
-            nama_cv: `CV_${p.nama.replace(/\s+/g, "_")}.pdf`,
-          },
-        },
+        email: row.email,
+        nama: row.nama,
+        // Hash di-copy langsung dari SQL supaya password login identik
+        // dengan dump aslinya (bukan di-hash ulang).
+        password: row.password,
+        peran: row.peran,
+        divisi: row.divisi,
+        status_akun: row.status_akun,
+        login_terakhir: toDate(row.login_terakhir),
+        created_at: toDate(row.created_at),
       },
     });
-    pelamarList.push(user);
+    idMap.pengguna[row.id] = created.id;
   }
+  console.log(`✓ ${DATA.pengguna.length} pengguna`);
 
-  const [citra, doni] = pelamarList;
+  // ── 2. PROFIL ───────────────────────────────────────────────────────
+  console.log("🪪 Membuat profil...");
+  for (const row of DATA.profil) {
+    await prisma.profil.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        nik: row.nik,
+        jenis_kelamin: row.jenis_kelamin,
+        nomor_hp: row.nomor_hp,
+        tempat_lahir: row.tempat_lahir,
+        tanggal_lahir: toDate(row.tanggal_lahir),
+        alamat: row.alamat,
+        foto_profil: row.foto_profil,
+        tentang: row.tentang,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.profil.length} profil`);
 
-  // ── 3. Pengajuan SDM ──────────────────────────────────────────────────────
-  console.log("Membuat pengajuan SDM...");
+  // ── 3. PENDIDIKAN ───────────────────────────────────────────────────
+  console.log("🎓 Membuat pendidikan...");
+  for (const row of DATA.pendidikan) {
+    await prisma.pendidikan.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        institusi: row.institusi,
+        jurusan: row.jurusan,
+        gelar: row.gelar,
+        tanggal_mulai: toDate(row.tanggal_mulai),
+        tanggal_selesai: toDate(row.tanggal_selesai),
+        sedang_berlangsung: toBool(row.sedang_berlangsung),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.pendidikan.length} pendidikan`);
 
-  const pengajuan = await prisma.pengajuan_sdm.create({
-    data: {
-      pengguna_id: admin.id,
-      departemen: "Information Technology",
-      posisi: "Backend Developer",
-      alasan: "Penambahan kapasitas tim untuk proyek baru.",
-      jumlah: 2,
-      status_karyawan: "Karyawan Tetap",
-      tugas_utama: [
-        "Mengembangkan dan memelihara REST API",
-        "Melakukan code review",
-        "Berkoordinasi dengan tim frontend",
-      ],
-      usia_min: 22,
-      usia_maks: 35,
-      status_perkawinan: ["Menikah", "Belum Menikah"],
-      pendidikan_terakhir: "S1 (Sarjana)",
-      keahlian: ["Node.js", "MySQL", "REST API", "Git"],
-      pengalaman: "Minimal 2 tahun di bidang backend development.",
-      bahasa_asing: "Inggris",
-      level_bahasa_asing: "Menengah",
-      keahlian_komputer: ["Microsoft Office", "Visual Studio Code", "Postman"],
-      fasilitas: ["BPJS Kesehatan", "BPJS Ketenagakerjaan", "Laptop Kantor"],
-      peta_kekuatan: { analitis: 4, komunikasi: 3, kepemimpinan: 2, kerjaTim: 4 },
-      status: "APPROVED",
-      dikirim: new Date(),
-      catatan_admin: "Disetujui, silakan buka lowongan.",
-      ditinjau: new Date(),
-    },
-  });
+  // ── 4. PENGALAMAN KERJA ─────────────────────────────────────────────
+  console.log("💼 Membuat pengalaman_kerja...");
+  for (const row of DATA.pengalaman_kerja) {
+    await prisma.pengalaman_kerja.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        jabatan: row.jabatan,
+        perusahaan: row.perusahaan,
+        jenis_pekerjaan: row.jenis_pekerjaan,
+        lokasi: row.lokasi,
+        bulan_mulai: toNum(row.bulan_mulai),
+        tahun_mulai: row.tahun_mulai,
+        bulan_selesai: toNum(row.bulan_selesai),
+        tahun_selesai: row.tahun_selesai,
+        sedang_bekerja: toBool(row.sedang_bekerja),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.pengalaman_kerja.length} pengalaman_kerja`);
 
-  // ── 4. Lowongan ───────────────────────────────────────────────────────────
-  console.log("Membuat lowongan...");
+  // ── 5. ORGANISASI ───────────────────────────────────────────────────
+  console.log("🏛️  Membuat organisasi...");
+  for (const row of DATA.organisasi) {
+    await prisma.organisasi.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        peran: row.peran,
+        nama_organisasi: row.nama_organisasi,
+        tanggal_mulai: toDate(row.tanggal_mulai),
+        tanggal_selesai: toDate(row.tanggal_selesai),
+        sedang_berlangsung: toBool(row.sedang_berlangsung),
+        deskripsi: row.deskripsi,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.organisasi.length} organisasi`);
 
-  const lowonganBackend = await prisma.lowongan.create({
-    data: {
-      pengajuan_sdm_id: pengajuan.id,
-      judul: "Backend Developer",
-      departemen: "Information Technology",
-      lokasi: "Bandung",
-      jenis: "FullTime",
-      deskripsi: "Bertanggung jawab mengembangkan dan memelihara layanan backend perusahaan.",
-      persyaratan: "Minimal S1 Teknik Informatika, menguasai Node.js dan MySQL, pengalaman 2 tahun.",
-      tenggat: new Date("2026-09-30"),
-      status: "active",
-    },
-  });
+  // ── 6. SERTIFIKAT ───────────────────────────────────────────────────
+  console.log("📜 Membuat sertifikat...");
+  for (const row of DATA.sertifikat) {
+    await prisma.sertifikat.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        nama: row.nama,
+        penerbit: row.penerbit,
+        diterbitkan: toDate(row.diterbitkan),
+        kadaluarsa: toDate(row.kadaluarsa),
+        file_sertifikat: row.file_sertifikat,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.sertifikat.length} sertifikat`);
 
-  const lowonganDesigner = await prisma.lowongan.create({
-    data: {
-      judul: "UI/UX Designer",
-      departemen: "Product",
-      lokasi: "Surabaya",
-      jenis: "FullTime",
-      deskripsi: "Merancang antarmuka dan pengalaman pengguna untuk produk digital perusahaan.",
-      persyaratan: "Menguasai Figma, memiliki portofolio, pengalaman minimal 2 tahun.",
-      tenggat: new Date("2026-09-15"),
-      status: "active",
-    },
-  });
+  // ── 7. KEAHLIAN PENGGUNA ────────────────────────────────────────────
+  console.log("🛠️  Membuat keahlian_pengguna...");
+  for (const row of DATA.keahlian_pengguna) {
+    await prisma.keahlian_pengguna.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        nama: row.nama,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.keahlian_pengguna.length} keahlian_pengguna`);
 
-  const lowonganAnalyst = await prisma.lowongan.create({
-    data: {
-      judul: "Data Analyst",
-      departemen: "Finance",
-      lokasi: "Yogyakarta",
-      jenis: "Contract",
-      deskripsi: "Menganalisis data keuangan untuk mendukung pengambilan keputusan bisnis.",
-      persyaratan: "Menguasai SQL dan Power BI, pengalaman minimal 3 tahun.",
-      tenggat: new Date("2026-08-31"),
-      status: "closed",
-    },
-  });
+  // ── 8. DOKUMEN PENGGUNA ─────────────────────────────────────────────
+  // url_cv / url_portofolio sudah berupa Data URI utuh
+  // ("data:application/pdf;base64,...") persis seperti di SQL, jadi
+  // setiap pelamar punya file CV & portofolio sendiri yang bisa langsung
+  // dibuka/di-download di frontend — bukan satu file placeholder yang
+  // dipakai bersama semua pelamar.
+  console.log("📎 Membuat dokumen_pengguna (CV & portofolio per pelamar)...");
+  for (const row of DATA.dokumen_pengguna) {
+    await prisma.dokumen_pengguna.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        url_cv: row.url_cv,
+        nama_cv: row.nama_cv,
+        url_portofolio: row.url_portofolio,
+        nama_portofolio: row.nama_portofolio,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.dokumen_pengguna.length} dokumen_pengguna`);
 
-  // ── 5. Lamaran ────────────────────────────────────────────────────────────
-  console.log("Membuat lamaran...");
+  // ── 9. PENGAJUAN SDM ────────────────────────────────────────────────
+  console.log("📝 Membuat pengajuan_sdm...");
+  for (const row of DATA.pengajuan_sdm) {
+    const created = await prisma.pengajuan_sdm.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        departemen: row.departemen,
+        posisi: row.posisi,
+        lokasi: row.lokasi,
+        tanggal_permintaan: toDate(row.tanggal_permintaan),
+        alasan: row.alasan,
+        jumlah: toNum(row.jumlah),
+        status_karyawan: row.status_karyawan,
+        tugas_utama: row.tugas_utama,
+        usia_min: toNum(row.usia_min),
+        usia_maks: toNum(row.usia_maks),
+        status_perkawinan: row.status_perkawinan,
+        pendidikan_terakhir: row.pendidikan_terakhir,
+        keahlian: row.keahlian,
+        pengalaman: row.pengalaman,
+        bahasa_asing: row.bahasa_asing,
+        level_bahasa_asing: row.level_bahasa_asing,
+        keahlian_komputer: row.keahlian_komputer,
+        fasilitas: row.fasilitas,
+        peta_kekuatan: row.peta_kekuatan ?? {},
+        status: row.status,
+        dikirim: toDate(row.dikirim),
+        catatan_admin: row.catatan_admin,
+        ditinjau: toDate(row.ditinjau),
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+    idMap.pengajuan_sdm[row.id] = created.id;
+  }
+  console.log(`✓ ${DATA.pengajuan_sdm.length} pengajuan_sdm`);
 
-  const lamaranRaden = await prisma.lamaran.create({
-    data: {
-      pengguna_id: raden.id,
-      lowongan_id: lowonganBackend.id,
-      status: "Interview",
-      tahap: "Interview Kedua",
-      tanggal_melamar: new Date("2026-06-10"),
-      data_cv: DUMMY_PDF_BASE64,
-      mime_cv: "application/pdf",
-      nama_cv: "CV_Raden_Hanif.pdf",
-      ukuran_cv: 245760,
-      skor: 85,
-    },
-  });
+  // ── 10. LOWONGAN ────────────────────────────────────────────────────
+  console.log("💼 Membuat lowongan...");
+  for (const row of DATA.lowongan) {
+    const created = await prisma.lowongan.create({
+      data: {
+        pengajuan_sdm_id: idMap.pengajuan_sdm[row.pengajuan_sdm_id],
+        judul: row.judul,
+        departemen: row.departemen,
+        lokasi: row.lokasi,
+        jenis: row.jenis,
+        deskripsi: row.deskripsi,
+        persyaratan: row.persyaratan,
+        tenggat: toDate(row.tenggat),
+        status: row.status,
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+    idMap.lowongan[row.id] = created.id;
+  }
+  console.log(`✓ ${DATA.lowongan.length} lowongan`);
 
-  const lamaranCitra = await prisma.lamaran.create({
-    data: {
-      pengguna_id: citra.id,
-      lowongan_id: lowonganDesigner.id,
-      status: "Diterima",
-      tahap: "Selesai",
-      tanggal_melamar: new Date("2026-06-05"),
-      data_cv: DUMMY_PDF_BASE64,
-      mime_cv: "application/pdf",
-      nama_cv: "CV_Citra_Dewi.pdf",
-      ukuran_cv: 198432,
-      data_portofolio: DUMMY_PDF_BASE64,
-      mime_portofolio: "application/pdf",
-      nama_portofolio: "Portofolio_Citra_Dewi.pdf",
-      ukuran_portofolio: 3145728,
-      skor: 92,
-    },
-  });
+  // ── 11. LAMARAN ─────────────────────────────────────────────────────
+  // data_cv / data_portofolio memakai isi dokumen ASLI per lamaran persis
+  // seperti di SQL (masing-masing lamaran bisa punya file berbeda dari
+  // dokumen_pengguna, karena pelamar bisa upload CV berbeda tiap melamar),
+  // jadi tetap bisa diklik & di-download di halaman detail lamaran.
+  console.log("📄 Membuat lamaran (dengan CV/portofolio asli per lamaran)...");
+  for (const row of DATA.lamaran) {
+    const created = await prisma.lamaran.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        lowongan_id: idMap.lowongan[row.lowongan_id],
+        status: row.status,
+        tahap: row.tahap,
+        tanggal_melamar: toDate(row.tanggal_melamar),
+        data_cv: row.data_cv,
+        mime_cv: row.mime_cv,
+        nama_cv: row.nama_cv,
+        ukuran_cv: toNum(row.ukuran_cv),
+        data_portofolio: row.data_portofolio,
+        mime_portofolio: row.mime_portofolio,
+        nama_portofolio: row.nama_portofolio,
+        ukuran_portofolio: toNum(row.ukuran_portofolio),
+        skor: toNum(row.skor),
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+    idMap.lamaran[row.id] = created.id;
+  }
+  console.log(`✓ ${DATA.lamaran.length} lamaran`);
 
-  const lamaranDoni = await prisma.lamaran.create({
-    data: {
-      pengguna_id: doni.id,
-      lowongan_id: lowonganAnalyst.id,
-      status: "Ditolak",
-      tahap: "Screaning",
-      tanggal_melamar: new Date("2026-05-20"),
-      data_cv: DUMMY_PDF_BASE64,
-      mime_cv: "application/pdf",
-      nama_cv: "CV_Doni_Saputra.pdf",
-      ukuran_cv: 210304,
-      skor: 60,
-    },
-  });
+  // ── 12. JADWAL WAWANCARA ────────────────────────────────────────────
+  console.log("📅 Membuat jadwal_wawancara...");
+  for (const row of DATA.jadwal_wawancara) {
+    await prisma.jadwal_wawancara.create({
+      data: {
+        lamaran_id: idMap.lamaran[row.lamaran_id],
+        nama_pelamar: row.nama_pelamar,
+        posisi: row.posisi,
+        jenis: row.jenis,
+        status: row.status,
+        tanggal_waktu: toDate(row.tanggal_waktu),
+        durasi_menit: toNum(row.durasi_menit),
+        lokasi: row.lokasi,
+        tautan_rapat: row.tautan_rapat,
+        sudah_selesai: toBool(row.sudah_selesai),
+        waktu_selesai: toDate(row.waktu_selesai),
+        dikonfirmasi_oleh_pelamar: toBool(row.dikonfirmasi_oleh_pelamar),
+        waktu_konfirmasi: toDate(row.waktu_konfirmasi),
+        status_kehadiran: row.status_kehadiran,
+        alasan_tidak_hadir: row.alasan_tidak_hadir,
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.jadwal_wawancara.length} jadwal_wawancara`);
 
-  // ── 6. Jadwal Wawancara ──────────────────────────────────────────────────
-  console.log("Membuat jadwal wawancara...");
+  // ── 13. HASIL PSIKOTES ──────────────────────────────────────────────
+  // data_dokumen_pendukung ikut dibawa kalau ada isinya di SQL (bisa
+  // diklik/di-download juga), sebagian besar NULL di dump ini.
+  console.log("🧪 Membuat hasil_psikotes...");
+  for (const row of DATA.hasil_psikotes) {
+    await prisma.hasil_psikotes.create({
+      data: {
+        lamaran_id: idMap.lamaran[row.lamaran_id],
+        nama_pelamar: row.nama_pelamar,
+        posisi: row.posisi,
+        tanggal_tes: toDate(row.tanggal_tes),
+        data_dokumen_pendukung: row.data_dokumen_pendukung,
+        nama_dokumen_pendukung: row.nama_dokumen_pendukung,
+        mime_dokumen_pendukung: row.mime_dokumen_pendukung,
+        ukuran_dokumen_pendukung: toNum(row.ukuran_dokumen_pendukung),
+        kesimpulan: row.kesimpulan,
+        skor_akhir: toNum(row.skor_akhir),
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.hasil_psikotes.length} hasil_psikotes`);
 
-  await prisma.jadwal_wawancara.create({
-    data: {
-      lamaran_id: lamaranRaden.id,
-      nama_pelamar: raden.nama,
-      posisi: "Backend Developer",
-      jenis: "InterviewKedua",
-      status: "scheduled",
-      tanggal_waktu: new Date("2026-08-20T10:00:00"),
-      durasi_menit: 60,
-      lokasi: "Kantor Pusat Bandung, Ruang Meeting 2",
-      tautan_rapat: "https://meet.google.com/contoh-wawancara",
-      dikonfirmasi_oleh_pelamar: true,
-      waktu_konfirmasi: new Date("2026-08-15T09:00:00"),
-      status_kehadiran: "confirmed",
-    },
-  });
+  // ── 14. HASIL WAWANCARA ─────────────────────────────────────────────
+  console.log("📋 Membuat hasil_wawancara...");
+  for (const row of DATA.hasil_wawancara) {
+    await prisma.hasil_wawancara.create({
+      data: {
+        lamaran_id: idMap.lamaran[row.lamaran_id],
+        tahap: toNum(row.tahap),
+        tanggal_lahir: toDate(row.tanggal_lahir),
+        pendidikan_terakhir: row.pendidikan_terakhir,
+        jabatan_dilamar: row.jabatan_dilamar,
+        tanggal_wawancara: toDate(row.tanggal_wawancara),
+        data_dokumen_pendukung: row.data_dokumen_pendukung,
+        nama_dokumen_pendukung: row.nama_dokumen_pendukung,
+        mime_dokumen_pendukung: row.mime_dokumen_pendukung,
+        ukuran_dokumen_pendukung: toNum(row.ukuran_dokumen_pendukung),
+        kesimpulan: row.kesimpulan,
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+        nama_pelamar: row.nama_pelamar,
+      },
+    });
+  }
+  console.log(`✓ ${DATA.hasil_wawancara.length} hasil_wawancara`);
 
-  await prisma.jadwal_wawancara.create({
-    data: {
-      lamaran_id: lamaranCitra.id,
-      nama_pelamar: "Citra Dewi",
-      posisi: "UI/UX Designer",
-      jenis: "InterviewPertama",
-      status: "completed",
-      tanggal_waktu: new Date("2026-06-15T13:00:00"),
-      durasi_menit: 45,
-      lokasi: "Kantor Cabang Surabaya",
-      sudah_selesai: true,
-      waktu_selesai: new Date("2026-06-15T13:45:00"),
-      dikonfirmasi_oleh_pelamar: true,
-      waktu_konfirmasi: new Date("2026-06-12T08:00:00"),
-      status_kehadiran: "hadir",
-    },
-  });
+  // ── 15. ARSIP ───────────────────────────────────────────────────────
+  console.log("📦 Membuat arsip...");
+  for (const row of DATA.arsip) {
+    await prisma.arsip.create({
+      data: {
+        lamaran_id: idMap.lamaran[row.lamaran_id],
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        lowongan_id: idMap.lowongan[row.lowongan_id],
+        nama_pelamar: row.nama_pelamar,
+        email_pelamar: row.email_pelamar,
+        posisi: row.posisi,
+        status_akhir: row.status_akhir,
+        tanggal_keputusan: toDate(row.tanggal_keputusan),
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.arsip.length} arsip`);
 
-  await prisma.jadwal_wawancara.create({
-    data: {
-      lamaran_id: lamaranDoni.id,
-      nama_pelamar: "Doni Saputra",
-      posisi: "Data Analyst",
-      jenis: "Psikotes",
-      status: "canceled",
-      tanggal_waktu: new Date("2026-05-25T09:00:00"),
-      durasi_menit: 90,
-      lokasi: "Kantor Cabang Yogyakarta",
-      status_kehadiran: "tidak_hadir",
-      alasan_tidak_hadir: "Pelamar mengundurkan diri dari proses seleksi.",
-    },
-  });
+  // ── 16. PENDAFTARAN TERTUNDA ────────────────────────────────────────
+  console.log("⏳ Membuat pendaftaran_tertunda...");
+  for (const row of DATA.pendaftaran_tertunda) {
+    await prisma.pendaftaran_tertunda.create({
+      data: {
+        pengguna_id: row.pengguna_id ? idMap.pengguna[row.pengguna_id] : null,
+        email: row.email,
+        nama: row.nama,
+        hash_password: row.hash_password,
+        nik: row.nik,
+        nomor_hp: row.nomor_hp,
+        hash_otp: row.hash_otp,
+        otp_kadaluarsa: toDate(row.otp_kadaluarsa),
+        percobaan: toNum(row.percobaan),
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.pendaftaran_tertunda.length} pendaftaran_tertunda`);
 
-  // ── 7. Hasil Psikotes ────────────────────────────────────────────────────
-  console.log("Membuat hasil psikotes...");
+  // ── 17. NOTIFIKASI ──────────────────────────────────────────────────
+  console.log("🔔 Membuat notifikasi...");
+  for (const row of DATA.notifikasi) {
+    await prisma.notifikasi.create({
+      data: {
+        pengguna_id: idMap.pengguna[row.pengguna_id],
+        jenis: row.jenis,
+        judul: row.judul,
+        pesan: row.pesan,
+        sudah_dibaca: toBool(row.sudah_dibaca),
+        tautan_aksi: row.tautan_aksi,
+        metadata: row.metadata ?? {},
+        created_at: toDate(row.created_at),
+        updated_at: toDate(row.updated_at),
+      },
+    });
+  }
+  console.log(`✓ ${DATA.notifikasi.length} notifikasi`);
 
-  await prisma.hasil_psikotes.create({
-    data: {
-      lamaran_id: lamaranRaden.id,
-      nama_pelamar: raden.nama,
-      posisi: "Backend Developer",
-      tanggal_tes: new Date("2026-06-25"),
-      kesimpulan: "Direkomendasikan",
-      skor_akhir: 88,
-    },
-  });
-
-  // ── 8. Hasil Wawancara ───────────────────────────────────────────────────
-  console.log("Membuat hasil wawancara...");
-
-  await prisma.hasil_wawancara.create({
-    data: {
-      lamaran_id: lamaranCitra.id,
-      tahap: 1,
-      nama_pelamar: "Citra Dewi",
-      tanggal_lahir: new Date("1995-04-04"),
-      pendidikan_terakhir: "S1 Desain Komunikasi Visual",
-      jabatan_dilamar: "UI/UX Designer",
-      tanggal_wawancara: new Date("2026-06-15"),
-      kesimpulan: "Sangat direkomendasikan, komunikasi baik dan portofolio kuat.",
-    },
-  });
-
-  // ── 9. Arsip ──────────────────────────────────────────────────────────────
-  console.log("Membuat arsip...");
-
-  await prisma.arsip.create({
-    data: {
-      lamaran_id: lamaranCitra.id,
-      pengguna_id: citra.id,
-      lowongan_id: lowonganDesigner.id,
-      nama_pelamar: "Citra Dewi",
-      email_pelamar: "citra.dewi@gmail.com",
-      posisi: "UI/UX Designer",
-      status_akhir: "Diterima",
-      tanggal_keputusan: new Date("2026-06-20"),
-    },
-  });
-
-  await prisma.arsip.create({
-    data: {
-      lamaran_id: lamaranDoni.id,
-      pengguna_id: doni.id,
-      lowongan_id: lowonganAnalyst.id,
-      nama_pelamar: "Doni Saputra",
-      email_pelamar: "doni.saputra@gmail.com",
-      posisi: "Data Analyst",
-      status_akhir: "Ditolak",
-      tanggal_keputusan: new Date("2026-05-28"),
-    },
-  });
-
-  // ── 10. Notifikasi ───────────────────────────────────────────────────────
-  console.log("Membuat notifikasi...");
-
-  await prisma.notifikasi.create({
-    data: {
-      pengguna_id: raden.id,
-      jenis: "wawancara",
-      judul: "Jadwal Wawancara Ditentukan",
-      pesan: "Anda dijadwalkan wawancara tahap kedua pada 20 Agustus 2026 pukul 10:00.",
-      tautan_aksi: "/jadwal-wawancara",
-      metadata: { lamaran_id: lamaranRaden.id },
-    },
-  });
-
-  await prisma.notifikasi.create({
-    data: {
-      pengguna_id: citra.id,
-      jenis: "status_lamaran",
-      judul: "Selamat! Anda Diterima",
-      pesan: "Selamat, Anda dinyatakan diterima untuk posisi UI/UX Designer.",
-      sudah_dibaca: true,
-      tautan_aksi: "/lamaran-saya",
-      metadata: { lamaran_id: lamaranCitra.id },
-    },
-  });
-
-  await prisma.notifikasi.create({
-    data: {
-      pengguna_id: doni.id,
-      jenis: "status_lamaran",
-      judul: "Update Status Lamaran",
-      pesan: "Mohon maaf, lamaran Anda untuk posisi Data Analyst belum dapat kami lanjutkan.",
-      tautan_aksi: "/lamaran-saya",
-      metadata: { lamaran_id: lamaranDoni.id },
-    },
-  });
-
-  await prisma.notifikasi.create({
-    data: {
-      pengguna_id: admin.id,
-      jenis: "pengajuan_sdm",
-      judul: "Pengajuan SDM Disetujui",
-      pesan: "Pengajuan kebutuhan SDM untuk posisi Backend Developer telah disetujui.",
-      tautan_aksi: "/pengajuan-sdm",
-      metadata: { pengajuan_sdm_id: pengajuan.id },
-    },
-  });
-
-  console.log("✅ Dummy data selesai ditambahkan!");
+  // ── RINGKASAN ────────────────────────────────────────────────────────
+  console.log("\n🎉 Seed selesai!");
+  console.log("\n📊 Ringkasan data (sesuai SQL asli):");
+  console.log(`   - ${DATA.pengguna.length} pengguna (admin, divisi, pelamar)`);
+  console.log(
+    `   - ${DATA.dokumen_pengguna.length} dokumen_pengguna — CV & portofolio ASLI per pelamar, bisa diklik/di-download`,
+  );
+  console.log(`   - ${DATA.pengajuan_sdm.length} pengajuan_sdm`);
+  console.log(`   - ${DATA.lowongan.length} lowongan`);
+  console.log(
+    `   - ${DATA.lamaran.length} lamaran — masing-masing dengan file CV/portofolio ASLI, bisa diklik/di-download`,
+  );
+  console.log(`   - ${DATA.jadwal_wawancara.length} jadwal_wawancara`);
+  console.log(`   - ${DATA.hasil_psikotes.length} hasil_psikotes`);
+  console.log(`   - ${DATA.hasil_wawancara.length} hasil_wawancara`);
+  console.log(`   - ${DATA.arsip.length} arsip`);
+  console.log(`   - ${DATA.pendaftaran_tertunda.length} pendaftaran_tertunda`);
+  console.log(`   - ${DATA.notifikasi.length} notifikasi`);
+  console.log(
+    "\n🔑 Password login semua akun memakai hash yang sama dengan file SQL aslinya (tidak di-generate ulang).",
+  );
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Gagal membuat dummy data:", e);
+    console.error("❌ Gagal membuat seed:", e);
     process.exit(1);
   })
   .finally(async () => {
