@@ -30,6 +30,7 @@ import DivisiDashboard from "./pages/Divisi/DivisiDashboard.jsx";
 import PengajuanSDM from "./pages/Divisi/PengajuanSDM.jsx";
 import EditPengajuanSDM from "./pages/Divisi/EditPengajuanSDM.jsx";
 import DivisiSettings from "./pages/Divisi/DivisiSettings.jsx";
+import ActivityLogPage from "./pages/Admin/ActivityLogPage.jsx";
 
 import useAuthStore from "./store/useAuthStore";
 import { Loader2 } from "lucide-react";
@@ -51,30 +52,22 @@ function Layout() {
     );
   }
 
-  const hideNavbar =
+  // Area yang tidak menampilkan Navbar & Footer publik
+  const hideChrome =
     location.pathname.startsWith("/login") ||
     location.pathname.startsWith("/daftar") ||
     location.pathname.startsWith("/reset") ||
     location.pathname.startsWith("/reset-password") ||
     location.pathname.startsWith("/admin/dashboard") ||
     location.pathname.startsWith("/admin/notifications") ||
-    location.pathname.startsWith("/divisi");
-
-  const hideFooter =
-    location.pathname.startsWith("/login") ||
-    location.pathname.startsWith("/daftar") ||
-    location.pathname.startsWith("/reset") ||
-    location.pathname.startsWith("/reset-password") ||
-    location.pathname.startsWith("/admin/dashboard") ||
-    location.pathname.startsWith("/admin/notifications") ||
+    location.pathname.startsWith("/admin/activity-log") ||
     location.pathname.startsWith("/divisi");
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <Toaster position="top-center" 
-      containerStyle={{ top:20 }}/>
+      <Toaster position="top-center" containerStyle={{ top: 20 }} />
 
-      {!hideNavbar && <Navbar />}
+      {!hideChrome && <Navbar />}
 
       <main className="flex-1">
         <Routes>
@@ -98,10 +91,9 @@ function Layout() {
           <Route path="/reset-password/:token" element={<ResetPasswordNew />} />
 
           {/* ================= ADMIN ================= */}
-          {/* ⚠️ FIX: kolom Prisma-nya `peran` (bukan `role`). toSafeUser()
+          {/* ⚠️ Kolom Prisma-nya `peran` (bukan `role`). toSafeUser()
               di backend mengirim `user.peran`, jadi guard di sini harus
-              mengecek field yang sama, kalau tidak `user?.role` akan
-              selalu undefined dan admin selalu dilempar ke "/". */}
+              mengecek field yang sama. */}
           <Route
             path="/admin/dashboard"
             element={user?.peran === "admin" ? <Admin /> : <Navigate to="/" />}
@@ -111,6 +103,14 @@ function Layout() {
             path="/admin/notifications"
             element={
               user?.peran === "admin" ? <NotificationsPage /> : <Navigate to="/" />
+            }
+          />
+
+          {/* ✅ FIX: sekarang dijaga guard admin, sama seperti dashboard */}
+          <Route
+            path="/admin/activity-log"
+            element={
+              user?.peran === "admin" ? <ActivityLogPage /> : <Navigate to="/" />
             }
           />
 
@@ -137,13 +137,14 @@ function Layout() {
             element={user ? <Profile /> : <Navigate to="/login" />}
           />
 
+          <Route path="/confirm-schedule/:id" element={<ConfirmSchedulePage />} />
+
           {/* ================= FALLBACK ================= */}
           <Route path="*" element={<Navigate to="/" />} />
-          <Route path="/confirm-schedule/:id" element={<ConfirmSchedulePage />} />
         </Routes>
       </main>
 
-      {!hideFooter && <Footer />}
+      {!hideChrome && <Footer />}
     </div>
   );
 }

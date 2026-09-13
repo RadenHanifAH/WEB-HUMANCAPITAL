@@ -23,6 +23,8 @@ const adminPengajuanRoutes = require("./modules/pengajuan/admin.pengajuan.routes
 const penilaianRoutes = require("./modules/penilaian/penilaian.routes"); 
 const usersRoutes = require("./modules/users/users.routes");
 const notificationsRoutes = require("./modules/notifications/notifications.routes.js");
+const activityLogRoutes = require("./modules/activity-log/activityLog.routes.js");
+
 
 const app = express();
 
@@ -71,6 +73,7 @@ app.use("/api/admin/pengajuan", adminPengajuanRoutes);
 app.use("/api/penilaian", penilaianRoutes); // ✅ NEW
 app.use("/api/users", usersRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/activity-logs", activityLogRoutes);
 
 
 app.get("/", (req, res) => {

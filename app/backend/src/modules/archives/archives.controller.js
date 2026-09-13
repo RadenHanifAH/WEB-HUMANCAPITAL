@@ -1,4 +1,6 @@
 const service = require("./archives.service");
+// 📝 LOG: tambahan untuk Log Aktivitas
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 async function list(req, res) {
   const { q = "", status = "all", position = "all", page = 1, pageSize = 10 } = req.query;
@@ -48,6 +50,18 @@ async function exportCsv(req, res) {
   const data = await service.getArchives({ q, status, position, page: 1, pageSize: 100000 });
   const csv = service.generateArchiveCSV(data.items);
 
+  // 📝 LOG: admin mengexport arsip ke CSV
+  logActivity({
+    pengguna_id: req.user?.id,
+    aksi: "EXPORT",
+    modul: "arsip",
+    target_id: null,
+    deskripsi: `Export arsip pelamar ke CSV (${data.items?.length ?? 0} baris)`,
+    data_sebelum: null,
+    data_sesudah: null,
+    ip_address: getClientIp(req),
+  });
+
   const filename = `arsip_pelamar_${new Date().toISOString().slice(0, 10)}.csv`;
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -56,12 +70,46 @@ async function exportCsv(req, res) {
 
 async function remove(req, res) {
   const { id } = req.params;
+
+  // 📝 LOG: snapshot detail arsip sebelum dihapus (best-effort)
+  let detail = null;
+  try {
+    detail = await service.getArchiveDetail(id);
+  } catch (e) {
+    detail = null;
+  }
+
   await service.removeArchive(id);
+
+  logActivity({
+    pengguna_id: req.user?.id,
+    aksi: "DELETE",
+    modul: "arsip",
+    target_id: Number(id) || id,
+    deskripsi: `Menghapus data arsip pelamar (ID: ${id})`,
+    data_sebelum: detail || null,
+    data_sesudah: null,
+    ip_address: getClientIp(req),
+  });
+
   return res.json({ ok: true });
 }
 
 async function sync(req, res) {
   const result = await service.syncArchives();
+
+  // 📝 LOG: admin menjalankan sinkronisasi arsip
+  logActivity({
+    pengguna_id: req.user?.id,
+    aksi: "UPDATE",
+    modul: "arsip",
+    target_id: null,
+    deskripsi: `Menjalankan sinkronisasi arsip pelamar`,
+    data_sebelum: null,
+    data_sesudah: result || null,
+    ip_address: getClientIp(req),
+  });
+
   return res.json({ ok: true, ...result });
 }
 
@@ -70,26 +118,38 @@ async function archiveApplicant(req, res) {
   try {
     const { lamaranId } = req.params;
     const result = await service.archiveIfFinal(lamaranId);
-    
+
     if (!result) {
-      return res.status(400).json({ 
-        message: "Gagal arsip, pastikan status lamaran sudah diupdate menjadi Diterima/Ditolak." 
+      return res.status(400).json({
+        message: "Gagal arsip, pastikan status lamaran sudah diupdate menjadi Diterima/Ditolak.",
       });
     }
-    
+
+    // 📝 LOG: lamaran final dipindahkan ke arsip
+    logActivity({
+      pengguna_id: req.user?.id,
+      aksi: "CREATE",
+      modul: "arsip",
+      target_id: result?.id || Number(lamaranId) || null,
+      deskripsi: `Memindahkan lamaran (ID: ${lamaranId}) ke arsip`,
+      data_sebelum: null,
+      data_sesudah: result || null,
+      ip_address: getClientIp(req),
+    });
+
     return res.status(201).json({ message: "Berhasil dipindahkan ke arsip", data: result });
   } catch (e) {
     return res.status(500).json({ message: e.message });
   }
 }
 
-module.exports = { 
-  list, 
-  positions, 
-  detail, 
-  downloadFile, 
-  exportCsv, 
-  remove, 
-  sync, 
-  archiveApplicant 
+module.exports = {
+  list,
+  positions,
+  detail,
+  downloadFile,
+  exportCsv,
+  remove,
+  sync,
+  archiveApplicant,
 };

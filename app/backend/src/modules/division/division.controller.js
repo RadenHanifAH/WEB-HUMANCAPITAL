@@ -3,7 +3,10 @@ const divisionService = require("./division.service");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { notifyAdmins } = require("../notifications/notify.helper");
-const { NOTIFICATION_TYPES } = require("../notifications/notifications.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../notifications/notifications.service");
+// ✅ FIX: import logActivity & getClientIp dihapus — aktivitas divisi tidak dicatat di Log Aktivitas
 
 module.exports = {
   async getDivisiDashboard(req, res) {
@@ -103,25 +106,44 @@ module.exports = {
             ? new Date(body.tanggal_permintaan)
             : new Date(),
           posisi: body.posisi ?? "",
-          lokasi: body.lokasi ?? "", // ✅ TAMBAHKAN INI
+          lokasi: body.lokasi ?? "",
           alasan: body.alasan ?? "",
+
           jumlah: body.jumlah ?? 1,
+          jenis_kelamin: body.jenis_kelamin ?? null,
+          level_pangkat: body.level_pangkat ?? null,
+          rentang_gaji: body.rentang_gaji ?? null,
+          tgl_terpenuhi: body.tgl_terpenuhi
+            ? new Date(body.tgl_terpenuhi)
+            : null,
+
           status_karyawan: body.status_karyawan ?? "",
+          status_karyawan_keterangan: body.status_karyawan_keterangan ?? null,
+
           tugas_utama: body.tugas_utama ?? [],
+
           usia_min: body.usia_min ? parseInt(body.usia_min) : null,
           usia_maks: body.usia_maks ? parseInt(body.usia_maks) : null,
-          status_perkawinan: body.status_perkawinan ?? [],
-          pendidikan_terakhir: body.pendidikan_terakhir ?? "S1 (Sarjana)",
+          status_perkawinan: body.status_perkawinan ?? null,
+          pendidikan_terakhir: body.pendidikan_terakhir ?? ["S1"],
+          jurusan: body.jurusan ?? null,
           keahlian: body.keahlian ?? [],
           pengalaman: body.pengalaman ?? "",
+          syarat_lain: body.syarat_lain ?? null,
+
           bahasa_asing: body.bahasa_asing ?? "",
-          level_bahasa_asing: body.level_bahasa_asing ?? "Ahli",
+          kemampuan_bahasa_asing: body.kemampuan_bahasa_asing ?? ["ahli"],
           keahlian_komputer: body.keahlian_komputer ?? [],
           fasilitas: body.fasilitas ?? [],
           peta_kekuatan: body.peta_kekuatan ?? [],
           status: body.status ?? "DRAFT",
+
+          dibuat_oleh: pengguna_id ?? null,
+          diubah_oleh: pengguna_id ?? null,
         },
       });
+
+      // ✅ FIX: logActivity dihapus (aksi divisi tidak masuk Log Aktivitas)
 
       if (item.status === "PENDING") {
         notifyAdmins({
@@ -152,6 +174,7 @@ module.exports = {
     try {
       const { id } = req.params;
       const body = req.body;
+      const pengguna_id = req.user?.id;
 
       const existing = await prisma.pengajuan_sdm.findUnique({
         where: { id: parseInt(id) },
@@ -167,7 +190,8 @@ module.exports = {
       if (!["DRAFT", "PENDING"].includes(existing.status)) {
         return res.status(400).json({
           success: false,
-          message: "Hanya pengajuan berstatus DRAFT atau PENDING yang dapat diubah",
+          message:
+            "Hanya pengajuan berstatus DRAFT atau PENDING yang dapat diubah",
         });
       }
 
@@ -179,11 +203,24 @@ module.exports = {
             ? new Date(body.tanggal_permintaan)
             : existing.tanggal_permintaan,
           posisi: body.posisi ?? existing.posisi,
-          lokasi: body.lokasi ?? existing.lokasi, // ✅ TAMBAHKAN INI
+          lokasi: body.lokasi ?? existing.lokasi,
           alasan: body.alasan ?? existing.alasan,
+
           jumlah: body.jumlah ?? existing.jumlah,
+          jenis_kelamin: body.jenis_kelamin ?? existing.jenis_kelamin,
+          level_pangkat: body.level_pangkat ?? existing.level_pangkat,
+          rentang_gaji: body.rentang_gaji ?? existing.rentang_gaji,
+          tgl_terpenuhi: body.tgl_terpenuhi
+            ? new Date(body.tgl_terpenuhi)
+            : existing.tgl_terpenuhi,
+
           status_karyawan: body.status_karyawan ?? existing.status_karyawan,
+          status_karyawan_keterangan:
+            body.status_karyawan_keterangan ??
+            existing.status_karyawan_keterangan,
+
           tugas_utama: body.tugas_utama ?? existing.tugas_utama,
+
           usia_min:
             body.usia_min !== undefined
               ? parseInt(body.usia_min)
@@ -192,19 +229,29 @@ module.exports = {
             body.usia_maks !== undefined
               ? parseInt(body.usia_maks)
               : existing.usia_maks,
-          status_perkawinan: body.status_perkawinan ?? existing.status_perkawinan,
+          status_perkawinan:
+            body.status_perkawinan ?? existing.status_perkawinan,
           pendidikan_terakhir:
             body.pendidikan_terakhir ?? existing.pendidikan_terakhir,
+          jurusan: body.jurusan ?? existing.jurusan,
           keahlian: body.keahlian ?? existing.keahlian,
           pengalaman: body.pengalaman ?? existing.pengalaman,
+          syarat_lain: body.syarat_lain ?? existing.syarat_lain,
+
           bahasa_asing: body.bahasa_asing ?? existing.bahasa_asing,
-          level_bahasa_asing: body.level_bahasa_asing ?? existing.level_bahasa_asing,
-          keahlian_komputer: body.keahlian_komputer ?? existing.keahlian_komputer,
+          kemampuan_bahasa_asing:
+            body.kemampuan_bahasa_asing ?? existing.kemampuan_bahasa_asing,
+          keahlian_komputer:
+            body.keahlian_komputer ?? existing.keahlian_komputer,
           fasilitas: body.fasilitas ?? existing.fasilitas,
           peta_kekuatan: body.peta_kekuatan ?? existing.peta_kekuatan,
           status: body.status ?? existing.status,
+
+          diubah_oleh: pengguna_id ?? null,
         },
       });
+
+      // ✅ FIX: dua logActivity (UPDATE + SUBMIT via update) dihapus
 
       if (existing.status === "DRAFT" && updated.status === "PENDING") {
         notifyAdmins({
@@ -234,6 +281,7 @@ module.exports = {
   async deletePengajuan(req, res) {
     try {
       const { id } = req.params;
+      const pengguna_id = req.user?.id;
 
       const existing = await prisma.pengajuan_sdm.findUnique({
         where: { id: parseInt(id) },
@@ -249,11 +297,14 @@ module.exports = {
       if (!["DRAFT", "REJECTED"].includes(existing.status)) {
         return res.status(400).json({
           success: false,
-          message: "Hanya pengajuan berstatus DRAFT atau REJECTED yang bisa dihapus",
+          message:
+            "Hanya pengajuan berstatus DRAFT atau REJECTED yang bisa dihapus",
         });
       }
 
       await prisma.pengajuan_sdm.delete({ where: { id: parseInt(id) } });
+
+      // ✅ FIX: logActivity (DELETE) dihapus
 
       return res.status(200).json({
         success: true,
@@ -272,6 +323,7 @@ module.exports = {
   async submitPengajuan(req, res) {
     try {
       const { id } = req.params;
+      const pengguna_id = req.user?.id;
 
       const existing = await prisma.pengajuan_sdm.findUnique({
         where: { id: parseInt(id) },
@@ -293,8 +345,14 @@ module.exports = {
 
       const updated = await prisma.pengajuan_sdm.update({
         where: { id: parseInt(id) },
-        data: { status: "PENDING", dikirim: new Date() },
+        data: {
+          status: "PENDING",
+          dikirim: new Date(),
+          diubah_oleh: pengguna_id ?? null,
+        },
       });
+
+      // ✅ FIX: logActivity (SUBMIT) dihapus
 
       notifyAdmins({
         type: NOTIFICATION_TYPES.PENGAJUAN_SUBMITTED,

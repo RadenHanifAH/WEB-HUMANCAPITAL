@@ -1,9 +1,12 @@
 const service = require("./application.service");
+// 📝 LOG: tambahan untuk Log Aktivitas
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 module.exports = {
   // =========================
   // PELAMAR APPLY
   // POST /api/applications/job
+  // (aksi pelamar — sengaja TIDAK dicatat di Log Aktivitas, pelaku hanya admin)
   // =========================
   async apply(req, res) {
     try {
@@ -92,8 +95,6 @@ module.exports = {
         return res.json({ alreadyApplied: false });
       }
 
-      // ⚠️ FIX: nama field disesuaikan persis kolom Prisma
-      // (tahap, tanggal_melamar), bukan lagi stage/appliedAt.
       return res.json({
         alreadyApplied: true,
         application: {
@@ -117,8 +118,6 @@ module.exports = {
     try {
       const applications = await service.getAllApplications();
 
-      // ⚠️ FIX: seluruh key sekarang persis nama kolom/relasi Prisma.
-      // Tidak ada lagi userId/name/avatar/position/stage/score/appliedDate.
       const formattedApplications = applications.map((app) => {
         return {
           id: app.id,
@@ -141,8 +140,6 @@ module.exports = {
             ? `/api/applications/${app.id}/file?type=portfolio`
             : null,
 
-          // ✅ Relasi pengguna & lowongan dikirim apa adanya (nested),
-          // sesuai bentuk relasi di schema.prisma.
           pengguna: app.pengguna
             ? {
                 id: app.pengguna.id,
@@ -159,14 +156,12 @@ module.exports = {
               }
             : null,
 
-          // ✅ Relasi turunan pengguna, nama field persis Prisma
           pengalaman_kerja: app.pengguna?.pengalaman_kerja || [],
           pendidikan: app.pengguna?.pendidikan || [],
           organisasi: app.pengguna?.organisasi || [],
           sertifikat: app.pengguna?.sertifikat || [],
           keahlian_pengguna: app.pengguna?.keahlian_pengguna || [],
 
-          // ✅ Jadwal wawancara milik lamaran ini, field persis Prisma
           jadwal_wawancara: (app.jadwal_wawancara || []).map((s) => ({
             id: s.id,
             jenis: s.jenis,
@@ -241,6 +236,18 @@ module.exports = {
 
       const updated = await service.updateApplicationStatus(id, status);
 
+      // 📝 LOG: admin mengubah status/tahap lamaran
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "lamaran",
+        target_id: updated?.id || Number(id) || id,
+        deskripsi: `Mengubah status lamaran (ID: ${id}) menjadi "${status}"`,
+        data_sebelum: null,
+        data_sesudah: updated || null,
+        ip_address: getClientIp(req),
+      });
+
       return res.json({
         message: "Status & tahap lamaran diperbarui",
         data: updated,
@@ -261,6 +268,18 @@ module.exports = {
       const { id } = req.params;
 
       const updated = await service.updateApplicationScore(id, score);
+
+      // 📝 LOG: admin mengubah skor lamaran
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "lamaran",
+        target_id: updated?.id || Number(id) || id,
+        deskripsi: `Mengubah skor lamaran (ID: ${id}) menjadi ${score}`,
+        data_sebelum: null,
+        data_sesudah: updated || null,
+        ip_address: getClientIp(req),
+      });
 
       return res.json({
         message: "Score lamaran diperbarui",

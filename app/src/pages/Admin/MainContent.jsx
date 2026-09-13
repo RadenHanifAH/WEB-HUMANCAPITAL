@@ -12,6 +12,7 @@ import PenilaianPage from "./Penilaian/Penjadwalan.jsx";
 import DokumenPenilaian from "./Penilaian/DokumenPenilaian";
 import UserManagementPage from "./UserManagement/index.jsx";
 import NotificationsPage from "./notifications/NotificationsPage.jsx";
+import ActivityLogPage from "./ActivityLogPage.jsx";
 
 const MainContent = forwardRef(
   ({ activeTab, sidebarWidth, selectedApplicationId, onNavigateTab }, ref) => (
@@ -33,6 +34,7 @@ const MainContent = forwardRef(
       {activeTab === "settings" && <SettingsPage />}
       {activeTab === "pengajuan-sdm" && <AdminPengajuanPage />}
       {activeTab === "user-management" && <UserManagementPage />}
+      {activeTab === "activity-log" && <ActivityLogPage />}
 
       {activeTab === "notifications" && (
         <NotificationsPage onNavigateTab={onNavigateTab} />

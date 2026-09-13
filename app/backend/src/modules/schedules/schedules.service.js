@@ -1,6 +1,7 @@
 const prisma = require("../../config/prisma");
 const { sendScheduleEmail } = require("./schedules.email");
 const applicationService = require("../application/application.service");
+const { verifyConfirmToken } = require("./schedules.token"); // ✅ BARU
 const {
   notificationsService,
   NOTIFICATION_TYPES,
@@ -27,12 +28,10 @@ const TYPE_LABELS = {
   FinalInterview: "Interview Kedua",
 };
 
-// ✅ Mapper untuk menerjemahkan type frontend ke enum Prisma
 const PRISMA_ENUM_MAP = {
   InterviewHC: "InterviewPertama",
   Psikotes: "Psikotes",
   FinalInterview: "InterviewKedua",
-  // Fallback jika frontend langsung kirim nama enum
   InterviewPertama: "InterviewPertama",
   InterviewKedua: "InterviewKedua",
 };
@@ -85,8 +84,6 @@ class SchedulesService {
       durationMin: s.durasi_menit,
       location: s.lokasi,
       meetingLink: s.tautan_rapat,
-      // notes: s.catatan, // ❌ DIHAPUS
-      // createdById: s.dibuat_oleh_id, // ❌ DIHAPUS
       isCompleted: s.sudah_selesai,
       completedAt: s.waktu_selesai,
       attendanceStatus: s.status_kehadiran,
@@ -144,6 +141,21 @@ class SchedulesService {
     }));
   }
 
+  async listMySchedules(penggunaId) {
+    if (!penggunaId) throw new Error("Tidak ada pengguna yang login");
+
+    const items = await prisma.jadwal_wawancara.findMany({
+      where: {
+        lamaran: { pengguna_id: Number(penggunaId) },
+        status: { not: "canceled" },
+      },
+      include: { lamaran: { include: APPLICANT_INCLUDE } },
+      orderBy: { tanggal_waktu: "asc" },
+    });
+
+    return items.map((s) => this._toClientShape(s));
+  }
+
   async listSchedules({ date = "", type = "all", page = 1, pageSize = 10 }) {
     const take = Number(pageSize) || 10;
     const skip = (Number(page) - 1) * take;
@@ -171,7 +183,6 @@ class SchedulesService {
         take,
         include: {
           lamaran: { include: APPLICANT_INCLUDE },
-          // ❌ DIHAPUS: pengguna: { select: { id: true, nama: true, email: true } },
         },
       }),
     ]);
@@ -189,7 +200,6 @@ class SchedulesService {
       where: { id: Number(id) },
       include: {
         lamaran: { include: APPLICANT_INCLUDE },
-        // ❌ DIHAPUS: pengguna: { select: { id: true, nama: true, email: true } },
       },
     });
     if (!s) throw new Error("Jadwal tidak ditemukan");
@@ -235,8 +245,6 @@ class SchedulesService {
         durasi_menit: Number(durationMin) || 60,
         lokasi: location,
         tautan_rapat: meetingLink || null,
-        // catatan: notes, // ❌ DIHAPUS
-        // ❌ DIHAPUS: dibuat_oleh_id: createdById ? Number(createdById) : null,
         sudah_selesai: false,
         status_kehadiran: "pending",
         updated_at: new Date(),
@@ -313,8 +321,6 @@ class SchedulesService {
             durasi_menit: Number(durationMin) || 60,
             lokasi: location,
             tautan_rapat: meetingLink || null,
-            // catatan: notes, // ❌ DIHAPUS
-            // ❌ DIHAPUS: dibuat_oleh_id: createdById ? Number(createdById) : null,
             sudah_selesai: false,
             status_kehadiran: "pending",
             updated_at: new Date(),
@@ -358,6 +364,9 @@ class SchedulesService {
     }
   }
 
+  // ✅ FIX (sebelumnya): tidak lagi auto-reject lamaran begitu HR
+  // menandai tidak hadir — HR yang memilih lewat tombol "Tolak Lamaran"
+  // atau "Reschedule" setelahnya.
   async markNoShowByHR(id, { reason } = {}) {
     const s = await prisma.jadwal_wawancara.findUnique({ where: { id: Number(id) } });
     if (!s) throw new Error("Jadwal tidak ditemukan");
@@ -381,19 +390,34 @@ class SchedulesService {
     fireNotification({
       type: NOTIFICATION_TYPES.NO_SHOW,
       title: `${updated.nama_pelamar} Tidak Hadir`,
-      message: `Ditandai tidak hadir oleh HR pada tahap ${TYPE_LABELS[updated.jenis] || updated.jenis}. Alasan: ${finalReason}.`,
+      message: `Ditandai tidak hadir oleh HR pada tahap ${TYPE_LABELS[updated.jenis] || updated.jenis}. Alasan: ${finalReason}. Silakan tolak lamaran atau buat jadwal ulang (reschedule) untuk kandidat ini.`,
       actionUrl: "schedule",
       metadata: { scheduleId: updated.id, applicationId: updated.lamaran_id },
     });
 
-    await this.autoRejectApplicant(s.lamaran_id, s.jenis);
-
     return this._toClientShape(updated);
   }
 
-  async confirmAttendance(id, { attendanceStatus, absentReason } = {}) {
-    const s = await prisma.jadwal_wawancara.findUnique({ where: { id: Number(id) } });
+  // ✅ FIX: sekarang menerima `token` (dari link email) sebagai bukti
+  // kepemilikan yang berdiri sendiri, di luar sesi login. `penggunaId`
+  // tetap dipakai sebagai fallback untuk pemakaian dari dalam aplikasi
+  // yang sudah login (mis. "Lamaran Saya"). Aksi diizinkan kalau SALAH
+  // SATU dari keduanya valid.
+  async confirmAttendance(id, { attendanceStatus, absentReason, penggunaId, token } = {}) {
+    const s = await prisma.jadwal_wawancara.findUnique({
+      where: { id: Number(id) },
+      include: { lamaran: { select: { pengguna_id: true } } },
+    });
     if (!s) throw new Error("Jadwal tidak ditemukan");
+
+    const hasValidToken = verifyConfirmToken(id, token);
+    const isOwnerBySession = Boolean(
+      penggunaId && s.lamaran?.pengguna_id === Number(penggunaId)
+    );
+
+    if (!hasValidToken && !isOwnerBySession) {
+      throw new Error("Jadwal ini bukan milik Anda");
+    }
 
     if (s.dikonfirmasi_oleh_pelamar) throw new Error("Kehadiran untuk jadwal ini sudah pernah dikonfirmasi");
 

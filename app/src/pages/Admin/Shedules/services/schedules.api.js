@@ -46,10 +46,13 @@ export const fetchScheduleById = async (id) => {
   return res.data;
 };
 
-export const confirmScheduleApplicant = async (id, payload) => {
+// ✅ FIX: sekarang menerima `token` (dari query string link email) dan
+// menyisipkannya ke body request — dipakai backend sebagai bukti
+// kepemilikan yang berdiri sendiri, tidak bergantung pada sesi login.
+export const confirmScheduleApplicant = async (id, payload, token) => {
   const res = await axiosInstance.patch(
     `/schedules/${id}/confirm-applicant`,
-    payload
+    { ...payload, token }
   );
   return res.data;
 };
@@ -67,7 +70,6 @@ export const markNoShowByAdmin = async (id, payload = {}) => {
   return res.data;
 };
 
-// API baru
 export const rejectScheduleApplicant = async (id) => {
   const res = await axiosInstance.patch(`/schedules/${id}/reject`);
   return res.data;

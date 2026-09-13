@@ -4,16 +4,44 @@ import {
   User,
   CheckCircle2,
   XCircle,
-  UploadCloud,
-  FileText,
-  X,
+  ClipboardList,
+  Wallet,
+  PenLine,
 } from "lucide-react";
 import usePenilaianStore from "./store/usePenilaianStore";
 import CandidateSearchInput from "./components/Candidatesearchinput";
 import {
   KESIMPULAN_INTERVIEW_OPTIONS,
   INTERVIEW_STAGE_LABELS,
+  RATING_OPTIONS,
+  PENILAIAN_ASPEK_TEMPLATE,
 } from "./utils/constants";
+
+const buildDefaultPenilaian = () =>
+  PENILAIAN_ASPEK_TEMPLATE.map((row) => ({
+    aspek: row.aspek,
+    uraian: row.uraian,
+    nilai: "",
+    keterangan: "",
+  }));
+
+// Menggabungkan penilaian yang sudah tersimpan (mis. dari backend) dengan
+// template aspek, supaya urutan & uraian selalu konsisten dengan formulir,
+// walau data lama hanya menyimpan { aspek, nilai, keterangan }.
+const normalizePenilaian = (penilaian) => {
+  if (!Array.isArray(penilaian) || penilaian.length === 0) {
+    return buildDefaultPenilaian();
+  }
+  return PENILAIAN_ASPEK_TEMPLATE.map((row) => {
+    const existing = penilaian.find((p) => p.aspek === row.aspek);
+    return {
+      aspek: row.aspek,
+      uraian: row.uraian,
+      nilai: existing?.nilai || "",
+      keterangan: existing?.keterangan || "",
+    };
+  });
+};
 
 const initialForm = {
   id: null,
@@ -27,31 +55,15 @@ const initialForm = {
   bidang_pengalaman: "",
   jabatan_dilamar: "",
   tanggal_wawancara: "",
-  penilaian: [],
+  penilaian: buildDefaultPenilaian(),
   kesimpulan: "",
   gaji_harapan: "",
   nama_pewawancara: "",
-  tanda_tangan_pewawancara: "",
-  data_dokumen_pendukung: "",
-  nama_dokumen_pendukung: "",
-  mime_dokumen_pendukung: "",
-  ukuran_dokumen_pendukung: null,
 };
 
 const STAGE_NUMBER_TO_KEY = {
   1: "interview-pertama",
   2: "interview-kedua",
-};
-
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; 
-const ACCEPTED_UPLOAD_TYPES = ["application/pdf", "image/png", "image/jpeg"];
-const ACCEPTED_UPLOAD_ACCEPT = "application/pdf,image/png,image/jpeg";
-
-const formatFileSize = (bytes) => {
-  if (!bytes && bytes !== 0) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const Card = ({ children, className = "" }) => (
@@ -141,181 +153,66 @@ const KesimpulanCard = ({ opt, active, onSelect }) => {
   );
 };
 
-const hasValue = (v) => String(v ?? "").trim().length > 0;
-
-const ProfileField = ({ label, value, icon: Icon }) => (
-  <div className="min-w-0">
-    <p className="text-[11px] text-gray-400 mb-0.5">{label}</p>
-    <div className="flex items-start gap-1.5 text-gray-800 min-w-0">
-      {Icon && <Icon className="h-3.5 w-3.5 text-sky-500 mt-0.5 shrink-0" />}
-      <span className="text-sm font-medium leading-snug break-words">
-        {hasValue(value) ? value : "-"}
-      </span>
-    </div>
+/* =========================================================================
+ * Tabel penilaian aspek (Kurang / Cukup / Baik) + kolom Keterangan,
+ * mengikuti tabel utama pada formulir wawancara.
+ * ========================================================================= */
+const PenilaianTable = ({ rows, onRatingChange, onKeteranganChange }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm border-collapse">
+      <thead>
+        <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+          <th className="px-3 py-2.5 text-left w-8 border-b border-gray-100">No</th>
+          <th className="px-3 py-2.5 text-left border-b border-gray-100 w-40">Aspek</th>
+          <th className="px-3 py-2.5 text-left border-b border-gray-100">Uraian</th>
+          <th className="px-3 py-2.5 text-center border-b border-gray-100 w-56">
+            Penilaian
+          </th>
+          <th className="px-3 py-2.5 text-left border-b border-gray-100 w-52">
+            Keterangan
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, idx) => (
+          <tr key={row.aspek} className="align-top border-b border-gray-50 last:border-b-0">
+            <td className="px-3 py-3 text-gray-400">{idx + 1}</td>
+            <td className="px-3 py-3 font-medium text-gray-800">{row.aspek}</td>
+            <td className="px-3 py-3 text-gray-500 leading-relaxed">{row.uraian}</td>
+            <td className="px-3 py-3">
+              <div className="flex items-center justify-center gap-4">
+                {RATING_OPTIONS.map((opt) => (
+                  <label
+                    key={opt}
+                    className="flex flex-col items-center gap-1 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name={`penilaian-${idx}`}
+                      checked={row.nilai === opt}
+                      onChange={() => onRatingChange(idx, opt)}
+                      className="w-4 h-4 accent-sky-600"
+                    />
+                    <span className="text-[11px] text-gray-500">{opt}</span>
+                  </label>
+                ))}
+              </div>
+            </td>
+            <td className="px-3 py-3">
+              <input
+                type="text"
+                value={row.keterangan}
+                onChange={(e) => onKeteranganChange(idx, e.target.value)}
+                placeholder="Keterangan..."
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition"
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </div>
 );
-
-const CandidateProfileCard = ({ pengguna, tahap, status }) => {
-  if (!pengguna) return null;
-  const profil = pengguna.profil || null;
-
-  const tanggalLahirText = profil?.tanggal_lahir
-    ? new Date(profil.tanggal_lahir).toLocaleDateString("id-ID", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      })
-    : "-";
-
-  return (
-    <Card>
-      <CardHeader
-        icon={User}
-        iconColor={{ bg: "bg-emerald-50", text: "text-emerald-600" }}
-        title="Profil Kandidat"
-        subtitle="Data diambil dari profil & lamaran kandidat"
-        badge={tahap || status || undefined}
-      />
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-5">
-          {profil?.foto_profil ? (
-            <img
-              src={profil.foto_profil}
-              alt="Foto Profil"
-              className="w-12 h-12 rounded-full object-cover border-2 border-sky-100"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center border-2 border-sky-100">
-              <User className="h-6 w-6 text-gray-400" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">
-              {pengguna.nama || "-"}
-            </p>
-            <p className="text-xs text-gray-500 truncate">
-              {pengguna.email || "-"}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <ProfileField label="NIK" value={profil?.nik} />
-          <ProfileField label="Jenis Kelamin" value={profil?.jenis_kelamin} />
-          <ProfileField label="No. HP" value={profil?.nomor_hp} />
-          <ProfileField label="Tempat Lahir" value={profil?.tempat_lahir} />
-          <ProfileField label="Tanggal Lahir" value={tanggalLahirText} />
-          <ProfileField label="Alamat" value={profil?.alamat} />
-        </div>
-      </div>
-    </Card>
-  );
-};
-
-const UploadDokumenCard = ({
-  fileName,
-  fileSize,
-  onSelectFile,
-  onRemoveFile,
-}) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-
-  const validateAndSelect = (file) => {
-    if (!file) return;
-    setUploadError("");
-
-    if (!ACCEPTED_UPLOAD_TYPES.includes(file.type)) {
-      setUploadError("Format file tidak didukung. Gunakan PDF, PNG, atau JPG.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_SIZE) {
-      setUploadError("Ukuran file maksimal 10MB.");
-      return;
-    }
-    onSelectFile(file);
-  };
-
-  const handleInputChange = (e) => {
-    validateAndSelect(e.target.files?.[0]);
-    e.target.value = "";
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragActive(false);
-    validateAndSelect(e.dataTransfer.files?.[0]);
-  };
-
-  return (
-    <Card>
-      <CardHeader
-        icon={UploadCloud}
-        iconColor={{ bg: "bg-orange-50", text: "text-orange-600" }}
-        title="Unggah Dokumen"
-        subtitle="Hasil karya atau portofolio kandidat."
-      />
-      <div className="p-6">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={handleDrop}
-          className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl py-10 px-4 text-center transition ${
-            dragActive
-              ? "border-blue-400 bg-blue-50/50"
-              : "border-gray-200 bg-gray-50/40"
-          }`}
-        >
-          <span className="w-11 h-11 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-gray-400">
-            <UploadCloud size={20} />
-          </span>
-          <p className="text-sm font-medium text-gray-700 mt-1">
-            Pilih file atau tarik kesini
-          </p>
-          <p className="text-xs text-gray-400">PDF, PNG, JPG up to 10MB</p>
-          <label className="mt-3 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition">
-            Pilih File
-            <input
-              type="file"
-              accept={ACCEPTED_UPLOAD_ACCEPT}
-              onChange={handleInputChange}
-              className="hidden"
-            />
-          </label>
-        </div>
-
-        {uploadError && (
-          <p className="text-xs text-red-500 mt-2">{uploadError}</p>
-        )}
-
-        {fileName && (
-          <div className="mt-4 flex items-center gap-3 border border-gray-100 rounded-lg px-3 py-2.5">
-            <span className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
-              <FileText size={16} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-800 truncate">
-                {fileName}
-              </p>
-              <p className="text-xs text-gray-400">{formatFileSize(fileSize)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={onRemoveFile}
-              className="text-gray-300 hover:text-red-500 transition shrink-0"
-              title="Hapus dokumen"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-};
 
 const InterviewForm = ({
   applicationId,
@@ -353,11 +250,7 @@ const InterviewForm = ({
     tanggal_lahir: record.tanggal_lahir
       ? new Date(record.tanggal_lahir).toISOString().substring(0, 10)
       : "",
-    penilaian: Array.isArray(record.penilaian) ? record.penilaian : [],
-    data_dokumen_pendukung: record.data_dokumen_pendukung || "",
-    nama_dokumen_pendukung: record.nama_dokumen_pendukung || "",
-    mime_dokumen_pendukung: record.mime_dokumen_pendukung || "",
-    ukuran_dokumen_pendukung: record.ukuran_dokumen_pendukung ?? null,
+    penilaian: normalizePenilaian(record.penilaian),
   });
 
   const loadCandidateProfile = async (appId) => {
@@ -408,7 +301,7 @@ const InterviewForm = ({
       setCandidatePengguna(null);
       setCandidateStageInfo({ tahap: "", status: "" });
     }
-  }, [initialData, applicationId, stage]); 
+  }, [initialData, applicationId, stage]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -423,10 +316,7 @@ const InterviewForm = ({
       jabatan_dilamar: candidate.lowongan?.judul || prev.jabatan_dilamar,
       tanggal_lahir: candidate.tanggal_lahir || prev.tanggal_lahir,
       pendidikan_terakhir: candidate.pendidikan_terakhir || prev.pendidikan_terakhir,
-      data_dokumen_pendukung: "",
-      nama_dokumen_pendukung: "",
-      mime_dokumen_pendukung: "",
-      ukuran_dokumen_pendukung: null,
+      penilaian: buildDefaultPenilaian(),
     }));
 
     setCandidatePengguna(candidate.pengguna || null);
@@ -441,28 +331,20 @@ const InterviewForm = ({
     }
   };
 
-  const handleSelectDokumen = (file) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({
-        ...prev,
-        data_dokumen_pendukung: reader.result,
-        nama_dokumen_pendukung: file.name,
-        mime_dokumen_pendukung: file.type,
-        ukuran_dokumen_pendukung: file.size,
-      }));
-    };
-    reader.readAsDataURL(file);
+  const handleRatingChange = (index, nilai) => {
+    setForm((prev) => {
+      const rows = [...prev.penilaian];
+      rows[index] = { ...rows[index], nilai };
+      return { ...prev, penilaian: rows };
+    });
   };
 
-  const handleRemoveDokumen = () => {
-    setForm((prev) => ({
-      ...prev,
-      data_dokumen_pendukung: "",
-      nama_dokumen_pendukung: "",
-      mime_dokumen_pendukung: "",
-      ukuran_dokumen_pendukung: null,
-    }));
+  const handleKeteranganChange = (index, keterangan) => {
+    setForm((prev) => {
+      const rows = [...prev.penilaian];
+      rows[index] = { ...rows[index], keterangan };
+      return { ...prev, penilaian: rows };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -507,33 +389,27 @@ const InterviewForm = ({
         </div>
       )}
 
-      {candidatePengguna && (
-        <CandidateProfileCard
-          pengguna={candidatePengguna}
-          tahap={candidateStageInfo.tahap}
-          status={candidateStageInfo.status}
+      <Card>
+        <CardHeader
+          icon={User}
+          iconColor={{ bg: "bg-blue-50", text: "text-blue-600" }}
+          title="Data Calon"
+          subtitle={`Hanya menampilkan kandidat pada tahap ${stageLabel}`}
+          badge={candidateStageInfo.tahap || candidateStageInfo.status || undefined}
         />
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6 items-start">
-        <Card>
-          <CardHeader
-            icon={User}
-            iconColor={{ bg: "bg-blue-50", text: "text-blue-600" }}
-            title="Data Calon"
-            subtitle={`Hanya menampilkan kandidat pada tahap ${stageLabel}`}
-          />
-          <div className="p-6 grid grid-cols-1 gap-4">
-            <Field label="Nama Calon">
-              <CandidateSearchInput
-                value={form.nama_pelamar}
-                onSelect={handleCandidateSelect}
-                onChangeText={(text) => handleChange("nama_pelamar", text)}
-                placeholder="Ketik nama calon untuk mencari..."
-                stage={stageFilterKey}
-                stageLabel={stageLabel}
-              />
-            </Field>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Field label="Nama Calon">
+                <CandidateSearchInput
+                  value={form.nama_pelamar}
+                  onSelect={handleCandidateSelect}
+                  onChangeText={(text) => handleChange("nama_pelamar", text)}
+                  placeholder="Ketik nama calon untuk mencari..."
+                  stage={stageFilterKey}
+                  stageLabel={stageLabel}
+                />
+              </Field>
+            </div>
 
             <Field label="Tanggal Wawancara">
               <input
@@ -546,22 +422,119 @@ const InterviewForm = ({
                 className={inputCls}
               />
             </Field>
-          </div>
-        </Card>
 
-        <UploadDokumenCard
-          fileName={form.nama_dokumen_pendukung}
-          fileSize={form.ukuran_dokumen_pendukung}
-          onSelectFile={handleSelectDokumen}
-          onRemoveFile={handleRemoveDokumen}
+            <Field label="Jabatan yang Dilamar">
+              <input
+                type="text"
+                value={form.jabatan_dilamar}
+                onChange={(e) => handleChange("jabatan_dilamar", e.target.value)}
+                className={inputCls}
+                placeholder="Contoh: Accounting"
+              />
+            </Field>
+
+            <Field label="Usia">
+              <input
+                type="number"
+                min="0"
+                value={form.usia}
+                onChange={(e) => handleChange("usia", e.target.value)}
+                className={inputCls}
+                placeholder="Contoh: 25"
+              />
+            </Field>
+
+            <Field label="Pendidikan Terakhir">
+              <input
+                type="text"
+                value={form.pendidikan_terakhir}
+                onChange={(e) =>
+                  handleChange("pendidikan_terakhir", e.target.value)
+                }
+                className={inputCls}
+                placeholder="Contoh: S1"
+              />
+            </Field>
+
+            <Field label="Pengalaman Kerja / Bidang">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={form.pengalaman_kerja}
+                  onChange={(e) =>
+                    handleChange("pengalaman_kerja", e.target.value)
+                  }
+                  className={inputCls}
+                  placeholder="Contoh: 3 Bulan"
+                />
+                <input
+                  type="text"
+                  value={form.bidang_pengalaman}
+                  onChange={(e) =>
+                    handleChange("bidang_pengalaman", e.target.value)
+                  }
+                  className={inputCls}
+                  placeholder="Bidang: Finance"
+                />
+              </div>
+            </Field>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={ClipboardList}
+          iconColor={{ bg: "bg-sky-50", text: "text-sky-600" }}
+          title="Penilaian Aspek Wawancara"
+          subtitle="Beri nilai Kurang / Cukup / Baik untuk tiap aspek."
         />
-      </div>
+        <div className="p-2 md:p-4">
+          <PenilaianTable
+            rows={form.penilaian}
+            onRatingChange={handleRatingChange}
+            onKeteranganChange={handleKeteranganChange}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={Wallet}
+          iconColor={{ bg: "bg-amber-50", text: "text-amber-600" }}
+          title="Ekspektasi & Pewawancara"
+        />
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Gaji Harapan (Expected Salary)">
+            <input
+              type="text"
+              value={form.gaji_harapan}
+              onChange={(e) => handleChange("gaji_harapan", e.target.value)}
+              className={inputCls}
+              placeholder="Contoh: 5.000.000"
+            />
+          </Field>
+          <Field label="Nama Pewawancara">
+            <div className="relative">
+              <PenLine className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+              <input
+                type="text"
+                value={form.nama_pewawancara}
+                onChange={(e) =>
+                  handleChange("nama_pewawancara", e.target.value)
+                }
+                className={`${inputCls} pl-8`}
+                placeholder="Nama pewawancara"
+              />
+            </div>
+          </Field>
+        </div>
+      </Card>
 
       <Card>
         <CardHeader
           icon={CheckCircle2}
           iconColor={{ bg: "bg-green-50", text: "text-green-600" }}
-          title="Kesimpulan Akhir"
+          title="Kesimpulan"
           subtitle="Keputusan final berdasarkan evaluasi wawancara."
         />
         <div className="p-6">

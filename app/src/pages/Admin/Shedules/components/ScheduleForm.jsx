@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, Calendar, Clock, MapPin, User, CheckSquare, Square, Loader2, Video } from "lucide-react";
 import { SCHEDULE_TYPES } from "./constants";
-import { fetchApplicantsByStage, bulkCreateSchedule } from "../services/schedules.api";
+import { fetchApplicantsByStage, bulkCreateSchedule, deleteSchedule } from "../services/schedules.api";
 import LocationStep from "./Locationstep";
 import { buildLocationPayload, locationSummaryLabel } from "./LocationData";
 import toast from "react-hot-toast";
@@ -27,9 +27,34 @@ const INITIAL_LOCATION = {
 
 const STEP_LABELS = ["Pilih Kandidat", "Pilih Lokasi", "Atur Jadwal"];
 
-export default function ScheduleForm({ open, onClose, onCreated }) {
+/**
+ * @param {boolean} open
+ * @param {() => void} onClose
+ * @param {() => void} onCreated
+ * @param {string} [initialType] - ✅ BARU: kalau diisi (mis. dari alur
+ *   reschedule), tab tipe jadwal langsung terbuka di tipe ini, bukan
+ *   selalu SCHEDULE_TYPES[0].
+ * @param {{applicationId:number, applicantName?:string, position?:string, avatar?:string}} [preselectedApplicant]
+ *   ✅ BARU: kalau diisi, kandidat ini otomatis ter-centang begitu daftar
+ *   kandidat untuk initialType selesai dimuat — dipakai supaya alur
+ *   "Reschedule" tidak perlu mencari & mencentang ulang kandidat yang sama.
+ * @param {number} [scheduleIdToReplace] - ✅ BARU: kalau diisi (alur
+ *   reschedule), jadwal dengan id ini akan DIHAPUS setelah jadwal baru
+ *   berhasil dibuat (bukan sebelumnya) — supaya data jadwal lama tidak
+ *   hilang percuma kalau user batal mengisi form di tengah jalan.
+ */
+export default function ScheduleForm({
+  open,
+  onClose,
+  onCreated,
+  initialType,
+  preselectedApplicant,
+  scheduleIdToReplace,
+}) {
   const [step, setStep] = useState(1); // 1 = kandidat, 2 = lokasi, 3 = jadwal
-  const [selectedType, setSelectedType] = useState(SCHEDULE_TYPES[0].value);
+  const [selectedType, setSelectedType] = useState(
+    initialType || SCHEDULE_TYPES[0].value
+  );
 
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [applicants, setApplicants] = useState([]);
@@ -39,18 +64,60 @@ export default function ScheduleForm({ open, onClose, onCreated }) {
   const [form, setForm] = useState({ date: "", time: "" });
   const [submitting, setSubmitting] = useState(false);
 
+  // ✅ BARU: setiap kali modal dibuka, pastikan tipe yang aktif mengikuti
+  // initialType (kalau ada) — penting untuk reschedule, karena `open`
+  // bisa berubah dari false → true berkali-kali dengan initialType yang
+  // berbeda-beda tiap kali, sementara `selectedType` di useState hanya
+  // dievaluasi sekali saat komponen pertama kali mount.
+  useEffect(() => {
+    if (open) {
+      setSelectedType(initialType || SCHEDULE_TYPES[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialType]);
+
   // Load kandidat setiap kali tipe berubah
   useEffect(() => {
     if (!open) return;
     setCheckedIds([]);
     loadApplicants(selectedType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedType]);
 
   const loadApplicants = async (type) => {
     try {
       setLoadingApplicants(true);
       const res = await fetchApplicantsByStage(type);
-      setApplicants(res.items || []);
+      let list = res.items || [];
+
+      // ✅ BARU: kalau ada kandidat yang mau di-preselect (alur reschedule)
+      // dan tipe yang sedang dimuat cocok dengan tipe reschedule tsb,
+      // pastikan kandidat itu langsung ter-centang. Kalau karena suatu
+      // sebab kandidatnya tidak muncul di hasil fetch (mis. delay data
+      // di backend), kita sisipkan manual supaya tetap terlihat & bisa
+      // langsung dijadwalkan ulang tanpa mencari manual.
+      if (
+        preselectedApplicant?.applicationId &&
+        type === (initialType || type)
+      ) {
+        const alreadyInList = list.some(
+          (a) => a.applicationId === preselectedApplicant.applicationId
+        );
+        if (!alreadyInList) {
+          list = [
+            {
+              applicationId: preselectedApplicant.applicationId,
+              applicantName: preselectedApplicant.applicantName || "Kandidat",
+              position: preselectedApplicant.position || "-",
+              avatar: preselectedApplicant.avatar || null,
+            },
+            ...list,
+          ];
+        }
+        setCheckedIds([preselectedApplicant.applicationId]);
+      }
+
+      setApplicants(list);
     } catch {
       toast.error("Gagal memuat kandidat");
     } finally {
@@ -116,10 +183,33 @@ export default function ScheduleForm({ open, onClose, onCreated }) {
         meetingLink,
       });
 
+      const newScheduleCreatedSuccessfully = (result.created || 0) > 0;
+
       if (result.errors?.length > 0) {
         toast.error(`${result.created} jadwal dibuat, ${result.errors.length} gagal (mungkin sudah ada)`);
       } else {
         toast.success(`${result.created} jadwal berhasil dibuat`);
+      }
+
+      // ✅ BARU: hapus jadwal lama HANYA setelah jadwal baru terbukti
+      // berhasil dibuat. Kalau bulkCreateSchedule gagal total (exception
+      // di atas akan menangkapnya duluan lewat catch), atau kalau semua
+      // kandidat gagal (result.created === 0, mis. semua konflik jadwal),
+      // jadwal lama TIDAK disentuh — supaya tidak ada kondisi di mana
+      // jadwal lama sudah hilang tapi jadwal baru gagal terbentuk.
+      if (scheduleIdToReplace && newScheduleCreatedSuccessfully) {
+        try {
+          await deleteSchedule(scheduleIdToReplace);
+        } catch (delErr) {
+          // Jadwal baru sudah berhasil dibuat, tapi penghapusan jadwal
+          // lama gagal (mis. sudah terhapus duluan / race condition).
+          // Jangan gagalkan keseluruhan alur karena ini — cukup beri
+          // tahu, supaya admin bisa hapus manual kalau perlu.
+          toast.error(
+            delErr?.response?.data?.message ||
+              "Jadwal baru berhasil dibuat, tapi jadwal lama gagal dihapus otomatis. Silakan hapus manual."
+          );
+        }
       }
 
       resetAll();

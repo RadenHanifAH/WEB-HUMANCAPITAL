@@ -6,6 +6,7 @@ import Hero from "../assets/hero2.png";
 import Jobs from "./Jobs";
 import About from "../components/About";
 import Core from "../components/Corevalue";
+import CaraMelamar from "../components/CaraMelamar";
 
 function Home() {
   const location = useLocation();
@@ -110,7 +111,9 @@ function Home() {
         <div className="container mx-auto px-4 md:px-8">
           {/* Kategori Pekerjaan */}
           <Jobs />
-
+          <section id="cara-melamar" className="mt-16 md:mt-20">
+            <CaraMelamar />
+          </section>
           {/* Tentang Kami */}
           <section id="about" className="mt-16 md:mt-20">
             <About />

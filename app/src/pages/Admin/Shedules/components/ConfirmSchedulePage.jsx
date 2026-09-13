@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   CheckCircle,
   XCircle,
@@ -16,8 +16,6 @@ import {
   markScheduleExpired,
 } from "../services/schedules.api";
 
-// ✅ Key tetap sama (InterviewHC, Psikotes, FinalInterview) sesuai nilai
-// yang tersimpan di kolom `type`, hanya teks labelnya yang diperbarui.
 const TYPE_LABEL = {
   InterviewHC: "Interview Pertama",
   Psikotes: "Psikotes",
@@ -52,10 +50,10 @@ const formatDateTime = (dateTime) =>
 
 export default function ConfirmSchedulePage() {
   const { id } = useParams();
+  // ✅ BARU: ambil token dari query string link email (?token=...)
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
 
-  // loading | choice | reason_form | submitting |
-  // success_hadir | success_absent | already_hadir | already_absent |
-  // expired | error
   const [status, setStatus] = useState("loading");
   const [schedule, setSchedule] = useState(null);
   const [reason, setReason] = useState("");
@@ -68,7 +66,6 @@ export default function ConfirmSchedulePage() {
         const data = await fetchScheduleById(id);
         setSchedule(data);
 
-        // sudah pernah merespon sebelumnya
         if (data.confirmedByApplicant) {
           setStatus(
             data.attendanceStatus === "tidak_hadir" ? "already_absent" : "already_hadir"
@@ -76,24 +73,20 @@ export default function ConfirmSchedulePage() {
           return;
         }
 
-        // cek batas waktu 1 hari sejak jadwal dibuat
         const createdAt = new Date(data.createdAt);
         const expiredTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
         const now = new Date();
 
-        // lewat 1 hari -> tandai tidak hadir otomatis di server, lalu tampilkan expired
         if (now > expiredTime) {
           try {
             await markScheduleExpired(id);
           } catch (err) {
-            // kalau ternyata sudah keburu direspon dari request lain, biarkan saja
             console.error(err);
           }
           setStatus("expired");
           return;
         }
 
-        // masih dalam masa konfirmasi -> tampilkan pilihan
         setStatus("choice");
       } catch (error) {
         console.error(error);
@@ -113,7 +106,8 @@ export default function ConfirmSchedulePage() {
     setStatus("submitting");
     setSubmitError("");
     try {
-      const res = await confirmScheduleApplicant(id, { attendanceStatus: "hadir" });
+      // ✅ FIX: kirim token dari link email
+      const res = await confirmScheduleApplicant(id, { attendanceStatus: "hadir" }, token);
       setSchedule(res.data);
       setStatus("success_hadir");
     } catch (e) {
@@ -131,10 +125,12 @@ export default function ConfirmSchedulePage() {
     setStatus("submitting");
     setSubmitError("");
     try {
-      const res = await confirmScheduleApplicant(id, {
-        attendanceStatus: "tidak_hadir",
-        absentReason: reason.trim(),
-      });
+      // ✅ FIX: kirim token dari link email
+      const res = await confirmScheduleApplicant(
+        id,
+        { attendanceStatus: "tidak_hadir", absentReason: reason.trim() },
+        token
+      );
       setSchedule(res.data);
       setStatus("success_absent");
     } catch (e) {
@@ -147,7 +143,6 @@ export default function ConfirmSchedulePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden max-h-[95vh] overflow-y-auto">
 
-        {/* Loading / Submitting */}
         {(status === "loading" || status === "submitting") && (
           <div className="p-10 sm:p-16 flex flex-col items-center gap-4">
             <Loader2 className="h-10 w-10 text-sky-500 animate-spin" />
@@ -157,7 +152,6 @@ export default function ConfirmSchedulePage() {
           </div>
         )}
 
-        {/* Choice: Hadir / Tidak Hadir */}
         {status === "choice" && schedule && (
           <>
             <div className={`${typeStyle.header} px-6 py-8 sm:px-8 text-center`}>
@@ -217,7 +211,6 @@ export default function ConfirmSchedulePage() {
                 </button>
               </div>
 
-              {/* ✅ UPDATED: pesan peringatan supaya pelamar sadar konsekuensinya */}
               <p className="text-xs text-gray-400 mt-3 text-center">
                 Jika Anda memilih "Tidak Bisa Hadir", tim HR akan meninjau
                 alasan Anda dan menindaklanjuti status lamaran Anda secara manual.
@@ -226,7 +219,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Reason form for Tidak Hadir */}
         {status === "reason_form" && schedule && (
           <>
             <div className="bg-red-600 px-6 py-8 sm:px-8 text-center">
@@ -295,7 +287,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Success: Hadir */}
         {status === "success_hadir" && schedule && (
           <>
             <div className={`${typeStyle.header} px-6 py-10 sm:px-8 text-center`}>
@@ -334,13 +325,11 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Success: Tidak Hadir */}
         {status === "success_absent" && schedule && (
           <>
             <div className="bg-red-600 px-6 py-10 sm:px-8 text-center">
               <XCircle className="h-14 w-14 text-white mx-auto mb-3" />
               <h1 className="text-white text-lg sm:text-xl font-bold">Konfirmasi Diterima</h1>
-              {/* ✅ UPDATED: pesan sukses */}
               <p className="text-white/80 text-sm mt-1">
                 Alasan ketidakhadiran Anda telah dikirim ke tim HR untuk ditinjau
               </p>
@@ -364,7 +353,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Already confirmed: Hadir */}
         {status === "already_hadir" && schedule && (
           <>
             <div className={`${typeStyle.header} px-6 py-10 sm:px-8 text-center`}>
@@ -391,7 +379,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Already confirmed: Tidak Hadir */}
         {status === "already_absent" && schedule && (
           <>
             <div className="bg-red-600 px-6 py-10 sm:px-8 text-center">
@@ -415,7 +402,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Tidak Hadir (expired otomatis) */}
         {status === "expired" && (
           <>
             <div className="bg-red-600 px-6 py-10 sm:px-8 text-center">
@@ -439,7 +425,6 @@ export default function ConfirmSchedulePage() {
           </>
         )}
 
-        {/* Error */}
         {status === "error" && (
           <div className="p-8 sm:p-12 flex flex-col items-center gap-3 text-center">
             <XCircle className="h-12 w-12 text-red-400" />

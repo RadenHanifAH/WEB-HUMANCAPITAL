@@ -10,9 +10,15 @@ const pickUser = (res) =>
   null;
 
 const LOGGED_OUT_FLAG = "isLoggedOut";
+const ACCESS_TOKEN_KEY = "accessToken";
 
 const useAuthStore = create((set) => ({
   user: null,
+  // ✅ FIX: token sekarang jadi bagian dari state, di-hydrate dari
+  // localStorage saat store pertama kali dibuat, supaya komponen yang
+  // membaca `useAuthStore((s) => s.token)` (mis. LamaranSayaSection.jsx)
+  // benar-benar mendapat nilainya, bukan selalu undefined.
+  token: localStorage.getItem(ACCESS_TOKEN_KEY) || null,
   loading: false,
   checkingAuth: true,
 
@@ -76,14 +82,16 @@ const useAuthStore = create((set) => ({
       });
 
       const user = res.data.user;
+      const token = res.data.accessToken; // ✅ FIX: ambil token dari response
 
-      localStorage.setItem("accessToken", res.data.accessToken);
+      localStorage.setItem(ACCESS_TOKEN_KEY, token);
 
       // ✅ login berhasil -> hapus flag logout
       localStorage.removeItem(LOGGED_OUT_FLAG);
 
       set({
         user,
+        token, // ✅ FIX: simpan token ke state juga, bukan cuma localStorage
         loading: false,
       });
 
@@ -108,16 +116,16 @@ const useAuthStore = create((set) => ({
 
       // ✅ tandai bahwa user memang sengaja logout
       localStorage.setItem(LOGGED_OUT_FLAG, "true");
-      localStorage.removeItem("accessToken");
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
 
-      set({ user: null });
+      set({ user: null, token: null }); // ✅ FIX: reset token juga
       toast.success("Logout berhasil");
     } catch (error) {
       // tetap tandai logout di client meski request ke server gagal,
       // supaya checkAuth tidak auto-login lagi
       localStorage.setItem(LOGGED_OUT_FLAG, "true");
-      localStorage.removeItem("accessToken");
-      set({ user: null });
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      set({ user: null, token: null }); // ✅ FIX: reset token juga
       toast.error(error?.response?.data?.message || "Gagal logout");
     }
   },
@@ -132,7 +140,7 @@ const useAuthStore = create((set) => ({
   checkAuth: async () => {
     // ✅ kalau user memang baru logout, jangan coba auto-login lewat refresh
     if (localStorage.getItem(LOGGED_OUT_FLAG) === "true") {
-      set({ user: null, checkingAuth: false });
+      set({ user: null, token: null, checkingAuth: false });
       return;
     }
 
@@ -142,6 +150,9 @@ const useAuthStore = create((set) => ({
       const res = await axios.get("/auth/profile");
       set({
         user: res.data?.data || res.data?.user || res.data || null,
+        // ✅ FIX: sinkronkan token dari localStorage saat checkAuth berhasil,
+        // untuk kasus reload halaman (token sudah ada dari sesi sebelumnya)
+        token: localStorage.getItem(ACCESS_TOKEN_KEY) || null,
         checkingAuth: false,
       });
       return;
@@ -151,18 +162,27 @@ const useAuthStore = create((set) => ({
 
       // ✅ guest: normal
       if (status === 401 && msg === "Unauthorized - No access token provided") {
-        set({ user: null, checkingAuth: false });
+        set({ user: null, token: null, checkingAuth: false });
         return;
       }
 
       // ✅ token expired/invalid -> coba refresh
       if (status === 401) {
         try {
-          await axios.post("/auth/refresh-token");
+          const refreshRes = await axios.post("/auth/refresh-token");
           const res2 = await axios.get("/auth/profile");
+
+          // ✅ FIX: kalau endpoint refresh mengembalikan accessToken baru,
+          // simpan juga ke localStorage & state
+          const newToken =
+            refreshRes?.data?.accessToken || localStorage.getItem(ACCESS_TOKEN_KEY) || null;
+          if (refreshRes?.data?.accessToken) {
+            localStorage.setItem(ACCESS_TOKEN_KEY, refreshRes.data.accessToken);
+          }
 
           set({
             user: res2.data?.data || res2.data?.user || res2.data || null,
+            token: newToken,
             checkingAuth: false,
           });
           return;
@@ -172,18 +192,18 @@ const useAuthStore = create((set) => ({
 
           // ✅ guest: normal
           if (st2 === 400 && msg2 === "No refresh token provided") {
-            set({ user: null, checkingAuth: false });
+            set({ user: null, token: null, checkingAuth: false });
             return;
           }
 
           // ✅ refresh gagal => anggap logout
-          set({ user: null, checkingAuth: false });
+          set({ user: null, token: null, checkingAuth: false });
           return;
         }
       }
 
       // ✅ selain 401 -> error beneran
-      set({ user: null, checkingAuth: false });
+      set({ user: null, token: null, checkingAuth: false });
     }
   },
 }));

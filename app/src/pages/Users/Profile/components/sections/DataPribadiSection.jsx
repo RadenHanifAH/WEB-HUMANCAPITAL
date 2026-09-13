@@ -57,6 +57,38 @@ const TextareaField = ({ label, value, name, editable, onChange }) => (
   </div>
 );
 
+/* ── helper: rentang tanggal lahir yang diizinkan ────────── */
+// Aturan usia pelamar — ganti angkanya di sini saja kalau kebijakan berubah:
+const UMUR_MINIMAL = 17;  // usia termuda -> tanggal lahir TERBARU = hari ini - 17 tahun
+const UMUR_MAKSIMAL = 40; // usia tertua -> tanggal lahir TERLAMA = hari ini - 40 tahun
+
+// Format YYYY-MM-DD memakai tanggal LOKAL (bukan toISOString yang UTC),
+// supaya batasnya tidak geser ±1 hari karena selisih zona waktu (WIB = UTC+7).
+const toInputDate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+// Batas dihitung dari tanggal hari ini, jadi otomatis ikut berganti tahun.
+// Contoh: tahun 2026 -> rentang 3 Sep 1986 s.d. 3 Sep 2009 (usia 17-40).
+const getTanggalLahirRange = () => {
+  const today = new Date();
+
+  // MAX = hari ini dikurangi 17 tahun
+  // -> di bawah 17 tahun (kemarin, anak kecil, remaja) otomatis INVALID
+  const max = new Date(today);
+  max.setFullYear(today.getFullYear() - UMUR_MINIMAL);
+
+  // MIN = hari ini dikurangi 40 tahun
+  // -> di atas 40 tahun juga INVALID
+  const min = new Date(today);
+  min.setFullYear(today.getFullYear() - UMUR_MAKSIMAL);
+
+  return { min: toInputDate(min), max: toInputDate(max) };
+};
+
 /* ── main component ──────────────────────────────────────── */
 const DataPribadiSection = ({
   editedData,
@@ -82,6 +114,9 @@ const DataPribadiSection = ({
     alamat,
   } = profil;
 
+  // rentang tanggal lahir dihitung dari tanggal hari ini
+  const { min: minTglLahir, max: maxTglLahir } = getTanggalLahirRange();
+
   // format tanggal untuk display
   const formatDate = (d) => {
     if (!d) return "";
@@ -98,6 +133,14 @@ const DataPribadiSection = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // ✅ Guard: abaikan tanggal lahir di luar rentang usia 17-40 tahun.
+    // (perlu, karena user masih bisa KETIK manual lewat keyboard
+    //  walaupun date picker-nya sudah dibatasi min/max)
+    if (name === "tanggal_lahir" && value) {
+      if (value > maxTglLahir || value < minTglLahir) return;
+    }
+
     onChange({ target: { id: name, value } });
   };
 
@@ -210,19 +253,26 @@ const DataPribadiSection = ({
                 Tanggal Lahir
               </label>
               {isEditable ? (
-                <input
-                  type="date"
-                  name="tanggal_lahir"
-                  value={
-                    tanggal_lahir
-                      ? new Date(tanggal_lahir).toISOString().split("T")[0]
-                      : ""
-                  }
-                  onChange={handleChange}
-                  className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm
-                             text-gray-800 focus:border-blue-500 focus:outline-none
-                             focus:ring-2 focus:ring-blue-100 transition"
-                />
+                <>
+                  <input
+                    type="date"
+                    name="tanggal_lahir"
+                    min={minTglLahir}
+                    max={maxTglLahir}
+                    value={
+                      tanggal_lahir
+                        ? new Date(tanggal_lahir).toISOString().split("T")[0]
+                        : ""
+                    }
+                    onChange={handleChange}
+                    className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm
+                               text-gray-800 focus:border-blue-500 focus:outline-none
+                               focus:ring-2 focus:ring-blue-100 transition"
+                  />
+                  <p className="text-[11px] text-gray-400">
+                    Usia pelamar {UMUR_MINIMAL}–{UMUR_MAKSIMAL} tahun
+                  </p>
+                </>
               ) : (
                 <div
                   className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5

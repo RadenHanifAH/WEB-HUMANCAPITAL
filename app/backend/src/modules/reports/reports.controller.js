@@ -1,4 +1,6 @@
 const reportsService = require("./reports.service");
+// 📝 LOG: tambahan untuk Log Aktivitas
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 class ReportsController {
   getRecruitmentMetrics = async (req, res) => {
@@ -19,9 +21,6 @@ class ReportsController {
 
       let data;
 
-      // ✅ Kalau ada custom date range (startDate & endDate), pakai granularity
-      // yang dipilih user (harian/mingguan/bulanan/tahunan) untuk grouping-nya,
-      // bukan default range "12 bulan terakhir".
       if (startDate && endDate) {
         data = await reportsService.getReportsByCustomRange(
           startDate,
@@ -40,26 +39,8 @@ class ReportsController {
     }
   };
 
-  /**
-   * /api/reports/export
-   * - type=dashboard -> 3 sheet/section (trend + posisi + status)
-   *    trendPeriod = dari dropdown
-   *    posisi/status = default monthly (tetap)
-   * - type=trend_analytics -> 1 sheet/section trend (period dari dropdown)
-   * - type=position_analytics -> 1 sheet/section posisi (period default monthly)
-   * - type=status_analytics -> 1 sheet/section status (period default monthly)
-   *
-   * - format=xlsx (default) -> spreadsheet Excel
-   * - format=pdf -> laporan formal PDF dengan header, tabel per section,
-   *   dan nomor halaman
-   *
-   * ✅ BARU: startDate & endDate (opsional) -> kalau dikirim (biasanya karena
-   * user sedang pakai custom date range di chart trend), trend export akan
-   * memakai rentang tanggal ini alih-alih rolling window default dari
-   * `trendPeriod`/`period`. Hanya berlaku untuk type=dashboard &
-   * type=trend_analytics — posisi/status tetap pakai window monthly default,
-   * sesuai desain awal (tidak ikut dropdown maupun custom range).
-   */
+  // /api/reports/export — type: dashboard | trend_analytics | position_analytics | status_analytics
+  // format: xlsx (default) | pdf. startDate & endDate opsional untuk custom range trend.
   exportReport = async (req, res) => {
     try {
       const { type = "dashboard", format = "xlsx", startDate, endDate } = req.query;
@@ -72,7 +53,6 @@ class ReportsController {
       if (type === "dashboard") {
         const { trendPeriod = "monthly" } = req.query;
 
-        // posisi & status dibuat tetap (misal monthly) karena kamu minta tidak ikut dropdown
         report = await reportsService.buildDashboardExportData({
           trendPeriod,
           positionPeriod: "monthly",
@@ -80,17 +60,14 @@ class ReportsController {
           dateRange: customRange,
         });
       } else {
-        // single export
         const { period = "monthly" } = req.query;
 
-        // kamu minta: trend ikut dropdown, posisi/status tetap
         const finalPeriod =
           type === "trend_analytics" ? period : "monthly";
 
         report = await reportsService.buildSingleData({
           type,
           period: finalPeriod,
-          // custom range hanya relevan buat trend_analytics
           dateRange: type === "trend_analytics" ? customRange : null,
         });
       }
@@ -99,6 +76,18 @@ class ReportsController {
 
       if (normalizedFormat === "xlsx") {
         const buffer = await reportsService.generateXLSXBuffer(report, type);
+
+        // 📝 LOG: admin mengexport laporan (xlsx)
+        logActivity({
+          pengguna_id: req.user?.id,
+          aksi: "EXPORT",
+          modul: "laporan",
+          target_id: null,
+          deskripsi: `Export laporan "${type}" (format: xlsx)`,
+          data_sebelum: null,
+          data_sesudah: null,
+          ip_address: getClientIp(req),
+        });
 
         const filename = `laporan_${type}_${today}.xlsx`;
         res.setHeader(
@@ -112,9 +101,20 @@ class ReportsController {
         return res.status(200).send(Buffer.from(buffer));
       }
 
-      // ✅ BARU: export laporan formal dalam bentuk PDF
       if (normalizedFormat === "pdf") {
         const buffer = await reportsService.generatePDFBuffer(report, type);
+
+        // 📝 LOG: admin mengexport laporan (pdf)
+        logActivity({
+          pengguna_id: req.user?.id,
+          aksi: "EXPORT",
+          modul: "laporan",
+          target_id: null,
+          deskripsi: `Export laporan "${type}" (format: pdf)`,
+          data_sebelum: null,
+          data_sesudah: null,
+          ip_address: getClientIp(req),
+        });
 
         const filename = `laporan_${type}_${today}.pdf`;
         res.setHeader("Content-Type", "application/pdf");

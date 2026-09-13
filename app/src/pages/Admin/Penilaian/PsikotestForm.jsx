@@ -1,20 +1,24 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   User,
   BadgeCheck,
   Save,
-  Upload,
-  FileText,
-  X as XIcon,
   CheckCircle2,
   XCircle,
+  Brain,
+  StickyNote,
+  Stamp,
+  Plus,
+  Trash2,
 } from "lucide-react";
-import axiosInstance from "../../../api/axiosInstance"; 
+import axiosInstance from "../../../api/axiosInstance";
 import usePenilaianStore from "./store/usePenilaianStore";
 import CandidateSearchInput from "./components/Candidatesearchinput";
 import {
   KESIMPULAN_PSIKOTEST_OPTIONS,
+  IQ_KETERANGAN_OPTIONS,
+  BAIK_BURUK_OPTIONS,
 } from "./utils/constants";
 
 const emptyExtraRow = () => ({ aspek: "", nilai: "", keterangan: "" });
@@ -29,8 +33,14 @@ const initialForm = {
   skor_iq: "",
   keterangan_iq: "",
   kepribadian: "",
+  // ✅ NEW: keterangan per-aspek — sebelumnya hanya "Keterangan IQ" yang ada,
+  // padahal pada dokumen form kertas kolom "Keterangan" berlaku untuk
+  // semua aspek (Kepribadian, Stabilitas Emosi, Integritas juga).
+  keterangan_kepribadian: "",
   stabilitas_emosi: "",
+  keterangan_stabilitas_emosi: "",
   integritas: "",
+  keterangan_integritas: "",
   aspek_tambahan: [emptyExtraRow()],
   kesimpulan: "",
   skor_akhir: "",
@@ -71,8 +81,8 @@ const CardHeader = ({ icon: Icon, iconColor, title, subtitle, badge }) => (
   </div>
 );
 
-const Field = ({ label, children }) => (
-  <div>
+const Field = ({ label, children, className = "" }) => (
+  <div className={className}>
     <label className="block text-xs font-medium text-gray-500 mb-1.5">{label}</label>
     {children}
   </div>
@@ -125,100 +135,81 @@ const KesimpulanCard = ({ opt, active, onSelect }) => {
   );
 };
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; 
-const ACCEPTED_TYPES = ["image/png", "image/jpeg", "application/pdf"];
+/* =========================================================================
+ * Checkbox-style radio (☐), dipakai untuk field Baik/Buruk
+ * (Kepribadian, Stabilitas Emosi, Integritas).
+ * ========================================================================= */
+const SquareRadioOption = ({ label, active, tone, onSelect }) => (
+  <label
+    onClick={() => onSelect(label)}
+    className="flex items-center gap-2.5 cursor-pointer select-none"
+  >
+    <span
+      className={`shrink-0 rounded-[4px] border-2 flex items-center justify-center transition ${
+        active ? `${tone.border} ${tone.bg}` : "border-gray-300 bg-white"
+      }`}
+      style={{ width: 18, height: 18 }}
+    >
+      {active && <CheckCircle2 size={12} className={tone.icon} strokeWidth={3} />}
+    </span>
+    <span className={`text-sm font-medium ${active ? tone.text : "text-gray-600"}`}>
+      {label}
+    </span>
+  </label>
+);
 
-const DocumentUpload = ({ fileName, fileData, onUpload, onRemove, error }) => {
-  const fileInputRef = useRef(null);
-
-  const handleFiles = (files) => {
-    const file = files?.[0];
-    if (!file) return;
-
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      onUpload(null, "Format file harus PNG, JPG, atau PDF.");
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      onUpload(null, "Ukuran file maksimal 10MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      onUpload({ dataUrl: reader.result, name: file.name, mime: file.type, size: file.size });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    handleFiles(e.dataTransfer.files);
-  };
-
-  return (
-    <Card>
-      <CardHeader
-        icon={Upload}
-        iconColor={{ bg: "bg-orange-50", text: "text-orange-600" }}
-        title="Unggah Dokumen"
-        subtitle="Hasil test atau lembar jawaban."
-      />
-      <div className="p-6 space-y-3">
-        {!fileData ? (
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            className="border-2 border-dashed border-gray-200 rounded-xl py-10 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-sky-300 hover:bg-sky-50/30 transition"
-          >
-            <span className="w-11 h-11 rounded-lg bg-gray-50 flex items-center justify-center mb-3">
-              <FileText className="text-gray-400" size={22} />
-            </span>
-            <p className="text-sm font-medium text-gray-700">Pilih file atau tarik kesini</p>
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG, PDF up to 10MB</p>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-              className="mt-4 px-4 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700"
-            >
-              Pilih File
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".png,.jpg,.jpeg,.pdf"
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
-            <span className="w-9 h-9 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
-              <FileText className="text-sky-600" size={18} />
-            </span>
-            <span className="text-sm text-gray-700 truncate flex-1">{fileName}</span>
-            <button
-              type="button"
-              onClick={onRemove}
-              className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 shrink-0"
-            >
-              <XIcon size={16} />
-            </button>
-          </div>
-        )}
-        {error && <p className="text-xs text-red-500">{error}</p>}
-      </div>
-    </Card>
-  );
+const baikBurukTone = (opt = "") => {
+  const lower = opt.toLowerCase();
+  if (lower === "buruk") {
+    return { border: "border-red-500", bg: "bg-red-500", icon: "text-white", text: "text-red-600" };
+  }
+  return { border: "border-green-600", bg: "bg-green-600", icon: "text-white", text: "text-green-700" };
 };
+
+const BaikBurukRadioGroup = ({ value, onChange }) => (
+  <div className="flex items-center gap-6">
+    {BAIK_BURUK_OPTIONS.map((opt) => (
+      <SquareRadioOption
+        key={opt}
+        label={opt}
+        active={value === opt}
+        tone={baikBurukTone(opt)}
+        onSelect={onChange}
+      />
+    ))}
+  </div>
+);
+
+// ✅ NEW: Field gabungan Aspek (Baik/Buruk) + Keterangan, dipakai untuk
+// Kepribadian, Stabilitas Emosi, dan Integritas — supaya sejajar dengan
+// kolom "Keterangan" pada dokumen form kertas.
+const AspekWithKeteranganField = ({
+  label,
+  value,
+  onChange,
+  keterangan,
+  onKeteranganChange,
+}) => (
+  <div className="space-y-2.5">
+    <Field label={label}>
+      <BaikBurukRadioGroup value={value} onChange={onChange} />
+    </Field>
+    <input
+      type="text"
+      value={keterangan}
+      onChange={(e) => onKeteranganChange(e.target.value)}
+      className={inputCls}
+      placeholder="Keterangan (opsional)"
+    />
+  </div>
+);
 
 const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
   const [form, setForm] = useState(initialForm);
-  const [fileError, setFileError] = useState("");
+  const [candidateStageInfo, setCandidateStageInfo] = useState({
+    tahap: "",
+    status: "",
+  });
   const {
     submitPsikotest,
     loadPrefillData,
@@ -241,6 +232,15 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
         mime_dokumen_pendukung: initialData.mime_dokumen_pendukung || "",
         ukuran_dokumen_pendukung: initialData.ukuran_dokumen_pendukung || null,
       });
+
+      const appId = initialData.lamaran_id || applicationId;
+      if (appId) {
+        loadPrefillData(appId).then((data) => {
+          if (data) {
+            setCandidateStageInfo({ tahap: data.tahap || "", status: data.status || "" });
+          }
+        });
+      }
       return;
     }
 
@@ -254,10 +254,13 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
             nama_pelamar: data.pengguna?.nama || prev.nama_pelamar,
             posisi: data.lowongan?.judul || prev.posisi,
           }));
+          setCandidateStageInfo({ tahap: data.tahap || "", status: data.status || "" });
         }
       });
+    } else {
+      setCandidateStageInfo({ tahap: "", status: "" });
     }
-  }, [initialData, applicationId]); 
+  }, [initialData, applicationId]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -271,6 +274,11 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
       nama_pelamar: candidate.applicantName,
       posisi: candidate.position,
     }));
+
+    setCandidateStageInfo({
+      tahap: candidate.tahap || "",
+      status: candidate.status || "",
+    });
 
     try {
       const res = await axiosInstance.get(
@@ -315,32 +323,6 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
     }));
   };
 
-  const handleDocumentUpload = (result, errMsg) => {
-    if (errMsg) {
-      setFileError(errMsg);
-      return;
-    }
-    setFileError("");
-    setForm((prev) => ({
-      ...prev,
-      data_dokumen_pendukung: result.dataUrl,
-      nama_dokumen_pendukung: result.name,
-      mime_dokumen_pendukung: result.mime,
-      ukuran_dokumen_pendukung: result.size,
-    }));
-  };
-
-  const handleDocumentRemove = () => {
-    setFileError("");
-    setForm((prev) => ({
-      ...prev,
-      data_dokumen_pendukung: "",
-      nama_dokumen_pendukung: "",
-      mime_dokumen_pendukung: "",
-      ukuran_dokumen_pendukung: null,
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     clearMessages();
@@ -373,10 +355,6 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
     return Math.round((filled / required.length) * 100);
   }, [form]);
 
-  const statusLabel = form.kesimpulan
-    ? KESIMPULAN_PSIKOTEST_OPTIONS.find((o) => o === form.kesimpulan) || form.kesimpulan
-    : "Proses Evaluasi";
-
   return (
     <form onSubmit={handleSubmit} className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
       <div>
@@ -396,15 +374,15 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader
-            icon={User}
-            iconColor={{ bg: "bg-blue-50", text: "text-blue-600" }}
-            title="Data Calon Karyawan"
-            subtitle={`Hanya menampilkan kandidat pada tahap ${PSIKOTES_STAGE_LABEL}`}
-          />
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader
+          icon={User}
+          iconColor={{ bg: "bg-blue-50", text: "text-blue-600" }}
+          title="Data Calon Karyawan"
+          subtitle={`Hanya menampilkan kandidat pada tahap ${PSIKOTES_STAGE_LABEL}`}
+          badge={candidateStageInfo.tahap || candidateStageInfo.status || undefined}
+        />
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <Field label="Nama Kandidat">
                 <CandidateSearchInput
@@ -418,6 +396,16 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
               </Field>
             </div>
 
+            <Field label="Posisi Dilamar">
+              <input
+                type="text"
+                value={form.posisi}
+                onChange={(e) => handleChange("posisi", e.target.value)}
+                className={inputCls}
+                placeholder="Contoh: Accounting"
+              />
+            </Field>
+
             <Field label="Tanggal Test">
               <input
                 type="date"
@@ -425,6 +413,16 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
                 value={form.tanggal_tes}
                 onChange={(e) => handleChange("tanggal_tes", e.target.value)}
                 className={inputCls}
+              />
+            </Field>
+
+            <Field label="Tester">
+              <input
+                type="text"
+                value={form.penguji}
+                onChange={(e) => handleChange("penguji", e.target.value)}
+                className={inputCls}
+                placeholder="Nama penguji"
               />
             </Field>
 
@@ -440,17 +438,141 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
                 placeholder="Contoh: 85"
               />
             </Field>
-          </div>
-        </Card>
+        </div>
+      </Card>
 
-        <DocumentUpload
-          fileName={form.nama_dokumen_pendukung}
-          fileData={form.data_dokumen_pendukung}
-          onUpload={handleDocumentUpload}
-          onRemove={handleDocumentRemove}
-          error={fileError}
+      <Card>
+        <CardHeader
+          icon={Brain}
+          iconColor={{ bg: "bg-violet-50", text: "text-violet-600" }}
+          title="Hasil Penilaian Psikotest"
+          subtitle="Aspek, nilai, dan keterangan hasil test."
         />
-      </div>
+        <div className="p-6 space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.4fr] gap-4 items-end pb-5 border-b border-gray-50">
+            <Field label="Kognitif / IQ (Angka 70-170)">
+              <input
+                type="number"
+                min="70"
+                max="170"
+                value={form.skor_iq}
+                onChange={(e) => handleChange("skor_iq", e.target.value)}
+                className={inputCls}
+                placeholder="Contoh: 110"
+              />
+            </Field>
+            <Field label="Keterangan IQ">
+              <select
+                value={form.keterangan_iq}
+                onChange={(e) => handleChange("keterangan_iq", e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Pilih keterangan</option>
+                {IQ_KETERANGAN_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div />
+          </div>
+
+          {/* 🔧 FIX: setiap aspek (Kepribadian, Stabilitas Emosi, Integritas)
+              sekarang punya field Keterangan sendiri, sejajar dengan kolom
+              "Keterangan" pada dokumen form kertas — sebelumnya cuma IQ
+              yang punya keterangan. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-5 border-b border-gray-50">
+            <AspekWithKeteranganField
+              label="Kepribadian"
+              value={form.kepribadian}
+              onChange={(v) => handleChange("kepribadian", v)}
+              keterangan={form.keterangan_kepribadian}
+              onKeteranganChange={(v) => handleChange("keterangan_kepribadian", v)}
+            />
+            <AspekWithKeteranganField
+              label="Stabilitas Emosi"
+              value={form.stabilitas_emosi}
+              onChange={(v) => handleChange("stabilitas_emosi", v)}
+              keterangan={form.keterangan_stabilitas_emosi}
+              onKeteranganChange={(v) => handleChange("keterangan_stabilitas_emosi", v)}
+            />
+            <AspekWithKeteranganField
+              label="Integritas"
+              value={form.integritas}
+              onChange={(v) => handleChange("integritas", v)}
+              keterangan={form.keterangan_integritas}
+              onKeteranganChange={(v) => handleChange("keterangan_integritas", v)}
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-500">Aspek Tambahan (opsional)</p>
+              <button
+                type="button"
+                onClick={addExtraRow}
+                className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700"
+              >
+                <Plus size={14} /> Tambah Aspek
+              </button>
+            </div>
+            <div className="space-y-2">
+              {form.aspek_tambahan.map((row, idx) => (
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.4fr_auto] gap-2">
+                  <input
+                    type="text"
+                    value={row.aspek}
+                    onChange={(e) => handleExtraRowChange(idx, "aspek", e.target.value)}
+                    className={inputCls}
+                    placeholder="Aspek"
+                  />
+                  <input
+                    type="text"
+                    value={row.nilai}
+                    onChange={(e) => handleExtraRowChange(idx, "nilai", e.target.value)}
+                    className={inputCls}
+                    placeholder="Nilai"
+                  />
+                  <input
+                    type="text"
+                    value={row.keterangan}
+                    onChange={(e) => handleExtraRowChange(idx, "keterangan", e.target.value)}
+                    className={inputCls}
+                    placeholder="Keterangan"
+                  />
+                  {form.aspek_tambahan.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeExtraRow(idx)}
+                      className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 self-center"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={StickyNote}
+          iconColor={{ bg: "bg-slate-50", text: "text-slate-600" }}
+          title="Catatan"
+        />
+        <div className="p-6">
+          <textarea
+            value={form.catatan}
+            onChange={(e) => handleChange("catatan", e.target.value)}
+            rows={3}
+            className={`${inputCls} resize-none`}
+            placeholder="Catatan tambahan mengenai hasil psikotest..."
+          />
+        </div>
+      </Card>
 
       <Card>
         <CardHeader
@@ -469,6 +591,35 @@ const PsikotestForm = ({ applicationId, initialData = null, onSuccess }) => {
               />
             ))}
           </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={Stamp}
+          iconColor={{ bg: "bg-teal-50", text: "text-teal-600" }}
+          title="Pemeriksa"
+          subtitle="Nama penanggung jawab pemeriksaan hasil."
+        />
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Staff Human Capital">
+            <input
+              type="text"
+              value={form.nama_pemeriksa_staff}
+              onChange={(e) => handleChange("nama_pemeriksa_staff", e.target.value)}
+              className={inputCls}
+              placeholder="Nama staff"
+            />
+          </Field>
+          <Field label="Human Capital Manager">
+            <input
+              type="text"
+              value={form.nama_pemeriksa_manager}
+              onChange={(e) => handleChange("nama_pemeriksa_manager", e.target.value)}
+              className={inputCls}
+              placeholder="Nama manager"
+            />
+          </Field>
         </div>
       </Card>
 

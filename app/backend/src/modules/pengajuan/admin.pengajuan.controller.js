@@ -4,6 +4,7 @@ const { notifyUser, notifyAdmins } = require("../notifications/notify.helper");
 const {
   NOTIFICATION_TYPES,
 } = require("../notifications/notifications.service");
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 function mapStatusKaryawanToJobType(statusKaryawan = "") {
   const s = (statusKaryawan || "").toLowerCase();
@@ -19,8 +20,11 @@ function mapStatusKaryawanToJobType(statusKaryawan = "") {
 function buildJobDraftFromPengajuan(p) {
   const tugasUtama = Array.isArray(p.tugas_utama) ? p.tugas_utama : [];
   const keahlian = Array.isArray(p.keahlian) ? p.keahlian : [];
-  const statusPerkawinan = Array.isArray(p.status_perkawinan)
-    ? p.status_perkawinan
+  const pendidikanTerakhir = Array.isArray(p.pendidikan_terakhir)
+    ? p.pendidikan_terakhir
+    : [];
+  const kemampuanBahasaAsing = Array.isArray(p.kemampuan_bahasa_asing)
+    ? p.kemampuan_bahasa_asing
     : [];
   const komputerSkills = Array.isArray(p.keahlian_komputer)
     ? p.keahlian_komputer
@@ -48,7 +52,13 @@ function buildJobDraftFromPengajuan(p) {
 
   const requirementParts = [];
 
-  requirementParts.push(`Pendidikan minimal ${p.pendidikan_terakhir || "S1"}`);
+  requirementParts.push(
+    `Pendidikan minimal ${pendidikanTerakhir.length ? pendidikanTerakhir.join(" / ") : "S1"}`,
+  );
+
+  if (p.jurusan) {
+    requirementParts.push(`Jurusan: ${p.jurusan}`);
+  }
 
   if (p.usia_min || p.usia_maks) {
     requirementParts.push(
@@ -56,10 +66,8 @@ function buildJobDraftFromPengajuan(p) {
     );
   }
 
-  if (statusPerkawinan.length) {
-    requirementParts.push(
-      `Status pernikahan: ${statusPerkawinan.join(" atau ")}`,
-    );
+  if (p.status_perkawinan) {
+    requirementParts.push(`Status pernikahan: ${p.status_perkawinan}`);
   }
 
   if (p.pengalaman) {
@@ -72,7 +80,9 @@ function buildJobDraftFromPengajuan(p) {
 
   if (p.bahasa_asing) {
     requirementParts.push(
-      `Mampu berbahasa ${p.bahasa_asing} minimal level ${p.level_bahasa_asing || "dasar"}`,
+      `Mampu berbahasa ${p.bahasa_asing} minimal level ${
+        kemampuanBahasaAsing.length ? kemampuanBahasaAsing.join("/") : "dasar"
+      }`,
     );
   }
 
@@ -82,17 +92,26 @@ function buildJobDraftFromPengajuan(p) {
     );
   }
 
+  if (p.syarat_lain) {
+    requirementParts.push(p.syarat_lain);
+  }
+
   requirementParts.push(`Berkomitmen, jujur, dan mampu bekerja dalam tim`);
 
-  const defaultDeadline = new Date();
-  defaultDeadline.setDate(defaultDeadline.getDate() + 30);
+  const defaultDeadline = p.tgl_terpenuhi
+    ? new Date(p.tgl_terpenuhi)
+    : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        return d;
+      })();
 
   // Field-field ini harus cocok dengan model `lowongan` di schema.prisma
   return {
-    pengajuan_sdm_id: p.id, // ✅ TAMBAHKAN INI agar relasi terhubung
+    pengajuan_sdm_id: p.id,
     judul: p.posisi || "Tanpa Judul",
     departemen: p.departemen || null,
-    lokasi: p.lokasi || "Bandung", // ✅ pakai lokasi dari pengajuan, fallback default
+    lokasi: p.lokasi || "Bandung",
     jenis: mapStatusKaryawanToJobType(p.status_karyawan) || "FullTime",
     deskripsi: descriptionParts.join("\n\n"),
     persyaratan: requirementParts.join("\n"),
@@ -211,6 +230,7 @@ module.exports = {
     try {
       const id = parseInt(req.params.id);
       const catatan = req.body?.catatan ?? null;
+      const pengguna_id = req.user?.id;
 
       const existing = await prisma.pengajuan_sdm.findUnique({ where: { id } });
 
@@ -239,7 +259,7 @@ module.exports = {
       // Transaksi: buat lowongan siap-publish + update status pengajuan sekaligus
       const [updated, newJob] = await prisma.$transaction(async (tx) => {
         const job = await tx.lowongan.create({
-          data: jobPayload,
+          data: { ...jobPayload, dibuat_oleh: pengguna_id ?? null },
           include: { pengajuan_sdm: true },
         });
 
@@ -249,11 +269,23 @@ module.exports = {
             status: "APPROVED",
             catatan_admin: catatan,
             ditinjau: new Date(),
-            // ❌ lowongan_id dihapus karena relasi sudah diatur lewat lowongan.pengajuan_sdm_id
+            diubah_oleh: pengguna_id ?? null,
           },
         });
 
         return [updatedPengajuan, job];
+      });
+
+      // 📝 Log: pengajuan disetujui + lowongan otomatis dibuat
+      logActivity({
+        pengguna_id,
+        aksi: "APPROVE",
+        modul: "pengajuan_sdm",
+        target_id: updated.id,
+        deskripsi: `Menyetujui pengajuan SDM "${updated.posisi || "-"}" dan membuat draft lowongan (ID lowongan #${newJob.id})${catatan ? ` — Catatan: ${catatan}` : ""}`,
+        data_sebelum: existing,
+        data_sesudah: updated,
+        ip_address: getClientIp(req),
       });
 
       notifyUser(updated.pengguna_id, {
@@ -294,6 +326,7 @@ module.exports = {
     try {
       const id = parseInt(req.params.id);
       const catatan = req.body?.catatan ?? "";
+      const pengguna_id = req.user?.id;
 
       if (!catatan.trim()) {
         return res.status(400).json({
@@ -322,7 +355,20 @@ module.exports = {
           status: "REJECTED",
           catatan_admin: catatan,
           ditinjau: new Date(),
+          diubah_oleh: pengguna_id ?? null,
         },
+      });
+
+      // 📝 Log: pengajuan ditolak, catatan alasan ikut tersimpan
+      logActivity({
+        pengguna_id,
+        aksi: "REJECT",
+        modul: "pengajuan_sdm",
+        target_id: updated.id,
+        deskripsi: `Menolak pengajuan SDM "${updated.posisi || "-"}" — Catatan: ${catatan}`,
+        data_sebelum: existing,
+        data_sesudah: updated,
+        ip_address: getClientIp(req),
       });
 
       notifyUser(updated.pengguna_id, {

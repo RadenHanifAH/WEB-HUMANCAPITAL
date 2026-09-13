@@ -1,4 +1,3 @@
-// app/src/pages/Admin/Sidebar/SidebarMenu.jsx
 import React, { useState } from "react";
 import {
   BarChart3,
@@ -11,7 +10,41 @@ import {
   ClipboardList,
   ChevronDown,
   UserCog,
+  Activity,
 } from "lucide-react";
+
+// ── ✅ Helper: ambil role user dari localStorage ─────────────────────
+// Prioritas:
+//   1. localStorage "user" → field `peran` (bentuk toSafeUser dari backend)
+//   2. Fallback: decode payload JWT "accessToken" → field `role`
+// Dipanggil DI DALAM komponen (bukan level module) agar terbaca ulang
+// setiap render → perubahan role langsung terlihat tanpa refresh.
+const getUserRole = () => {
+  // 1) dari object user yang tersimpan saat login
+  try {
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    if (storedUser?.peran) {
+      return String(storedUser.peran).trim().toLowerCase();
+    }
+  } catch {
+    /* user rusak/invalid → lanjut ke fallback */
+  }
+
+  // 2) fallback: decode payload JWT (field `role`, di-set generateTokens)
+  try {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      let b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "="; // padding base64
+      const payload = JSON.parse(atob(b64));
+      if (payload?.role) return String(payload.role).trim().toLowerCase();
+    }
+  } catch {
+    /* token rusak → anggap pelamar */
+  }
+
+  return "pelamar";
+};
 
 const menuItems = [
   { id: "dashboard",     label: "Dashboard",      icon: BarChart3 },
@@ -31,10 +64,15 @@ const menuItems = [
   { id: "employees",       label: "Arsip",          icon: Archive },
   { id: "reports",         label: "Laporan",        icon: FileText },
   { id: "user-management", label: "Manajemen User", icon: UserCog },
+  { id: "activity-log",    label: "Log Aktivitas",  icon: Activity, adminOnly: true },
   { id: "settings",        label: "Pengaturan",     icon: Settings },
 ];
 
 const SidebarMenu = ({ isCollapsed, activeTab, handleTabChange }) => {
+  // ✅ FIX: dibaca setiap render, bukan sekali di level module
+  const userRole = getUserRole();
+  const canViewActivityLog = ["admin", "super_admin"].includes(userRole);
+
   const [openMenus, setOpenMenus] = useState(() => {
     const initial = {};
     menuItems.forEach((item) => {
@@ -49,9 +87,15 @@ const SidebarMenu = ({ isCollapsed, activeTab, handleTabChange }) => {
     setOpenMenus((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Filter menu berdasarkan role
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.adminOnly) return canViewActivityLog;
+    return true;
+  });
+
   return (
     <nav className="flex-1 flex flex-col px-3 py-4 space-y-2 overflow-y-auto overflow-x-hidden">
-      {menuItems.map((item) => {
+      {visibleMenuItems.map((item) => {
         const Icon = item.icon;
         const hasChildren = Array.isArray(item.children) && item.children.length > 0;
 
@@ -74,16 +118,12 @@ const SidebarMenu = ({ isCollapsed, activeTab, handleTabChange }) => {
                     : "text-gray-700 hover:bg-gray-100"
                 } ${isCollapsed ? "justify-center px-2" : "justify-start"}`}
               >
-                {/* shrink-0 agar icon tidak tertekan */}
                 <Icon className={`shrink-0 ${isActive ? "w-6 h-6" : "w-5 h-5"}`} />
-                
-                {/* flex-1 agar teks memenuhi sisa ruang dan otomatis turun ke bawah jika panjang */}
                 {!isCollapsed && (
                   <span className="flex-1 text-left break-words leading-tight">
                     {item.label}
                   </span>
                 )}
-                
                 {!isCollapsed && (
                   <ChevronDown
                     className={`shrink-0 w-4 h-4 transition-transform duration-200 ${

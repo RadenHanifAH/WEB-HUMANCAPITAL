@@ -123,7 +123,8 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
   const komputerSkills = safeArray(pengajuan.keahlian_komputer);
   const fasilitas = safeArray(pengajuan.fasilitas);
   const petaKekuatan = safeArray(pengajuan.peta_kekuatan);
-  const statusPerkawinan = safeArray(pengajuan.status_perkawinan);
+  const pendidikanTerakhir = safeArray(pengajuan.pendidikan_terakhir);
+  const kemampuanBahasaAsing = safeArray(pengajuan.kemampuan_bahasa_asing);
 
   // Relasi: pengguna { id, nama, email }, ditinjau_oleh { id, nama }
   const namaPengaju = pengajuan.pengguna?.nama;
@@ -170,8 +171,18 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
             text={formatTanggal(pengajuan.tanggal_permintaan)}
           />
           <Chip icon={Users} text={`${pengajuan.jumlah} Orang`} />
+          {pengajuan.jenis_kelamin && (
+            <Chip icon={User} text={pengajuan.jenis_kelamin} />
+          )}
           {pengajuan.status_karyawan && (
-            <Chip icon={Briefcase} text={pengajuan.status_karyawan} />
+            <Chip
+              icon={Briefcase}
+              text={
+                pengajuan.status_karyawan_keterangan
+                  ? `${pengajuan.status_karyawan} (${pengajuan.status_karyawan_keterangan} Bulan)`
+                  : pengajuan.status_karyawan
+              }
+            />
           )}
           {pengajuan.lokasi && (
             <Chip icon={MapPin} text={pengajuan.lokasi} />
@@ -210,11 +221,36 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
           </Section>
         )}
 
+        {/* Level / Pangkat & Rentang Gaji (diisi HCM) + Tgl Terpenuhi */}
+        {(pengajuan.level_pangkat ||
+          pengajuan.rentang_gaji ||
+          pengajuan.tgl_terpenuhi) && (
+          <Section icon={Briefcase} title="Info HCM">
+            <div className="space-y-2 text-sm">
+              {pengajuan.level_pangkat && (
+                <KVRow label="Level/Pangkat" value={pengajuan.level_pangkat} />
+              )}
+              {pengajuan.rentang_gaji && (
+                <KVRow label="Rentang Gaji" value={pengajuan.rentang_gaji} />
+              )}
+              {pengajuan.tgl_terpenuhi && (
+                <KVRow
+                  label="Tgl Terpenuhi"
+                  value={formatTanggal(pengajuan.tgl_terpenuhi)}
+                />
+              )}
+            </div>
+          </Section>
+        )}
+
         {/* Kualifikasi */}
         <Section icon={GraduationCap} title="Kualifikasi Utama">
           <div className="space-y-2 text-sm">
-            {pengajuan.pendidikan_terakhir && (
-              <KVRow label="Pendidikan" value={pengajuan.pendidikan_terakhir} />
+            {pendidikanTerakhir.length > 0 && (
+              <KVRow label="Pendidikan" value={pendidikanTerakhir.join(", ")} />
+            )}
+            {pengajuan.jurusan && (
+              <KVRow label="Jurusan" value={pengajuan.jurusan} />
             )}
             {(pengajuan.usia_min || pengajuan.usia_maks) && (
               <KVRow
@@ -222,8 +258,8 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
                 value={`${pengajuan.usia_min ?? "—"}–${pengajuan.usia_maks ?? "—"} tahun`}
               />
             )}
-            {statusPerkawinan.length > 0 && (
-              <KVRow label="Status Nikah" value={statusPerkawinan.join(", ")} />
+            {pengajuan.status_perkawinan && (
+              <KVRow label="Status Nikah" value={pengajuan.status_perkawinan} />
             )}
             {pengajuan.pengalaman && (
               <KVRow label="Pengalaman" value={pengajuan.pengalaman} />
@@ -238,17 +274,26 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
                 </div>
               </div>
             )}
+            {pengajuan.syarat_lain && (
+              <KVRow label="Syarat Lain" value={pengajuan.syarat_lain} />
+            )}
           </div>
         </Section>
 
         {/* Bahasa & Komputer */}
-        {(pengajuan.bahasa_asing || komputerSkills.length > 0) && (
+        {(pengajuan.bahasa_asing ||
+          kemampuanBahasaAsing.length > 0 ||
+          komputerSkills.length > 0) && (
           <Section icon={Globe} title="Bahasa & Komputer">
             <div className="space-y-2 text-sm">
               {pengajuan.bahasa_asing && (
                 <KVRow
                   label="Bahasa Asing"
-                  value={`${pengajuan.bahasa_asing} — ${pengajuan.level_bahasa_asing}`}
+                  value={
+                    kemampuanBahasaAsing.length > 0
+                      ? `${pengajuan.bahasa_asing} — ${kemampuanBahasaAsing.join(", ")}`
+                      : pengajuan.bahasa_asing
+                  }
                 />
               )}
               {komputerSkills.length > 0 && (
@@ -283,7 +328,7 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">Level</th>
                     <th className="text-center px-3 py-2 font-medium">
-                      Kebutuhan
+                      Requirement
                     </th>
                     <th className="text-center px-3 py-2 font-medium">
                       Existing
@@ -295,10 +340,10 @@ export default function PengajuanDetail({ pengajuan, onClose, onAction }) {
                     <tr key={i} className="text-gray-700">
                       <td className="px-3 py-2">{row.level}</td>
                       <td className="px-3 py-2 text-center font-semibold text-sky-600">
-                        {row.kebutuhan}
+                        {row.requirement || "—"}
                       </td>
                       <td className="px-3 py-2 text-center font-semibold text-emerald-600">
-                        {row.existing}
+                        {row.existing || "—"}
                       </td>
                     </tr>
                   ))}

@@ -15,43 +15,31 @@ import {
 import toast from "react-hot-toast";
 import axios from "../../api/axiosInstance";
 
-const STATUS_KARYAWAN_OPTIONS = [
-  "Tetap",
-  "Kontrak",
-  "Harian Lepas",
-  "Freelance",
-];
-const PENDIDIKAN_OPTIONS = [
-  "SMA/SMK",
-  "D3",
-  "S1 (Sarjana)",
-  "S2 (Magister)",
-  "S3 (Doktor)",
-];
-const LEVEL_BAHASA_OPTIONS = ["Dasar", "Menengah", "Mahir", "Ahli"];
-const FASILITAS_OPTIONS = [
-  "Laptop Kerja",
-  "Asuransi",
-  "Tunj. Makan",
-  "Pulsa/Data",
-];
+// ===== Opsi-opsi ini disamakan persis dengan Form HC-01 kertas / form Pengajuan SDM =====
+const STATUS_KARYAWAN_OPTIONS = ["Tetap", "Kontrak", "Harian Lepas", "Freelance"];
+const PENDIDIKAN_OPTIONS = ["SMU", "D1", "D3", "S1", "S2", "S3"];
+const KEMAMPUAN_BAHASA_OPTIONS = ["Kurang", "cukup", "baik", "ahli"];
 const LOKASI_OPTIONS = ["Bandung", "Surabaya", "Jakarta"];
+const KOMPUTER_OPTIONS = ["Ms. Office", "Corel", "Adobe", "Hardware", "LAN"];
+const STATUS_PERKAWINAN_OPTIONS = ["Kawin", "Blm Kawin"];
+
+const JOBDESC_DEFAULT_COUNT = 3;
+const KEAHLIAN_COUNT = 3;
+const FASILITAS_COUNT = 6;
+
 const PETA_LEVEL_DEFAULT = [
   { level: "Operator", requirement: "", existing: "" },
-  { level: "Supervisor / Staf", requirement: "", existing: "" },
+  { level: "Supervisor/Staf", requirement: "", existing: "" },
   { level: "Section Chief", requirement: "", existing: "" },
   { level: "Manajer", requirement: "", existing: "" },
 ];
 
-// ✅ FIX: Logika Balance yang benar
-// Total Dibutuhkan 5, Existing 3 -> 5 - 3 = 2 -> Kurang 2 (Merah)
-// Total Dibutuhkan 3, Existing 5 -> 3 - 5 = -2 -> Lebih 2 (Hijau)
+// ✅ Logika Balance: Requirement - Existing
 function getBalanceInfo(requirement, existing) {
   const req = Number(requirement);
   const exi = Number(existing);
 
-  // Cek apakah salah satu kolom masih kosong
-  if ((requirement === "" || requirement == null) || (existing === "" || existing == null)) {
+  if (requirement === "" || requirement == null || existing === "" || existing == null) {
     return { text: "-", className: "text-gray-400" };
   }
   if (Number.isNaN(req) || Number.isNaN(exi)) {
@@ -59,13 +47,8 @@ function getBalanceInfo(requirement, existing) {
   }
 
   const diff = req - exi;
-
-  if (diff > 0) {
-    return { text: `Kurang ${diff}`, className: "text-red-600 font-medium" };
-  }
-  if (diff < 0) {
-    return { text: `Lebih ${Math.abs(diff)}`, className: "text-emerald-600 font-medium" };
-  }
+  if (diff > 0) return { text: `Kurang ${diff}`, className: "text-red-600 font-medium" };
+  if (diff < 0) return { text: `Lebih ${Math.abs(diff)}`, className: "text-emerald-600 font-medium" };
   return { text: "Pas", className: "text-gray-500 font-medium" };
 }
 
@@ -76,6 +59,14 @@ function toDateInput(val) {
   return d.toISOString().split("T")[0];
 }
 
+// ✅ Normalisasi status_perkawinan dari backend: bisa berupa array baru
+// atau string lama (data lama sebelum diubah ke checkbox), keduanya ditangani.
+function normalizeStatusPerkawinan(val) {
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string" && val.trim() !== "") return [val];
+  return [];
+}
+
 export default function EditPengajuanSDM() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -83,29 +74,43 @@ export default function EditPengajuanSDM() {
   const [loadingData, setLoadingData] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // ===== 1. Informasi Dasar Permintaan =====
   const [departemen, setDepartemen] = useState("");
   const [tanggalPermintaan, setTanggalPermintaan] = useState("");
   const [posisi, setPosisi] = useState("");
   const [lokasi, setLokasi] = useState("");
   const [alasan, setAlasan] = useState("");
 
+  // ===== 2. Spesifikasi Kebutuhan =====
   const [jumlah, setJumlah] = useState(1);
-  const [statusKaryawan, setStatusKaryawan] = useState("");
-  const [tugasUtama, setTugasUtama] = useState(["", "", ""]);
+  const [jenisKelamin, setJenisKelamin] = useState("");
+  const [levelPangkat, setLevelPangkat] = useState(""); // diisi oleh HCM
+  const [rentangGaji, setRentangGaji] = useState(""); // diisi oleh HCM
+  const [tglTerpenuhi, setTglTerpenuhi] = useState("");
 
+  const [statusKaryawan, setStatusKaryawan] = useState("");
+  const [statusKaryawanBulan, setStatusKaryawanBulan] = useState("");
+
+  const [tugasUtama, setTugasUtama] = useState(Array(JOBDESC_DEFAULT_COUNT).fill(""));
+
+  // ===== 3. Kualifikasi =====
   const [usiaMin, setUsiaMin] = useState("");
   const [usiaMaks, setUsiaMaks] = useState("");
-  const [statusPerkawinan, setStatusPerkawinan] = useState([]);
-  const [pendidikanTerakhir, setPendidikanTerakhir] = useState("S1 (Sarjana)");
-  const [keahlian, setKeahlian] = useState(["", ""]);
+  const [statusPerkawinan, setStatusPerkawinan] = useState([]); // multi-select (checkbox)
+  const [pendidikanTerakhir, setPendidikanTerakhir] = useState(["S1"]);
+  const [jurusan, setJurusan] = useState("");
+  const [keahlian, setKeahlian] = useState(Array(KEAHLIAN_COUNT).fill(""));
   const [pengalaman, setPengalaman] = useState("");
+  const [syaratLain, setSyaratLain] = useState("");
 
+  // ===== 4. Fasilitas & Pendukung =====
   const [bahasaAsing, setBahasaAsing] = useState("");
-  const [levelBahasaAsing, setLevelBahasaAsing] = useState("Ahli");
+  const [kemampuanBahasaAsing, setKemampuanBahasaAsing] = useState(["ahli"]);
   const [komputerSkills, setKomputerSkills] = useState([]);
   const [skillInput, setSkillInput] = useState("");
-  const [fasilitas, setFasilitas] = useState([]);
+  const [fasilitas, setFasilitas] = useState(Array(FASILITAS_COUNT).fill(""));
 
+  // ===== 5. Peta Kekuatan Karyawan =====
   const [petaKekuatan, setPetaKekuatan] = useState(PETA_LEVEL_DEFAULT);
 
   useEffect(() => {
@@ -119,19 +124,39 @@ export default function EditPengajuanSDM() {
         setPosisi(d.posisi ?? "");
         setLokasi(d.lokasi ?? "");
         setAlasan(d.alasan ?? "");
+
         setJumlah(d.jumlah ?? 1);
+        setJenisKelamin(d.jenis_kelamin ?? "");
+        setLevelPangkat(d.level_pangkat ?? "");
+        setRentangGaji(d.rentang_gaji ?? "");
+        setTglTerpenuhi(toDateInput(d.tgl_terpenuhi));
+
         setStatusKaryawan(d.status_karyawan ?? "");
-        setTugasUtama(d.tugas_utama?.length ? d.tugas_utama : ["", "", ""]);
+        setStatusKaryawanBulan(d.status_karyawan_keterangan ?? "");
+
+        setTugasUtama(
+          d.tugas_utama?.length ? d.tugas_utama : Array(JOBDESC_DEFAULT_COUNT).fill("")
+        );
+
         setUsiaMin(d.usia_min ?? "");
         setUsiaMaks(d.usia_maks ?? "");
-        setStatusPerkawinan(d.status_perkawinan ?? []);
-        setPendidikanTerakhir(d.pendidikan_terakhir ?? "S1 (Sarjana)");
-        setKeahlian(d.keahlian?.length ? d.keahlian : ["", ""]);
+        setStatusPerkawinan(normalizeStatusPerkawinan(d.status_perkawinan));
+        setPendidikanTerakhir(
+          d.pendidikan_terakhir?.length ? d.pendidikan_terakhir : ["S1"]
+        );
+        setJurusan(d.jurusan ?? "");
+        setKeahlian(d.keahlian?.length ? d.keahlian : Array(KEAHLIAN_COUNT).fill(""));
         setPengalaman(d.pengalaman ?? "");
+        setSyaratLain(d.syarat_lain ?? "");
+
         setBahasaAsing(d.bahasa_asing ?? "");
-        setLevelBahasaAsing(d.level_bahasa_asing ?? "Ahli");
+        setKemampuanBahasaAsing(
+          d.kemampuan_bahasa_asing?.length ? d.kemampuan_bahasa_asing : ["ahli"]
+        );
         setKomputerSkills(d.keahlian_komputer ?? []);
-        setFasilitas(d.fasilitas ?? []);
+        setFasilitas(
+          d.fasilitas?.length ? d.fasilitas : Array(FASILITAS_COUNT).fill("")
+        );
 
         if (d.peta_kekuatan?.length) {
           const merged = PETA_LEVEL_DEFAULT.map((def) => {
@@ -156,35 +181,74 @@ export default function EditPengajuanSDM() {
     fetchData();
   }, [id]);
 
+  const togglePendidikan = (value) => {
+    setPendidikanTerakhir((prev) => {
+      if (prev.includes(value)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((v) => v !== value);
+      }
+      return [...prev, value];
+    });
+  };
+
+  const toggleKemampuanBahasa = (value) => {
+    setKemampuanBahasaAsing((prev) => {
+      if (prev.includes(value)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((v) => v !== value);
+      }
+      return [...prev, value];
+    });
+  };
+
+  // ✅ Toggle Status Perkawinan (checkbox, boleh lebih dari satu / kosong)
+  const toggleStatusPerkawinan = (value) => {
+    setStatusPerkawinan((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+  };
+
+  // ✅ Toggle opsi Komputer bawaan (Ms. Office/Corel/Adobe/Hardware/LAN)
+  const toggleKomputerSkill = (value) => {
+    setKomputerSkills((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+  };
+
   const updateListItem = (list, setList, index, value) => {
     const next = [...list];
     next[index] = value;
     setList(next);
   };
-  const addListItem = (list, setList) => setList([...list, ""]);
-  const removeListItem = (list, setList, index) =>
+
+  const addListItem = (list, setList, placeholder = "") => {
+    setList([...list, placeholder]);
+  };
+
+  const removeListItem = (list, setList, index) => {
     setList(list.filter((_, i) => i !== index));
-  const toggleInArray = (value, arr, setArr) =>
-    setArr((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
+  };
 
   const handleAddSkillTag = (e) => {
     if (e.key === "Enter" && skillInput.trim()) {
       e.preventDefault();
-      setKomputerSkills((prev) => [...prev, skillInput.trim()]);
+      const value = skillInput.trim();
+      setKomputerSkills((prev) => (prev.includes(value) ? prev : [...prev, value]));
       setSkillInput("");
     }
   };
-  const removeSkillTag = (index) =>
-    setKomputerSkills((prev) => prev.filter((_, i) => i !== index));
 
-  const updatePeta = (index, field, value) =>
+  const removeSkillTag = (value) => {
+    setKomputerSkills((prev) => prev.filter((v) => v !== value));
+  };
+
+  const updatePeta = (index, field, value) => {
     setPetaKekuatan((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
 
   const handleSave = async () => {
     if (!departemen || !posisi || !lokasi) {
@@ -200,19 +264,32 @@ export default function EditPengajuanSDM() {
         posisi,
         lokasi,
         alasan: alasan || null,
+
         jumlah: Number(jumlah) || 1,
+        jenis_kelamin: jenisKelamin || null,
+        level_pangkat: levelPangkat || null,
+        rentang_gaji: rentangGaji || null,
+        tgl_terpenuhi: tglTerpenuhi || null,
+
         status_karyawan: statusKaryawan,
+        status_karyawan_keterangan: statusKaryawanBulan || null,
+
         tugas_utama: tugasUtama.filter((t) => t.trim() !== ""),
+
         usia_min: usiaMin ? Number(usiaMin) : null,
         usia_maks: usiaMaks ? Number(usiaMaks) : null,
-        status_perkawinan: statusPerkawinan,
+        status_perkawinan: statusPerkawinan, // array, bisa lebih dari satu
         pendidikan_terakhir: pendidikanTerakhir,
+        jurusan: jurusan || null,
         keahlian: keahlian.filter((k) => k.trim() !== ""),
         pengalaman: pengalaman || null,
+        syarat_lain: syaratLain || null,
+
         bahasa_asing: bahasaAsing,
-        level_bahasa_asing: levelBahasaAsing,
+        kemampuan_bahasa_asing: kemampuanBahasaAsing,
         keahlian_komputer: komputerSkills,
-        fasilitas: fasilitas,
+        fasilitas: fasilitas.filter((f) => f.trim() !== ""),
+
         peta_kekuatan: petaKekuatan.map((p) => ({
           level: p.level,
           requirement: p.requirement,
@@ -242,9 +319,7 @@ export default function EditPengajuanSDM() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Edit Pengajuan SDM
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Edit Pengajuan SDM</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             Perbarui data pengajuan sumber daya manusia.
           </p>
@@ -258,11 +333,10 @@ export default function EditPengajuanSDM() {
             <FileText className="w-[18px] h-[18px] text-blue-600" />
             Informasi Dasar Permintaan
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Dept. / Divisi
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Dept / Divisi</label>
               <input
                 type="text"
                 value={departemen}
@@ -271,10 +345,9 @@ export default function EditPengajuanSDM() {
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Tanggal Permintaan
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Tanggal Permintaan</label>
               <input
                 type="date"
                 value={tanggalPermintaan}
@@ -282,10 +355,9 @@ export default function EditPengajuanSDM() {
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Posisi Pekerjaan / Jabatan
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Posisi Pekerjaan / Jabatan</label>
               <input
                 type="text"
                 value={posisi}
@@ -294,10 +366,9 @@ export default function EditPengajuanSDM() {
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Lokasi Penempatan
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Lokasi Penempatan</label>
               <select
                 value={lokasi}
                 onChange={(e) => setLokasi(e.target.value)}
@@ -311,10 +382,9 @@ export default function EditPengajuanSDM() {
                 ))}
               </select>
             </div>
+
             <div className="md:col-span-2">
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Alasan Permintaan SDM
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Alasan Permintaan SDM</label>
               <textarea
                 value={alasan}
                 onChange={(e) => setAlasan(e.target.value)}
@@ -332,73 +402,134 @@ export default function EditPengajuanSDM() {
             <Users className="w-[18px] h-[18px] text-blue-600" />
             Spesifikasi Kebutuhan
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-5">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1.5">
-                  Jumlah (Orang)
-                </label>
-                <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1.5">Jumlah (Orang)</label>
                   <input
                     type="number"
                     min={1}
                     value={jumlah}
                     onChange={(e) => setJumlah(e.target.value)}
-                    className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                   />
-                  <span className="text-sm text-gray-400 italic">Kandidat</span>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1.5">Jenis Kelamin</label>
+                  <select
+                    value={jenisKelamin}
+                    onChange={(e) => setJenisKelamin(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  >
+                    <option value="">Bebas</option>
+                    <option value="Laki-laki">Laki-laki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1.5">
+                    Level / Pangkat
+                    <span className="text-gray-400 italic"> (diisi HCM)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={levelPangkat}
+                    onChange={(e) => setLevelPangkat(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1.5">
+                    Rentang Gaji
+                    <span className="text-gray-400 italic"> (diisi HCM)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={rentangGaji}
+                    onChange={(e) => setRentangGaji(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm text-gray-600 mb-2">
-                  Status Karyawan
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {STATUS_KARYAWAN_OPTIONS.map((opt) => (
-                    <label
-                      key={opt}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-600 cursor-pointer hover:border-blue-300"
-                    >
-                      <input
-                        type="radio"
-                        name="statusKaryawan"
-                        checked={statusKaryawan === opt}
-                        onChange={() => setStatusKaryawan(opt)}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-400"
-                      />
-                      {opt}
-                    </label>
-                  ))}
+                <label className="block text-sm text-gray-600 mb-1.5">Tgl Terpenuhi</label>
+                <input
+                  type="date"
+                  value={tglTerpenuhi}
+                  onChange={(e) => setTglTerpenuhi(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Status Karyawan</label>
+                <div className="space-y-2">
+                  {STATUS_KARYAWAN_OPTIONS.map((opt) => {
+                    const needsDuration = opt === "Kontrak" || opt === "Harian Lepas";
+                    const isChecked = statusKaryawan === opt;
+                    return (
+                      <label
+                        key={opt}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm text-gray-600 cursor-pointer hover:border-blue-300 ${
+                          isChecked ? "border-blue-300 bg-blue-50/40" : "border-gray-200"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="statusKaryawan"
+                          checked={isChecked}
+                          onChange={() => setStatusKaryawan(opt)}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-400 shrink-0"
+                        />
+                        <span className="shrink-0">{opt}</span>
+                        {needsDuration && (
+                          <span
+                            className="flex items-center gap-1.5 ml-auto"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <input
+                              type="text"
+                              value={isChecked ? statusKaryawanBulan : ""}
+                              onChange={(e) => setStatusKaryawanBulan(e.target.value)}
+                              onFocus={() => setStatusKaryawan(opt)}
+                              placeholder="...."
+                              className="w-14 px-2 py-1 rounded-md border border-gray-200 bg-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                            />
+                            <span className="text-gray-400">Bulan</span>
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </div>
+
             <div>
               <label className="flex items-center gap-1.5 text-sm text-gray-600 mb-2">
-                Tugas & Tanggung Jawab Utama
+                Tugas &amp; Tanggung Jawab Utama (Job Desc)
               </label>
               <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                 {tugasUtama.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-sm text-gray-400">{idx + 1}.</span>
                     <input
                       type="text"
                       value={item}
-                      onChange={(e) =>
-                        updateListItem(
-                          tugasUtama,
-                          setTugasUtama,
-                          idx,
-                          e.target.value,
-                        )
-                      }
-                      placeholder={`${idx + 1}. Tanggung jawab...`}
+                      onChange={(e) => updateListItem(tugasUtama, setTugasUtama, idx, e.target.value)}
+                      placeholder="Tanggung jawab..."
                       className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                     {tugasUtama.length > 1 && (
                       <button
                         type="button"
-                        onClick={() =>
-                          removeListItem(tugasUtama, setTugasUtama, idx)
-                        }
+                        onClick={() => removeListItem(tugasUtama, setTugasUtama, idx)}
                         className="text-gray-300 hover:text-red-500 shrink-0"
                       >
                         <X className="w-4 h-4" />
@@ -419,17 +550,16 @@ export default function EditPengajuanSDM() {
           </div>
         </section>
 
-        {/* ===== 3. Kualifikasi ===== */}
+        {/* ===== 3. Kualifikasi (Standard) ===== */}
         <section className="bg-gray-50/60 rounded-xl border border-gray-100 p-6 space-y-5">
           <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <ShieldCheck className="w-[18px] h-[18px] text-emerald-600" />
             Kualifikasi (Standard)
           </h2>
+
           <div className="bg-white rounded-lg border border-gray-100 p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Usia (Rentang)
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Usia (Rentang)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -448,107 +578,98 @@ export default function EditPengajuanSDM() {
                 />
               </div>
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Status Perkawinan
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Status Perkawinan</label>
               <div className="flex items-center gap-4 h-[42px]">
-                {["Kawin", "Belum Kawin"].map((opt) => (
-                  <label
-                    key={opt}
-                    className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"
-                  >
+                {STATUS_PERKAWINAN_OPTIONS.map((opt) => (
+                  <label key={opt} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={statusPerkawinan.includes(opt)}
-                      onChange={() =>
-                        toggleInArray(
-                          opt,
-                          statusPerkawinan,
-                          setStatusPerkawinan,
-                        )
-                      }
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-400"
+                      onChange={() => toggleStatusPerkawinan(opt)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-400"
                     />
                     {opt}
                   </label>
                 ))}
               </div>
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Pendidikan Terakhir
-              </label>
-              <select
-                value={pendidikanTerakhir}
-                onChange={(e) => setPendidikanTerakhir(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-              >
-                {PENDIDIKAN_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
+              <label className="block text-sm text-gray-600 mb-1.5">Pendidikan</label>
+              <div className="flex items-center flex-wrap gap-x-1 gap-y-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-white min-h-[42px]">
+                {PENDIDIKAN_OPTIONS.map((p, idx) => (
+                  <span key={p} className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => togglePendidikan(p)}
+                      className={`px-1.5 py-0.5 rounded text-sm transition-colors ${
+                        pendidikanTerakhir.includes(p)
+                          ? "bg-blue-600 text-white font-medium"
+                          : "text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                    {idx < PENDIDIKAN_OPTIONS.length - 1 && (
+                      <span className="text-gray-300">/</span>
+                    )}
+                  </span>
                 ))}
-              </select>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Pilih minimal 1, boleh lebih dari satu.</p>
             </div>
           </div>
+
           <div className="bg-white rounded-lg border border-gray-100 p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm text-gray-600 mb-2">
-                Keahlian (Hard & Soft Skills)
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Jurusan</label>
+              <input
+                type="text"
+                value={jurusan}
+                onChange={(e) => setJurusan(e.target.value)}
+                placeholder="Contoh: Desain Komunikasi Visual"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1.5">Pengalaman</label>
+              <input
+                type="text"
+                value={pengalaman}
+                onChange={(e) => setPengalaman(e.target.value)}
+                placeholder="Minimal 3 tahun di bidang terkait"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-100 p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">Keahlian (Hard &amp; Soft Skill)</label>
               <div className="space-y-2">
                 {keahlian.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-sm text-gray-400">{idx + 1}.</span>
                     <input
                       type="text"
                       value={item}
-                      onChange={(e) =>
-                        updateListItem(
-                          keahlian,
-                          setKeahlian,
-                          idx,
-                          e.target.value,
-                        )
-                      }
-                      placeholder={
-                        idx === 0
-                          ? "1. Skill utama..."
-                          : `${idx + 1}. Skill pendukung...`
-                      }
+                      onChange={(e) => updateListItem(keahlian, setKeahlian, idx, e.target.value)}
+                      placeholder="Skill..."
                       className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
-                    {keahlian.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeListItem(keahlian, setKeahlian, idx)
-                        }
-                        className="text-gray-300 hover:text-red-500 shrink-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => addListItem(keahlian, setKeahlian)}
-                  className="flex items-center gap-1.5 text-sm text-blue-600 font-medium pt-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Tambah skill
-                </button>
               </div>
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Pengalaman & Syarat Lain
-              </label>
+              <label className="block text-sm text-gray-600 mb-1.5">Syarat Lain</label>
               <textarea
-                value={pengalaman}
-                onChange={(e) => setPengalaman(e.target.value)}
-                placeholder="Minimal 3 tahun pengalaman di bidang terkait..."
+                value={syaratLain}
+                onChange={(e) => setSyaratLain(e.target.value)}
+                placeholder="Syarat tambahan lainnya..."
                 rows={5}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               />
@@ -560,83 +681,112 @@ export default function EditPengajuanSDM() {
         <section className="bg-white rounded-xl border border-gray-100 p-6">
           <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-5">
             <Briefcase className="w-[18px] h-[18px] text-orange-500" />
-            Fasilitas & Pendukung
+            Fasilitas &amp; Pendukung
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Bahasa Asing
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={bahasaAsing}
-                  onChange={(e) => setBahasaAsing(e.target.value)}
-                  placeholder="Contoh: Inggris, Arab"
-                  className="flex-1 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                />
-                <select
-                  value={levelBahasaAsing}
-                  onChange={(e) => setLevelBahasaAsing(e.target.value)}
-                  className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                >
-                  {LEVEL_BAHASA_OPTIONS.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Kemampuan Komputer
-              </label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {komputerSkills.map((skill, idx) => (
-                  <span
-                    key={`${skill}-${idx}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm"
-                  >
-                    {skill}
+              <label className="block text-sm text-gray-600 mb-1.5">Bahasa Asing</label>
+              <input
+                type="text"
+                value={bahasaAsing}
+                onChange={(e) => setBahasaAsing(e.target.value)}
+                placeholder="Contoh: Inggris, Arab"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 mb-2"
+              />
+              <div className="flex items-center flex-wrap gap-1.5 text-sm">
+                <span className="text-gray-500 shrink-0">Kemampuan :</span>
+                {KEMAMPUAN_BAHASA_OPTIONS.map((opt, idx) => (
+                  <span key={opt} className="flex items-center">
                     <button
                       type="button"
-                      onClick={() => removeSkillTag(idx)}
-                      className="text-blue-400 hover:text-blue-700"
+                      onClick={() => toggleKemampuanBahasa(opt)}
+                      className={`px-1.5 py-0.5 rounded transition-colors ${
+                        kemampuanBahasaAsing.includes(opt)
+                          ? "bg-blue-600 text-white font-medium"
+                          : "text-gray-500 hover:bg-gray-100"
+                      }`}
                     >
-                      <X className="w-3 h-3" />
+                      {opt}
                     </button>
+                    {idx < KEMAMPUAN_BAHASA_OPTIONS.length - 1 && (
+                      <span className="text-gray-300">/</span>
+                    )}
                   </span>
                 ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Pilih minimal 1, boleh lebih dari satu.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">Komputer</label>
+
+              {/* Opsi bawaan: klik untuk toggle, bisa pilih lebih dari satu */}
+              <div className="flex items-center flex-wrap gap-1.5 mb-3">
+                {KOMPUTER_OPTIONS.map((opt) => {
+                  const active = komputerSkills.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => toggleKomputerSkill(opt)}
+                      className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                        active
+                          ? "bg-blue-600 border-blue-600 text-white font-medium"
+                          : "border-gray-200 text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Skill custom di luar opsi bawaan, tampil sebagai tag + bisa dihapus */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {komputerSkills
+                  .filter((skill) => !KOMPUTER_OPTIONS.includes(skill))
+                  .map((skill) => (
+                    <span
+                      key={skill}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm"
+                    >
+                      {skill}
+                      <button
+                        type="button"
+                        onClick={() => removeSkillTag(skill)}
+                        className="text-blue-400 hover:text-blue-700"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
                 <input
                   type="text"
                   value={skillInput}
                   onChange={(e) => setSkillInput(e.target.value)}
                   onKeyDown={handleAddSkillTag}
-                  placeholder="+ Tambah skill, lalu Enter"
+                  placeholder="+ Tambah lainnya, lalu Enter"
                   className="px-3 py-1.5 rounded-full border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 />
               </div>
             </div>
           </div>
+
           <div>
-            <label className="block text-sm text-gray-600 mb-2">
-              Daftar Fasilitas yang Diberikan
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {FASILITAS_OPTIONS.map((opt) => (
-                <label
-                  key={opt}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-600 cursor-pointer hover:border-blue-300"
-                >
+            <label className="block text-sm text-gray-600 mb-2">Daftar Fasilitas yang Diberikan</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {fasilitas.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-5 shrink-0 text-sm text-gray-400">{idx + 1}.</span>
                   <input
-                    type="checkbox"
-                    checked={fasilitas.includes(opt)}
-                    onChange={() => toggleInArray(opt, fasilitas, setFasilitas)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-400"
+                    type="text"
+                    value={item}
+                    onChange={(e) => updateListItem(fasilitas, setFasilitas, idx, e.target.value)}
+                    placeholder="Contoh: Laptop Kerja, Asuransi, Tunj. Makan..."
+                    className="flex-1 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                   />
-                  {opt}
-                </label>
+                </div>
               ))}
             </div>
           </div>
@@ -648,19 +798,16 @@ export default function EditPengajuanSDM() {
             <LayoutGrid className="w-[18px] h-[18px] text-indigo-500" />
             Peta Kekuatan Karyawan
           </h2>
+
           <div className="overflow-x-auto rounded-lg border border-gray-100">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-left">
                   <th className="px-4 py-3 font-medium w-12">No</th>
-                  <th className="px-4 py-3 font-medium">Level / Tingkat</th>
-                  <th className="px-4 py-3 font-medium">
-                    Total Dibutuhkan (Full Team)
-                  </th>
-                  <th className="px-4 py-3 font-medium">Existing (Sudah Ada)</th>
-                  <th className="px-4 py-3 font-medium">
-                    Balance (Kurang/Lebih)
-                  </th>
+                  <th className="px-4 py-3 font-medium">Level/Tingkat</th>
+                  <th className="px-4 py-3 font-medium italic">Requirement / Yg diperlukan</th>
+                  <th className="px-4 py-3 font-medium italic">Existing / Yg ada</th>
+                  <th className="px-4 py-3 font-medium italic">Balance / Lebih / Kurang</th>
                 </tr>
               </thead>
               <tbody>
@@ -674,9 +821,7 @@ export default function EditPengajuanSDM() {
                         <input
                           type="number"
                           value={row.requirement}
-                          onChange={(e) =>
-                            updatePeta(idx, "requirement", e.target.value)
-                          }
+                          onChange={(e) => updatePeta(idx, "requirement", e.target.value)}
                           placeholder="Contoh: 5"
                           className="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                         />
@@ -685,16 +830,12 @@ export default function EditPengajuanSDM() {
                         <input
                           type="number"
                           value={row.existing}
-                          onChange={(e) =>
-                            updatePeta(idx, "existing", e.target.value)
-                          }
+                          onChange={(e) => updatePeta(idx, "existing", e.target.value)}
                           placeholder="Contoh: 3"
                           className="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                         />
                       </td>
-                      <td className={`px-4 py-2.5 ${balance.className}`}>
-                        {balance.text}
-                      </td>
+                      <td className={`px-4 py-2.5 ${balance.className}`}>{balance.text}</td>
                     </tr>
                   );
                 })}
@@ -702,7 +843,7 @@ export default function EditPengajuanSDM() {
             </table>
           </div>
           <p className="text-xs text-gray-400 text-center mt-3">
-            Mohon diisi lengkap untuk kajian & pencocokan data Human Capital
+            Mohon diisi lengkap untuk kajian &amp; pencocokan data Human Capital
           </p>
         </section>
 

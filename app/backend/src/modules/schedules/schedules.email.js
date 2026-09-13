@@ -1,4 +1,5 @@
-const { sendMail } = require("../auth/mail.service"); // ✅ sekarang connect ke mail.service.js (bukan utils/mailer lagi)
+const { sendMail } = require("../auth/mail.service");
+const { generateConfirmToken } = require("./schedules.token"); // ✅ BARU
 
 // ✅ Key tetap sama (InterviewHC, Psikotes, FinalInterview) supaya konsisten
 // dengan nilai yang tersimpan di kolom `type` tabel interviewschedule —
@@ -190,7 +191,13 @@ async function sendScheduleEmail({
   scheduleId,
 }) {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  const confirmUrl = `${frontendUrl}/confirm-schedule/${scheduleId}`;
+
+  // ✅ FIX: sisipkan token konfirmasi ke URL, supaya link ini bisa dipakai
+  // langsung tanpa perlu kandidat login sama sekali, dan tidak terganggu
+  // oleh sesi login akun lain yang kebetulan aktif di browser tersebut.
+  const confirmToken = generateConfirmToken(scheduleId);
+  const confirmUrl = `${frontendUrl}/confirm-schedule/${scheduleId}?token=${confirmToken}`;
+
   const typeLabel = TYPE_LABEL[type] || type;
 
   const html = buildEmailHtml({
@@ -206,7 +213,6 @@ async function sendScheduleEmail({
   });
 
   const info = await sendMail({
-    // ✅ pakai sendMail dari mail.service.js
     to,
     subject: `[Undangan] ${typeLabel} – ${position}`,
     html,

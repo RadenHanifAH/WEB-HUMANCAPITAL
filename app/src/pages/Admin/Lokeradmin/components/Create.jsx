@@ -7,6 +7,18 @@ function Create({ isOpen, onClose, onSave, initialData }) {
   const tipeOptions = ["FullTime", "PartTime", "Internship", "Freelance", "Contract"];
   const statusOptions = ["active", "draft", "closed"];
 
+  // ⭐ Tanggal hari ini (YYYY-MM-DD, zona waktu lokal) sebagai batas minimal deadline
+  const getTodayInputValue = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  // ⭐ Batas minimal deadline (tidak bisa pilih tanggal sebelum hari ini)
+  const [minDeadline, setMinDeadline] = useState(getTodayInputValue());
+
   // State
   const [formData, setFormData] = useState({
     judulPosisi: "",
@@ -23,6 +35,9 @@ function Create({ isOpen, onClose, onSave, initialData }) {
 
   useEffect(() => {
     if (isOpen) {
+      // ⭐ Refresh batas tanggal setiap kali modal dibuka (aman lintas hari)
+      setMinDeadline(getTodayInputValue());
+
       if (initialData) {
         // MODE EDIT
         setFormData({
@@ -56,6 +71,10 @@ function Create({ isOpen, onClose, onSave, initialData }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // ⭐ Tolak deadline lebih awal dari hari ini (kalau diketik manual lewat keyboard)
+    if (name === "deadline" && value && value < minDeadline) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
     setValidationErrors((prev) => ({ ...prev, [name]: null }));
   };
@@ -85,6 +104,12 @@ function Create({ isOpen, onClose, onSave, initialData }) {
         errors[field] = `${fieldLabels[field]} wajib diisi.`;
       }
     });
+
+    // ⭐ Deadline tidak boleh di masa lalu (lapisan pengaman terakhir)
+    if (formData.deadline && formData.deadline < minDeadline) {
+      errors.deadline = "Deadline tidak boleh lebih awal dari tanggal hari ini.";
+      valid = false;
+    }
 
     setValidationErrors(errors);
     return valid;
@@ -127,10 +152,6 @@ function Create({ isOpen, onClose, onSave, initialData }) {
         >
           {({ open }) => (
             <>
-              {/* BUTTON: 
-                  - Menghapus 'focus:ring-1 focus:ring-sky-500/30' agar tidak ada efek tebal/geser.
-                  - Menambahkan 'focus:border-sky-500' agar hanya warnanya yang berubah, ukurannya tetap.
-              */}
               <Listbox.Button 
                 className={`w-full flex justify-between items-center px-3 py-2 border rounded-lg bg-white shadow-sm text-left text-sm 
                 focus:outline-none focus:border-sky-500 transition-colors duration-200 
@@ -150,10 +171,6 @@ function Create({ isOpen, onClose, onSave, initialData }) {
                   <p className="text-red-500 text-xs mt-1 absolute -bottom-5 left-0">{validationErrors[name]}</p>
               )}
   
-              {/* OPTIONS: 
-                  - Menghapus 'ring-1 ring-black ring-opacity-5' untuk menghilangkan garis border tambahan.
-                  - Hanya menggunakan shadow-xl dan border halus.
-              */}
               <Listbox.Options className="absolute mt-1 w-full max-h-60 overflow-auto bg-white border border-gray-100 rounded-lg shadow-xl z-50 text-sm py-1 focus:outline-none">
                 {options.map((opt, i) => (
                   <Listbox.Option key={i} value={opt} className="outline-none">
@@ -271,11 +288,16 @@ function Create({ isOpen, onClose, onSave, initialData }) {
                     type="date"
                     name="deadline"
                     value={formData.deadline}
+                    min={minDeadline}
                     onChange={handleChange}
                     className={`${inputClass} ${validationErrors.deadline ? "border-red-500" : "border-gray-200"}`}
                     />
-                    {validationErrors.deadline && (
-                    <p className="text-red-500 text-xs mt-1">{validationErrors.deadline}</p>
+                    {validationErrors.deadline ? (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.deadline}</p>
+                    ) : (
+                      <p className="text-gray-400 text-xs mt-1">
+                        Lowongan akan ditutup otomatis saat tanggal ini tercapai.
+                      </p>
                     )}
                 </div>
             </div>

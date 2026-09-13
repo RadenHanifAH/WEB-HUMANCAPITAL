@@ -26,7 +26,7 @@ export default function SchedulesPage() {
   const [selectedDate, setSelectedDate] = useState("");
 
   const [typeFilter, setTypeFilter] = useState(
-    () => localStorage.getItem(TYPE_FILTER_STORAGE_KEY) || "InterviewHC"
+    () => localStorage.getItem(TYPE_FILTER_STORAGE_KEY) || "InterviewHC",
   );
 
   const [data, setData] = useState({
@@ -35,6 +35,13 @@ export default function SchedulesPage() {
     page: 1,
     pageSize: ITEMS_PER_PAGE,
   });
+
+  // ✅ BARU: menyimpan konteks kandidat + tipe jadwal yang sedang
+  // di-reschedule, supaya saat ScheduleForm dibuka ulang, langkah
+  // "Pilih Kandidat" sudah otomatis terisi (tipe yang sama + kandidat
+  // yang sama sudah ter-centang), bukan mulai kosong dari nol.
+  const [rescheduleContext, setRescheduleContext] = useState(null);
+  // shape: { type, candidate: { applicationId, applicantName, position, avatar } } | null
 
   const [confirmState, setConfirmState] = useState({
     open: false,
@@ -98,13 +105,13 @@ export default function SchedulesPage() {
       open: true,
       title: "Tandai kandidat tidak hadir?",
       description:
-        "Lamaran kandidat ini akan otomatis ditolak setelah ditandai tidak hadir.",
+        "Kandidat akan ditandai tidak hadir. Lamaran TIDAK langsung ditolak — Anda masih bisa memilih untuk menolak lamaran atau membuat jadwal ulang (reschedule) untuk kandidat ini setelahnya.",
       confirmLabel: "Ya, Tandai Tidak Hadir",
       variant: "danger",
       loading: false,
       action: async () => {
         await markNoShowByAdmin(id);
-        toast.success("Kandidat ditandai tidak hadir, lamaran otomatis ditolak");
+        toast.success("Kandidat ditandai tidak hadir");
         await load({ page: data.page });
       },
     });
@@ -115,8 +122,7 @@ export default function SchedulesPage() {
     setConfirmState({
       open: true,
       title: "Tolak lamaran kandidat ini?",
-      description:
-        "Lamaran akan ditandai Ditolak dan jadwal ini akan ditutup.",
+      description: "Lamaran akan ditandai Ditolak dan jadwal ini akan ditutup.",
       confirmLabel: "Ya, Tolak Lamaran",
       variant: "danger",
       loading: false,
@@ -128,19 +134,52 @@ export default function SchedulesPage() {
     });
   };
 
-  // ✅ Handler untuk reschedule (hapus jadwal lama, buka form buat jadwal baru)
+  // ✅ FIX: Handler reschedule sekarang:
+  //   1. Menyimpan info kandidat + tipe dari item yang ada di state
+  //      SEBELUM dihapus (data.items sudah punya semua field yang
+  //      dibutuhkan: applicationId, applicantName, position, avatar, type).
+  //   2. Menghapus jadwal lama di backend.
+  //   3. me-reload daftar jadwal (sebelumnya TIDAK dilakukan — ini
+  //      penyebab utama kartu lama tetap terlihat & bisa ter-klik ulang
+  //      meski datanya sudah terhapus, yang berujung error "tidak
+  //      ditemukan" saat diklik kedua kalinya).
+  //   4. Membuka ScheduleForm dengan tipe & kandidat yang sama sudah
+  //      otomatis terisi, supaya tidak perlu mencari & mencentang ulang.
   const onReschedule = (id) => {
+    const item = data.items.find((s) => s.id === id);
+
     setConfirmState({
       open: true,
       title: "Reschedule jadwal ini?",
       description:
-        "Jadwal lama akan dihapus. Anda akan diarahkan untuk membuat jadwal baru untuk kandidat yang sama.",
+        "Anda akan diarahkan untuk membuat jadwal baru untuk kandidat yang sama. Jadwal lama baru akan dihapus SETELAH jadwal baru berhasil dibuat — kalau Anda batal di tengah jalan, jadwal lama tetap aman dan tidak hilang.",
       confirmLabel: "Ya, Reschedule",
       variant: "default",
       loading: false,
+      // ✅ FIX UTAMA: TIDAK menghapus jadwal lama di sini lagi.
+      // Sebelumnya deleteSchedule(id) dipanggil duluan sebelum form baru
+      // sempat diisi/disubmit — kalau user batal di tengah jalan, data
+      // jadwal kandidat itu sudah hilang tanpa ada penggantinya.
+      // Sekarang kita cuma menyiapkan konteks (tipe + kandidat +
+      // scheduleIdToReplace) dan membuka form. Penghapusan jadwal lama
+      // baru dilakukan oleh ScheduleForm SETELAH jadwal baru berhasil
+      // dibuat (lihat ScheduleForm.jsx -> handleSubmit).
       action: async () => {
-        await deleteSchedule(id);
-        toast.success("Jadwal lama dihapus. Silakan buat jadwal baru.");
+        if (item) {
+          setRescheduleContext({
+            type: item.type,
+            scheduleIdToReplace: item.id,
+            candidate: {
+              applicationId: item.applicationId,
+              applicantName: item.applicantName,
+              position: item.position,
+              avatar: item.avatar,
+            },
+          });
+        } else {
+          setRescheduleContext(null);
+        }
+
         setShowForm(true);
       },
     });
@@ -173,10 +212,27 @@ export default function SchedulesPage() {
       closeConfirm();
     } catch (e) {
       toast.error(
-        e?.response?.data?.message || "Terjadi kesalahan, silakan coba lagi"
+        e?.response?.data?.message || "Terjadi kesalahan, silakan coba lagi",
       );
       setConfirmState((prev) => ({ ...prev, loading: false }));
     }
+  };
+
+  // ✅ BARU: dipakai tombol "Buat Jadwal" biasa (bukan reschedule),
+  // memastikan tidak membawa konteks reschedule lama yang tersisa.
+  const openBlankForm = () => {
+    setRescheduleContext(null);
+    setShowForm(true);
+  };
+
+  const handleFormClose = () => {
+    setShowForm(false);
+    setRescheduleContext(null);
+  };
+
+  const handleFormCreated = () => {
+    setRescheduleContext(null);
+    load({ page: 1 });
   };
 
   return (
@@ -185,7 +241,9 @@ export default function SchedulesPage() {
 
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-sky-900">Penjadwalan</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-sky-900">
+            Penjadwalan
+          </h1>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
@@ -200,7 +258,7 @@ export default function SchedulesPage() {
           </div>
 
           <button
-            onClick={() => setShowForm(true)}
+            onClick={openBlankForm}
             className="flex items-center justify-center gap-2 rounded-lg text-white font-semibold transition shadow-lg shadow-gray-400/50 bg-gradient-to-tr from-sky-700 to-sky-600 hover:from-sky-800 hover:to-sky-600 px-4 py-2 text-sm whitespace-nowrap w-full sm:w-auto"
           >
             <Plus className="h-4 w-4" />
@@ -243,8 +301,12 @@ export default function SchedulesPage() {
 
       <ScheduleForm
         open={showForm}
-        onClose={() => setShowForm(false)}
-        onCreated={() => load({ page: 1 })}
+        onClose={handleFormClose}
+        onCreated={handleFormCreated}
+        // ✅ BARU: konteks reschedule (undefined kalau buat jadwal baru biasa)
+        initialType={rescheduleContext?.type}
+        preselectedApplicant={rescheduleContext?.candidate}
+        scheduleIdToReplace={rescheduleContext?.scheduleIdToReplace}
       />
 
       <ConfirmDialog

@@ -77,6 +77,110 @@ function drawKeyValueGrid(doc, pairs, y, colWidth = 90) {
   return rowY + 2;
 }
 
+// ✅ NEW: pastikan ada cukup ruang di halaman saat ini; kalau tidak,
+// pindah ke halaman baru dan kembalikan posisi Y awal halaman baru.
+function ensureSpace(doc, y, needed) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (y + needed > pageHeight - 18) {
+    doc.addPage();
+    return 20;
+  }
+  return y;
+}
+
+// ✅ NEW: menulis paragraf dengan word-wrap otomatis (dipakai untuk "Catatan")
+function drawParagraph(doc, text, y, maxWidth) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const width = maxWidth ?? pageWidth - 28;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(60, 60, 60);
+
+  const lines = doc.splitTextToSize(String(text ?? "-"), width);
+  lines.forEach((line) => {
+    y = ensureSpace(doc, y, 6);
+    doc.text(line, 14, y);
+    y += 5;
+  });
+
+  doc.setTextColor(0, 0, 0);
+  return y + 3;
+}
+
+// ✅ NEW: tabel sederhana (tanpa dependency jspdf-autotable) dengan
+// word-wrap per sel, border, header abu-abu, dan auto page-break.
+// columns: [{ header: string, width: number (mm) }]
+// rows: array of array of string (urutan sesuai columns)
+function drawTable(doc, { y, columns, rows, emptyLabel = "Belum ada data." }) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const startX = 14;
+  const lineHeight = 4.6;
+  const cellPadding = 2;
+  const headerRowH = 7;
+  let currentY = y;
+
+  const drawHeaderRow = () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    let x = startX;
+    columns.forEach((col) => {
+      doc.setFillColor(243, 244, 246);
+      doc.setDrawColor(224, 224, 224);
+      doc.rect(x, currentY, col.width, headerRowH, "FD");
+      doc.setTextColor(90, 90, 90);
+      doc.text(col.header, x + cellPadding, currentY + headerRowH / 2 + 1.5);
+      x += col.width;
+    });
+    currentY += headerRowH;
+    doc.setTextColor(0, 0, 0);
+  };
+
+  drawHeaderRow();
+
+  if (!rows || rows.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    const totalWidth = columns.reduce((s, c) => s + c.width, 0);
+    doc.setDrawColor(230, 230, 230);
+    doc.rect(startX, currentY, totalWidth, 9);
+    doc.text(emptyLabel, startX + cellPadding, currentY + 6);
+    doc.setTextColor(0, 0, 0);
+    return currentY + 9 + 4;
+  }
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+
+  rows.forEach((row) => {
+    const cellLines = columns.map((col, ci) => {
+      const text = String(row[ci] ?? "-");
+      return doc.splitTextToSize(text, col.width - cellPadding * 2);
+    });
+    const maxLines = Math.max(...cellLines.map((l) => l.length), 1);
+    const rowH = maxLines * lineHeight + cellPadding * 2;
+
+    if (currentY + rowH > pageHeight - 18) {
+      doc.addPage();
+      currentY = 20;
+      drawHeaderRow();
+    }
+
+    let x = startX;
+    columns.forEach((col, ci) => {
+      doc.setDrawColor(230, 230, 230);
+      doc.rect(x, currentY, col.width, rowH);
+      doc.text(cellLines[ci], x + cellPadding, currentY + cellPadding + 3.3);
+      x += col.width;
+    });
+
+    currentY += rowH;
+  });
+
+  return currentY + 4;
+}
+
 function drawFooter(doc) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -179,6 +283,7 @@ export async function generateInterviewPdf({ candidate, data, stageLabel }) {
     `${stageLabel} • ${applicantName}`,
   );
 
+  // 1. Data Calon
   y += 4;
   y = drawSectionTitle(doc, "Data Calon", y);
   y = drawKeyValueGrid(
@@ -186,26 +291,76 @@ export async function generateInterviewPdf({ candidate, data, stageLabel }) {
     [
       ["Nama Calon", applicantName],
       ["Tanggal Wawancara", formatDateID(data?.tanggalWawancara)],
+      ["Jabatan Dilamar", data?.jabatanDilamar || "-"],
+      ["Usia", data?.usia ? `${data.usia} tahun` : "-"],
+      ["Pendidikan Terakhir", data?.pendidikanTerakhir || "-"],
+      [
+        "Pengalaman Kerja",
+        [data?.pengalamanKerja, data?.bidangPengalaman].filter(Boolean).join(" • ") || "-",
+      ],
     ],
     y,
   );
 
+  // ✅ NEW: Tabel Penilaian Aspek Wawancara (Aspek, Nilai, Keterangan)
+  y = ensureSpace(doc, y, 30);
+  y += 2;
+  y = drawSectionTitle(doc, "Penilaian Aspek Wawancara", y);
+
+  const penilaianRows = Array.isArray(data?.penilaian)
+    ? data.penilaian
+        .filter((r) => r && (r.aspek || r.nilai || r.keterangan))
+        .map((r, i) => [String(i + 1), r.aspek || "-", r.nilai || "-", r.keterangan || "-"])
+    : [];
+
+  y = drawTable(doc, {
+    y,
+    columns: [
+      { header: "No", width: 10 },
+      { header: "Aspek", width: 38 },
+      { header: "Nilai", width: 22 },
+      { header: "Keterangan", width: 112 },
+    ],
+    rows: penilaianRows,
+    emptyLabel: "Belum ada penilaian aspek yang diisi.",
+  });
+
+  // ✅ NEW: Ekspektasi & Pewawancara
+  y = ensureSpace(doc, y, 24);
+  y += 2;
+  y = drawSectionTitle(doc, "Ekspektasi & Pewawancara", y);
+  y = drawKeyValueGrid(
+    doc,
+    [
+      ["Gaji Harapan", data?.gajiHarapan || "-"],
+      ["Nama Pewawancara", data?.namaPewawancara || "-"],
+    ],
+    y,
+  );
+
+  // Lampiran hasil interview berupa gambar (jika ada)
   const uploadedData = data?.dataDokumenPendukung;
   const uploadedMime = data?.mimeDokumenPendukung;
   const isImage = uploadedMime === "image/png" || uploadedMime === "image/jpeg";
 
   if (uploadedData && isImage) {
-    y += 4;
-    y = drawSectionTitle(doc, "Hasil Interview", y);
+    y = ensureSpace(doc, y, 30);
+    y += 2;
+    y = drawSectionTitle(doc, "Lampiran Hasil Interview", y);
 
     try {
       const { width, height } = await getImageSizeFromDataUrl(uploadedData);
-      const maxW = pageWidth - 28; 
-      const maxH = pageHeight - y - 40; 
+      const maxW = pageWidth - 28;
+      const maxH = pageHeight - y - 40;
 
       const scale = Math.min(maxW / width, maxH / height, 1);
       const drawW = width * scale;
       const drawH = height * scale;
+
+      if (drawH > pageHeight - y - 40) {
+        doc.addPage();
+        y = 20;
+      }
 
       const format = uploadedMime === "image/png" ? "PNG" : "JPEG";
       doc.addImage(uploadedData, format, 14, y, drawW, drawH);
@@ -215,15 +370,13 @@ export async function generateInterviewPdf({ candidate, data, stageLabel }) {
     }
   }
 
-  if (y > 250) {
-    doc.addPage();
-    y = 20;
-  }
-
+  // Kesimpulan Akhir
+  y = ensureSpace(doc, y, 24);
+  y += 2;
   y = drawSectionTitle(doc, "Kesimpulan Akhir", y);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  
+
   const kesimpulanLower = (data?.kesimpulan || "").toLowerCase();
   const isRekomendasi = kesimpulanLower.includes("direkomendasikan") && !kesimpulanLower.includes("tidak");
   doc.setTextColor(...(isRekomendasi ? [21, 128, 61] : [185, 28, 28]));
@@ -232,6 +385,7 @@ export async function generateInterviewPdf({ candidate, data, stageLabel }) {
   y += 10;
 
   if (data?.tandaTanganPewawancara) {
+    y = ensureSpace(doc, y, 34);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(120, 120, 120);
@@ -278,39 +432,108 @@ export async function generatePsikotestPdf({ candidate, data }) {
     doc,
     [
       ["Nama Kandidat", applicantName],
+      ["Posisi Dilamar", data?.posisi || candidate?.position || "-"],
       ["Tanggal Test", formatDateID(data?.tanggalTest)],
+      ["Tester", data?.penguji || "-"],
     ],
     y,
   );
 
-  // 2. Ringkasan Skor (Hanya Skor Akhir)
-  y += 4;
+  // 2. Ringkasan Skor
+  y = ensureSpace(doc, y, 20);
+  y += 2;
   y = drawSectionTitle(doc, "Ringkasan Skor", y);
   y = drawKeyValueGrid(
     doc,
     [
       ["Skor Akhir", `${data?.skorAkhir ?? "-"}/100`],
+      ["Skor IQ (Kognitif)", data?.skorIq ?? "-"],
+      ["Keterangan IQ", data?.keteranganIq || "-"],
     ],
     y,
   );
 
-  // 3. Dokumen Pendukung (Hasil Psikotest)
+  // ✅ NEW: Hasil Kepribadian
+  y = ensureSpace(doc, y, 20);
+  y += 2;
+  y = drawSectionTitle(doc, "Hasil Kepribadian", y);
+  y = drawKeyValueGrid(
+    doc,
+    [
+      ["Kepribadian", data?.kepribadian || "-"],
+      ["Stabilitas Emosi", data?.stabilitasEmosi || "-"],
+      ["Integritas", data?.integritas || "-"],
+    ],
+    y,
+  );
+
+  // ✅ NEW: Tabel Aspek Tambahan (Aspek, Nilai, Keterangan), jika ada
+  const aspekTambahanRows = Array.isArray(data?.aspekTambahan)
+    ? data.aspekTambahan
+        .filter((r) => r && (r.aspek || r.nilai || r.keterangan))
+        .map((r, i) => [String(i + 1), r.aspek || "-", r.nilai || "-", r.keterangan || "-"])
+    : [];
+
+  if (aspekTambahanRows.length > 0) {
+    y = ensureSpace(doc, y, 24);
+    y += 2;
+    y = drawSectionTitle(doc, "Aspek Tambahan", y);
+    y = drawTable(doc, {
+      y,
+      columns: [
+        { header: "No", width: 10 },
+        { header: "Aspek", width: 38 },
+        { header: "Nilai", width: 22 },
+        { header: "Keterangan", width: 112 },
+      ],
+      rows: aspekTambahanRows,
+    });
+  }
+
+  // ✅ NEW: Catatan
+  if (data?.catatan) {
+    y = ensureSpace(doc, y, 20);
+    y += 2;
+    y = drawSectionTitle(doc, "Catatan", y);
+    y = drawParagraph(doc, data.catatan, y);
+  }
+
+  // ✅ NEW: Pemeriksa
+  y = ensureSpace(doc, y, 20);
+  y += 2;
+  y = drawSectionTitle(doc, "Pemeriksa", y);
+  y = drawKeyValueGrid(
+    doc,
+    [
+      ["Staff Human Capital", data?.namaPemeriksaStaff || "-"],
+      ["Human Capital Manager", data?.namaPemeriksaManager || "-"],
+    ],
+    y,
+  );
+
+  // Lampiran hasil psikotest berupa gambar (jika ada)
   const uploadedData = data?.dataDokumenPendukung;
   const uploadedMime = data?.mimeDokumenPendukung;
   const isImage = uploadedMime === "image/png" || uploadedMime === "image/jpeg";
 
   if (uploadedData && isImage) {
-    y += 4;
-    y = drawSectionTitle(doc, "Hasil Psikotest", y);
+    y = ensureSpace(doc, y, 30);
+    y += 2;
+    y = drawSectionTitle(doc, "Lampiran Hasil Psikotest", y);
 
     try {
       const { width, height } = await getImageSizeFromDataUrl(uploadedData);
-      const maxW = pageWidth - 28; 
-      const maxH = pageHeight - y - 40; 
+      const maxW = pageWidth - 28;
+      const maxH = pageHeight - y - 40;
 
       const scale = Math.min(maxW / width, maxH / height, 1);
       const drawW = width * scale;
       const drawH = height * scale;
+
+      if (drawH > pageHeight - y - 40) {
+        doc.addPage();
+        y = 20;
+      }
 
       const format = uploadedMime === "image/png" ? "PNG" : "JPEG";
       doc.addImage(uploadedData, format, 14, y, drawW, drawH);
@@ -320,16 +543,13 @@ export async function generatePsikotestPdf({ candidate, data }) {
     }
   }
 
-  if (y > 250) {
-    doc.addPage();
-    y = 20;
-  }
-
-  // 4. Kesimpulan Akhir
+  // Kesimpulan Akhir
+  y = ensureSpace(doc, y, 24);
+  y += 2;
   y = drawSectionTitle(doc, "Kesimpulan Akhir", y);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  
+
   const kesimpulanLower = (data?.kesimpulan || "").toLowerCase();
   const isRekomendasi = kesimpulanLower.includes("direkomendasikan") && !kesimpulanLower.includes("tidak");
   doc.setTextColor(...(isRekomendasi ? [21, 128, 61] : [185, 28, 28]));

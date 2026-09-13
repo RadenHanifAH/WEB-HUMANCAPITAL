@@ -58,7 +58,6 @@ function Lokeradmin() {
         const data = await fetchJobs();
 
         if (Array.isArray(data)) {
-          // MODIFIKASI DISINI:
           // Urutkan ID dari Besar ke Kecil (b.id - a.id)
           // Asumsinya ID baru selalu lebih besar. Ini membuat data terbaru muncul di index 0.
           const sortedData = data.sort((a, b) => b.id - a.id);
@@ -83,7 +82,27 @@ function Lokeradmin() {
   }, [searchTerm, statusFilter]);
 
   const totalJobs = jobs.length;
-  const activeJobs = jobs.filter((j) => j.status === "active").length;
+
+  // ⭐ AUTO CLOSE: cek apakah deadline sudah tercapai (bandingkan tanggal saja)
+  const isDeadlinePassed = (deadline) => {
+    if (!deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dl = new Date(deadline);
+    dl.setHours(0, 0, 0, 0);
+    return today >= dl;
+  };
+
+  // ⭐ AUTO CLOSE: lowongan "active" yang deadline-nya sudah masuk dianggap "closed"
+  const getEffectiveStatus = (job) => {
+    if (job.status === "active" && isDeadlinePassed(job.deadline)) {
+      return "closed";
+    }
+    return job.status;
+  };
+
+  // ⭐ AUTO CLOSE: statistik Lowongan Aktif tidak menghitung yang expired
+  const activeJobs = jobs.filter((j) => getEffectiveStatus(j) === "active").length;
   const totalApplicants = jobs.reduce((sum, j) => sum + (j.applicants || 0), 0);
 
   // --- LOGIKA FILTER ---
@@ -96,7 +115,9 @@ function Lokeradmin() {
       .includes(searchTerm.toLowerCase());
     const matchesSearch = titleMatch || deptMatch;
 
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter;
+    // ⭐ AUTO CLOSE: filter status pakai status efektif (expired ikut ke filter "closed")
+    const matchesStatus =
+      statusFilter === "all" || getEffectiveStatus(job) === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -106,7 +127,19 @@ function Lokeradmin() {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentJobs = filteredJobs.slice(indexOfFirstItem, indexOfLastItem);
 
-  const getStatusBadge = (status) => {
+  // ⭐ AUTO CLOSE: badge menerima deadline untuk deteksi expired
+  const getStatusBadge = (status, deadline) => {
+    // Status active tapi deadline sudah tercapai -> tampil Closed otomatis
+    if (status === "active" && isDeadlinePassed(deadline)) {
+      return (
+        <span
+          className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-600"
+          title="Ditutup otomatis karena sudah masuk tanggal deadline"
+        >
+          Closed
+        </span>
+      );
+    }
     switch (status) {
       case "active":
         return (

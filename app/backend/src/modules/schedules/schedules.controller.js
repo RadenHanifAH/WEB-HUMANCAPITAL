@@ -1,4 +1,5 @@
 const schedulesService = require("./schedules.service");
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 class SchedulesController {
   applicants = async (req, res) => {
@@ -19,6 +20,15 @@ class SchedulesController {
       res.status(200).json({ items });
     } catch (e) {
       res.status(500).json({ message: "Gagal memuat kandidat", error: e.message });
+    }
+  };
+
+  mySchedules = async (req, res) => {
+    try {
+      const items = await schedulesService.listMySchedules(req.user?.id);
+      res.status(200).json({ items });
+    } catch (e) {
+      res.status(500).json({ message: "Gagal memuat jadwal Anda", error: e.message });
     }
   };
 
@@ -46,6 +56,18 @@ class SchedulesController {
   create = async (req, res) => {
     try {
       const result = await schedulesService.createSchedule(req.body);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "CREATE",
+        modul: "wawancara",
+        target_id: result?.id || null,
+        deskripsi: `Membuat jadwal wawancara baru`,
+        data_sebelum: null,
+        data_sesudah: result || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(201).json({ message: "Jadwal dibuat", data: result });
     } catch (e) {
       res.status(400).json({ message: "Gagal membuat jadwal", error: e.message });
@@ -55,6 +77,18 @@ class SchedulesController {
   bulkCreate = async (req, res) => {
     try {
       const result = await schedulesService.bulkCreateSchedule(req.body);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "CREATE",
+        modul: "wawancara",
+        target_id: null,
+        deskripsi: `Membuat jadwal wawancara massal`,
+        data_sebelum: null,
+        data_sesudah: result || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(201).json({ message: "Jadwal berhasil dibuat", ...result });
     } catch (e) {
       res.status(400).json({ message: "Gagal membuat jadwal", error: e.message });
@@ -64,18 +98,49 @@ class SchedulesController {
   complete = async (req, res) => {
     try {
       const result = await schedulesService.completeSchedule(req.params.id);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Mengonfirmasi jadwal wawancara selesai`,
+        data_sebelum: null,
+        data_sesudah: result?.data || result || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Jadwal dikonfirmasi selesai", data: result });
     } catch (e) {
       res.status(400).json({ message: "Gagal konfirmasi jadwal", error: e.message });
     }
   };
 
+  // ✅ FIX: sekarang meneruskan `token` dari body request (dikirim oleh
+  // halaman konfirmasi publik lewat link email) ke service, sebagai
+  // alternatif dari `req.user?.id` yang hanya tersedia kalau memang
+  // sedang login.
   confirmApplicant = async (req, res) => {
     try {
-      const { attendanceStatus, absentReason } = req.body;
+      const { attendanceStatus, absentReason, token } = req.body;
       const data = await schedulesService.confirmAttendance(req.params.id, {
-        attendanceStatus, absentReason,
+        attendanceStatus,
+        absentReason,
+        token, // bukti kepemilikan dari link email, tidak butuh login
+        penggunaId: req.user?.id, // fallback untuk pemakaian dari sesi login (mis. "Lamaran Saya")
       });
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Konfirmasi kehadiran jadwal wawancara — status: ${attendanceStatus || "-"}`,
+        data_sebelum: null,
+        data_sesudah: data || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Konfirmasi kehadiran berhasil", data });
     } catch (e) {
       res.status(400).json({ message: e.message });
@@ -86,8 +151,20 @@ class SchedulesController {
     try {
       const { reason } = req.body;
       const data = await schedulesService.markNoShowByHR(req.params.id, { reason });
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Menandai kandidat tidak hadir pada jadwal${reason ? ` — Alasan: ${reason}` : ""}`,
+        data_sebelum: null,
+        data_sesudah: data || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({
-        message: "Kandidat ditandai tidak hadir, lamaran otomatis ditolak",
+        message: "Kandidat ditandai tidak hadir",
         data,
       });
     } catch (e) {
@@ -98,16 +175,39 @@ class SchedulesController {
   markExpired = async (req, res) => {
     try {
       const data = await schedulesService.markExpiredAsAbsent(req.params.id);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Menandai jadwal wawancara kedaluwarsa / tidak hadir`,
+        data_sebelum: null,
+        data_sesudah: data || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Jadwal ditandai tidak hadir (kedaluwarsa)", data });
     } catch (e) {
       res.status(400).json({ message: e.message });
     }
   };
 
-  // Endpoint baru untuk menolak lamaran
   reject = async (req, res) => {
     try {
       const result = await schedulesService.rejectSchedule(req.params.id);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "REJECT",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Menolak lamaran dari jadwal wawancara`,
+        data_sebelum: null,
+        data_sesudah: result?.data || result || null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Lamaran berhasil ditolak", data: result });
     } catch (e) {
       res.status(400).json({ message: "Gagal menolak lamaran", error: e.message });
@@ -116,7 +216,26 @@ class SchedulesController {
 
   delete = async (req, res) => {
     try {
+      let existing = null;
+      try {
+        existing = await schedulesService.getScheduleById(req.params.id);
+      } catch (e) {
+        existing = null;
+      }
+
       await schedulesService.deleteSchedule(req.params.id);
+
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "DELETE",
+        modul: "wawancara",
+        target_id: Number(req.params.id) || req.params.id,
+        deskripsi: `Menghapus jadwal wawancara`,
+        data_sebelum: existing || null,
+        data_sesudah: null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Jadwal dihapus" });
     } catch (e) {
       res.status(400).json({ message: "Gagal hapus jadwal", error: e.message });

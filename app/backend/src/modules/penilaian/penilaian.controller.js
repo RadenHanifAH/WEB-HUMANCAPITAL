@@ -2,12 +2,13 @@ const penilaianService = require("./penilaian.service");
 // ✅ NEW: notifikasi ke admin — hasil psikotest/interview tersimpan.
 const { notifyAdmins } = require("../notifications/notify.helper");
 const { NOTIFICATION_TYPES } = require("../notifications/notifications.service");
+// 📝 LOG: tambahan untuk Log Aktivitas
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 class PenilaianController {
   // ================= PREFILL =================
 
   // GET /penilaian/prefill/:applicationId
-  // Ambil nama, posisi, stage, & profil dari data application (job + user) untuk auto-isi form
   getPrefillData = async (req, res) => {
     try {
       const { applicationId } = req.params;
@@ -95,7 +96,18 @@ class PenilaianController {
     try {
       const item = await penilaianService.saveOrUpdatePsikotest(req.body);
 
-      // ✅ FIX: Baca properti snake_case & ubah actionUrl ke "schedule-dokumen-penilaian"
+      // 📝 LOG: hasil psikotest disimpan
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "CREATE",
+        modul: "penilaian",
+        target_id: item?.id || null,
+        deskripsi: `Menyimpan hasil psikotest untuk ${item?.nama_pelamar || "-"} (${item?.posisi || "-"}) — kesimpulan: ${item?.kesimpulan || "-"}`,
+        data_sebelum: null,
+        data_sesudah: item || null,
+        ip_address: getClientIp(req),
+      });
+
       notifyAdmins({
         type: NOTIFICATION_TYPES.ASSESSMENT_SAVED,
         title: `Hasil Psikotest Tersimpan - ${item.nama_pelamar}`,
@@ -122,6 +134,19 @@ class PenilaianController {
         ...req.body,
         id,
       });
+
+      // 📝 LOG: hasil psikotest diperbarui
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "penilaian",
+        target_id: item?.id || Number(id) || id,
+        deskripsi: `Memperbarui hasil psikotest untuk ${item?.nama_pelamar || "-"} — kesimpulan: ${item?.kesimpulan || "-"}`,
+        data_sebelum: null,
+        data_sesudah: item || null,
+        ip_address: getClientIp(req),
+      });
+
       res
         .status(200)
         .json({ message: "Hasil psikotest berhasil diperbarui", item });
@@ -136,7 +161,29 @@ class PenilaianController {
   deletePsikotest = async (req, res) => {
     try {
       const { id } = req.params;
+
+      // snapshot sebelum hapus (best-effort)
+      let existing = null;
+      try {
+        existing = await penilaianService.getPsikotest(id);
+      } catch (e) {
+        existing = null;
+      }
+
       await penilaianService.removePsikotest(id);
+
+      // 📝 LOG: hasil psikotest dihapus
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "DELETE",
+        modul: "penilaian",
+        target_id: Number(id) || id,
+        deskripsi: `Menghapus hasil psikotest ${existing?.nama_pelamar || `(ID: ${id})`}`,
+        data_sebelum: existing || null,
+        data_sesudah: null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Hasil psikotest berhasil dihapus" });
     } catch (e) {
       res
@@ -205,7 +252,18 @@ class PenilaianController {
     try {
       const item = await penilaianService.saveOrUpdateInterview(req.body);
 
-      // ✅ FIX: Baca properti snake_case & ubah actionUrl ke "schedule-dokumen-penilaian"
+      // 📝 LOG: hasil interview disimpan
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "CREATE",
+        modul: "penilaian",
+        target_id: item?.id || null,
+        deskripsi: `Menyimpan hasil interview tahap ${item?.tahap ?? "-"} untuk ${item?.nama_pelamar || "-"} — kesimpulan: ${item?.kesimpulan || "-"}`,
+        data_sebelum: null,
+        data_sesudah: item || null,
+        ip_address: getClientIp(req),
+      });
+
       notifyAdmins({
         type: NOTIFICATION_TYPES.ASSESSMENT_SAVED,
         title: `Hasil Interview Tersimpan - ${item.nama_pelamar}`,
@@ -232,6 +290,19 @@ class PenilaianController {
         ...req.body,
         id,
       });
+
+      // 📝 LOG: hasil interview diperbarui
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "UPDATE",
+        modul: "penilaian",
+        target_id: item?.id || Number(id) || id,
+        deskripsi: `Memperbarui hasil interview tahap ${item?.tahap ?? "-"} untuk ${item?.nama_pelamar || "-"}`,
+        data_sebelum: null,
+        data_sesudah: item || null,
+        ip_address: getClientIp(req),
+      });
+
       res
         .status(200)
         .json({ message: "Hasil wawancara berhasil diperbarui", item });
@@ -246,7 +317,29 @@ class PenilaianController {
   deleteInterview = async (req, res) => {
     try {
       const { id } = req.params;
+
+      // snapshot sebelum hapus (best-effort)
+      let existing = null;
+      try {
+        existing = await penilaianService.getInterview(id);
+      } catch (e) {
+        existing = null;
+      }
+
       await penilaianService.removeInterview(id);
+
+      // 📝 LOG: hasil interview dihapus
+      logActivity({
+        pengguna_id: req.user?.id,
+        aksi: "DELETE",
+        modul: "penilaian",
+        target_id: Number(id) || id,
+        deskripsi: `Menghapus hasil interview ${existing?.nama_pelamar || `(ID: ${id})`}`,
+        data_sebelum: existing || null,
+        data_sesudah: null,
+        ip_address: getClientIp(req),
+      });
+
       res.status(200).json({ message: "Hasil wawancara berhasil dihapus" });
     } catch (e) {
       res
@@ -256,8 +349,6 @@ class PenilaianController {
   };
 
   // GET /penilaian/documents?q=budi
-  // Dipakai halaman "Dokumen Penilaian": daftar pelamar + seluruh hasil
-  // penilaian (psikotes, interview tahap 1 & 2) per pelamar.
   listAssessmentDocuments = async (req, res) => {
     try {
       const { q = "" } = req.query;

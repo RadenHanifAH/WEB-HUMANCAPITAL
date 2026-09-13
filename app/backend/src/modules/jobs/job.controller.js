@@ -1,6 +1,7 @@
 const jobService = require("./job.service");
 const { notifyAdmins } = require("../notifications/notify.helper");
 const { NOTIFICATION_TYPES } = require("../notifications/notifications.service");
+const { logActivity, getClientIp } = require("../activity-log/activityLog.helper");
 
 const getAllJobs = async (req, res) => {
   try {
@@ -14,10 +15,8 @@ const getAllJobs = async (req, res) => {
     } = req.query;
 
     const filter = {};
-    
-    // ✅ KEMBALIKAN FILTER LAMA
+
     if (department) filter.departemen = department;
-    
     if (location) filter.lokasi = { contains: location };
     if (type) filter.jenis = type;
 
@@ -66,7 +65,24 @@ const getJobById = async (req, res) => {
 
 const createJob = async (req, res) => {
   try {
-    const newJob = await jobService.createJob(req.body);
+    const pengguna_id = req.user?.id;
+
+    const newJob = await jobService.createJob({
+      ...req.body,
+      dibuat_oleh: pengguna_id ?? null,
+    });
+
+    // 📝 Log: lowongan baru dibuat manual (bukan dari approve pengajuan)
+    logActivity({
+      pengguna_id,
+      aksi: "CREATE",
+      modul: "lowongan",
+      target_id: newJob.id,
+      deskripsi: `Membuat lowongan baru "${newJob.judul}" (${newJob.departemen || "-"})`,
+      data_sebelum: null,
+      data_sesudah: newJob,
+      ip_address: getClientIp(req),
+    });
 
     notifyAdmins({
       type: NOTIFICATION_TYPES.JOB_CREATED,
@@ -89,7 +105,26 @@ const createJob = async (req, res) => {
 const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedJob = await jobService.updateJob(id, req.body);
+    const pengguna_id = req.user?.id;
+
+    const existing = await jobService.getJobById(id);
+
+    const updatedJob = await jobService.updateJob(id, {
+      ...req.body,
+      diubah_oleh: pengguna_id ?? null,
+    });
+
+    // 📝 Log: lowongan diubah, simpan snapshot sebelum & sesudah
+    logActivity({
+      pengguna_id,
+      aksi: "UPDATE",
+      modul: "lowongan",
+      target_id: updatedJob.id,
+      deskripsi: `Memperbarui lowongan "${updatedJob.judul}"`,
+      data_sebelum: existing,
+      data_sesudah: updatedJob,
+      ip_address: getClientIp(req),
+    });
 
     notifyAdmins({
       type: NOTIFICATION_TYPES.JOB_UPDATED,
@@ -115,7 +150,21 @@ const updateJob = async (req, res) => {
 const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
+    const pengguna_id = req.user?.id;
+
     const deletedJob = await jobService.deleteJob(id);
+
+    // 📝 Log: lowongan dihapus, simpan snapshot terakhir
+    logActivity({
+      pengguna_id,
+      aksi: "DELETE",
+      modul: "lowongan",
+      target_id: deletedJob.id,
+      deskripsi: `Menghapus lowongan "${deletedJob.judul}"`,
+      data_sebelum: deletedJob,
+      data_sesudah: null,
+      ip_address: getClientIp(req),
+    });
 
     notifyAdmins({
       type: NOTIFICATION_TYPES.JOB_DELETED,

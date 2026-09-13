@@ -13,22 +13,22 @@ model pengguna {
   email       String         @unique(map: "Pengguna_email_key")
   nama        String
   password    String
-  peran       peran_pengguna @default(pelamar)       // Administrator | Recruiter | Manager | Hiring Manager
+  peran       peran_pengguna @default(pelamar)
   divisi      String?
 
   // Status & waktu
-  status_akun    String    @default("active") // active | pending | inactive | suspended
+  status_akun    String    @default("active")
   login_terakhir DateTime?
   created_at     DateTime  @default(now())
 
-  // Keamanan (reset password & refresh token)
+  // Keamanan
   reset_password_kadaluarsa DateTime?
   hash_token_reset_password String?
   hash_refresh_token        String?
 
-  // Relasi
-  lamaran            lamaran[]
-  arsip              arsip[]
+  // Relasi data milik pengguna
+  lamaran            lamaran[]            @relation("LamaranPemilik")
+  arsip              arsip[]              @relation("ArsipPemilik")
   sertifikat         sertifikat[]
   pendidikan         pendidikan[]
   notifikasi         notifikasi[]
@@ -39,6 +39,23 @@ model pengguna {
   pengalaman_kerja   pengalaman_kerja[]
   pengajuan_sdm      pengajuan_sdm[]      @relation("PengajuanPemilik")
   pendaftaran_tertunda   pendaftaran_tertunda?
+  log_aktivitas      log_aktivitas[]
+
+  // Relasi jejak pencatat perubahan (dibuat/diubah oleh pengguna ini)
+  pengajuan_sdm_dibuat     pengajuan_sdm[]      @relation("PengajuanSdmDibuatOleh")
+  pengajuan_sdm_diubah     pengajuan_sdm[]      @relation("PengajuanSdmDiubahOleh")
+  lowongan_dibuat          lowongan[]           @relation("LowonganDibuatOleh")
+  lowongan_diubah          lowongan[]           @relation("LowonganDiubahOleh")
+  lamaran_dibuat           lamaran[]            @relation("LamaranDibuatOleh")
+  lamaran_diubah           lamaran[]            @relation("LamaranDiubahOleh")
+  arsip_dibuat             arsip[]              @relation("ArsipDibuatOleh")
+  arsip_diubah             arsip[]              @relation("ArsipDiubahOleh")
+  jadwal_wawancara_dibuat  jadwal_wawancara[]   @relation("JadwalWawancaraDibuatOleh")
+  jadwal_wawancara_diubah  jadwal_wawancara[]   @relation("JadwalWawancaraDiubahOleh")
+  hasil_psikotes_dibuat    hasil_psikotes[]     @relation("HasilPsikotesDibuatOleh")
+  hasil_psikotes_diubah    hasil_psikotes[]     @relation("HasilPsikotesDiubahOleh")
+  hasil_wawancara_dibuat   hasil_wawancara[]    @relation("HasilWawancaraDibuatOleh")
+  hasil_wawancara_diubah   hasil_wawancara[]    @relation("HasilWawancaraDiubahOleh")
 
   @@index([status_akun], map: "Pengguna_status_akun_idx")
   @@index([divisi], map: "Pengguna_divisi_idx")
@@ -177,9 +194,17 @@ model lowongan {
   created_at       DateTime             @default(now())
   updated_at       DateTime             @default(now()) @updatedAt
 
+  dibuat_oleh Int?
+  diubah_oleh Int?
+
   pengajuan_sdm pengajuan_sdm? @relation(fields: [pengajuan_sdm_id], references: [id], onDelete: SetNull, map: "Lowongan_pengajuan_sdm_id_fkey")
   lamaran       lamaran[]
   arsip         arsip[]
+  pembuat  pengguna? @relation("LowonganDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "Lowongan_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("LowonganDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "Lowongan_diubah_oleh_fkey")
+
+  @@index([dibuat_oleh], map: "Lowongan_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "Lowongan_diubah_oleh_idx")
 }
 
 model lamaran {
@@ -201,15 +226,22 @@ model lamaran {
   created_at        DateTime @default(now())
   updated_at        DateTime @default(now()) @updatedAt
 
-  pengguna         pengguna           @relation(fields: [pengguna_id], references: [id], map: "Lamaran_pengguna_id_fkey")
+  dibuat_oleh Int?
+  diubah_oleh Int?
+
+  pengguna         pengguna           @relation("LamaranPemilik", fields: [pengguna_id], references: [id], map: "Lamaran_pengguna_id_fkey")
   lowongan         lowongan           @relation(fields: [lowongan_id], references: [id], map: "Lamaran_lowongan_id_fkey")
   arsip            arsip?
   jadwal_wawancara jadwal_wawancara[]
   hasil_psikotes   hasil_psikotes[]
   hasil_wawancara  hasil_wawancara[]
+  pembuat  pengguna? @relation("LamaranDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "Lamaran_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("LamaranDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "Lamaran_diubah_oleh_fkey")
 
   @@index([lowongan_id], map: "Lamaran_lowongan_id_fkey")
   @@index([pengguna_id], map: "Lamaran_pengguna_id_fkey")
+  @@index([dibuat_oleh], map: "Lamaran_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "Lamaran_diubah_oleh_idx")
 }
 
 model arsip {
@@ -225,14 +257,21 @@ model arsip {
   created_at        DateTime  @default(now())
   updated_at        DateTime  @updatedAt
 
+  dibuat_oleh Int?
+  diubah_oleh Int?
+
   lamaran  lamaran   @relation(fields: [lamaran_id], references: [id], onDelete: Cascade, map: "Arsip_lamaran_id_fkey")
-  pengguna pengguna? @relation(fields: [pengguna_id], references: [id], map: "Arsip_pengguna_id_fkey")
+  pengguna pengguna? @relation("ArsipPemilik", fields: [pengguna_id], references: [id], map: "Arsip_pengguna_id_fkey")
   lowongan lowongan? @relation(fields: [lowongan_id], references: [id], map: "Arsip_lowongan_id_fkey")
+  pembuat  pengguna? @relation("ArsipDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "Arsip_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("ArsipDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "Arsip_diubah_oleh_fkey")
 
   @@index([tanggal_keputusan], map: "Arsip_tanggal_keputusan_idx")
   @@index([status_akhir], map: "Arsip_status_akhir_idx")
   @@index([lowongan_id], map: "Arsip_lowongan_id_fkey")
   @@index([pengguna_id], map: "Arsip_pengguna_id_fkey")
+  @@index([dibuat_oleh], map: "Arsip_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "Arsip_diubah_oleh_idx")
 }
 
 model jadwal_wawancara {
@@ -254,43 +293,64 @@ model jadwal_wawancara {
   status_kehadiran          String    @default("pending")
   alasan_tidak_hadir        String?   @db.Text
 
+  dibuat_oleh Int?
+  diubah_oleh Int?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   lamaran  lamaran?  @relation(fields: [lamaran_id], references: [id], map: "JadwalWawancara_lamaran_id_fkey")
+  pembuat  pengguna? @relation("JadwalWawancaraDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "JadwalWawancara_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("JadwalWawancaraDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "JadwalWawancara_diubah_oleh_fkey")
 
   @@index([lamaran_id], map: "JadwalWawancara_lamaran_id_idx")
   @@index([tanggal_waktu], map: "JadwalWawancara_tanggal_waktu_idx")
   @@index([status], map: "JadwalWawancara_status_idx")
   @@index([jenis], map: "JadwalWawancara_jenis_idx")
   @@index([status_kehadiran], map: "JadwalWawancara_status_kehadiran_idx")
+  @@index([dibuat_oleh], map: "JadwalWawancara_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "JadwalWawancara_diubah_oleh_idx")
 }
 
 model hasil_psikotes {
   id         Int      @id @default(autoincrement())
   lamaran_id Int?
 
-  // Data calon karyawan
   nama_pelamar String
   posisi       String
   tanggal_tes  DateTime
+  penguji      String?
 
-  data_dokumen_pendukung   String? @db.LongText
-  nama_dokumen_pendukung   String?
-  mime_dokumen_pendukung   String?
-  ukuran_dokumen_pendukung Int?
+  // Hasil penilaian psikotest
+  skor_iq         Int?
+  keterangan_iq   String?
+  kepribadian     String?
+  stabilitas_emosi String?
+  integritas      String?
+  // Baris aspek tambahan (opsional): [{ aspek, nilai, keterangan }]
+  aspek_tambahan  Json?
+  catatan         String? @db.Text
 
-  // Kesimpulan
   kesimpulan String
   skor_akhir Int
+
+  nama_pemeriksa_staff   String?
+  nama_pemeriksa_manager String?
+
+  dibuat_oleh Int?
+  diubah_oleh Int?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  lamaran lamaran? @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilPsikotes_lamaran_id_fkey")
+  lamaran  lamaran?  @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilPsikotes_lamaran_id_fkey")
+  pembuat  pengguna? @relation("HasilPsikotesDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "HasilPsikotes_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("HasilPsikotesDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "HasilPsikotes_diubah_oleh_fkey")
 
   @@index([lamaran_id], map: "HasilPsikotes_lamaran_id_idx")
   @@index([kesimpulan], map: "HasilPsikotes_kesimpulan_idx")
+  @@index([dibuat_oleh], map: "HasilPsikotes_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "HasilPsikotes_diubah_oleh_idx")
 }
 
 model hasil_wawancara {
@@ -298,81 +358,97 @@ model hasil_wawancara {
   lamaran_id Int?
   tahap      Int  @default(1)
 
-  // Data calon
   nama_pelamar        String
   tanggal_lahir       DateTime? @db.Date
+  usia                Int?
   pendidikan_terakhir String?
+  pengalaman_kerja    String?
+  bidang_pengalaman   String?
   jabatan_dilamar     String
   tanggal_wawancara   DateTime
 
-  data_dokumen_pendukung   String? @db.LongText
-  nama_dokumen_pendukung   String?
-  mime_dokumen_pendukung   String?
-  ukuran_dokumen_pendukung Int?
+  // Tabel 13 aspek penilaian: [{ aspek, uraian, nilai, keterangan }]
+  penilaian Json?
 
-  // Kesimpulan
+  gaji_harapan     String?
+  nama_pewawancara String?
+
   kesimpulan String
+
+  dibuat_oleh Int?
+  diubah_oleh Int?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  lamaran lamaran? @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilWawancara_lamaran_id_fkey")
+  lamaran  lamaran?  @relation(fields: [lamaran_id], references: [id], onDelete: SetNull, map: "HasilWawancara_lamaran_id_fkey")
+  pembuat  pengguna? @relation("HasilWawancaraDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "HasilWawancara_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("HasilWawancaraDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "HasilWawancara_diubah_oleh_fkey")
 
   @@index([lamaran_id], map: "HasilWawancara_lamaran_id_idx")
   @@index([kesimpulan], map: "HasilWawancara_kesimpulan_idx")
   @@index([tahap], map: "HasilWawancara_tahap_idx")
+  @@index([dibuat_oleh], map: "HasilWawancara_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "HasilWawancara_diubah_oleh_idx")
 }
 
 model pengajuan_sdm {
-  id               Int       @id @default(autoincrement())
-  pengguna_id      Int?
+  id          Int  @id @default(autoincrement())
+  pengguna_id Int?
 
-  // Informasi dasar
   departemen         String   @default("")
-  posisi              String   @default("") @db.VarChar(255)
-  lokasi              String   @default("") @db.VarChar(255)
-  tanggal_permintaan  DateTime @default(now())
-  alasan              String?  @db.Text
+  posisi             String   @default("") @db.VarChar(255)
+  lokasi             String   @default("") @db.VarChar(255)
+  tanggal_permintaan DateTime @default(now())
+  alasan             String?  @db.Text
 
-  // Spesifikasi
-  jumlah          Int    @default(1)
-  status_karyawan String @default("")
-  tugas_utama     Json
+  jumlah                      Int       @default(1)
+  jenis_kelamin                String?
+  level_pangkat                 String?
+  rentang_gaji                   String?
+  tgl_terpenuhi                   DateTime?
+  status_karyawan                String    @default("")
+  status_karyawan_keterangan     String?
+  tugas_utama                    Json
 
-  // Kualifikasi
   usia_min            Int?
   usia_maks           Int?
-  status_perkawinan   Json
-  pendidikan_terakhir String @default("S1 (Sarjana)")
+  status_perkawinan   Json?
+  pendidikan_terakhir Json
+  jurusan             String?
   keahlian            Json
   pengalaman          String? @db.Text
+  syarat_lain         String? @db.Text
 
-  // Fasilitas
-  bahasa_asing       String @default("")
-  level_bahasa_asing String @default("Ahli")
-  keahlian_komputer  Json
-  fasilitas          Json
+  bahasa_asing           String @default("")
+  kemampuan_bahasa_asing Json
+  keahlian_komputer      Json
+  fasilitas               Json
 
-  // Peta kekuatan
   peta_kekuatan Json
 
-  // Status workflow
   status  String    @default("DRAFT")
   dikirim DateTime?
 
-  // Review admin
   catatan_admin String?   @db.Text
   ditinjau      DateTime?
+
+  dibuat_oleh Int?
+  diubah_oleh Int?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   pengguna pengguna?  @relation("PengajuanPemilik", fields: [pengguna_id], references: [id], onDelete: SetNull, map: "PengajuanSdm_pengguna_id_fkey")
   lowongan lowongan?
+  pembuat  pengguna? @relation("PengajuanSdmDibuatOleh", fields: [dibuat_oleh], references: [id], onDelete: SetNull, map: "PengajuanSdm_dibuat_oleh_fkey")
+  pengubah pengguna? @relation("PengajuanSdmDiubahOleh", fields: [diubah_oleh], references: [id], onDelete: SetNull, map: "PengajuanSdm_diubah_oleh_fkey")
 
   @@index([pengguna_id], map: "PengajuanSdm_pengguna_id_idx")
   @@index([status], map: "PengajuanSdm_status_idx")
   @@index([created_at], map: "PengajuanSdm_created_at_idx")
+  @@index([dibuat_oleh], map: "PengajuanSdm_dibuat_oleh_idx")
+  @@index([diubah_oleh], map: "PengajuanSdm_diubah_oleh_idx")
 }
 
 model notifikasi {
@@ -395,10 +471,34 @@ model notifikasi {
   @@index([jenis], map: "Notifikasi_jenis_idx")
 }
 
+model log_aktivitas {
+  id           Int      @id @default(autoincrement())
+  pengguna_id  Int?
+  nama_pelaku  String
+  peran_pelaku String
+  aksi         String
+  modul        String
+  target_id    Int?
+  deskripsi    String   @db.Text
+  data_sebelum Json?
+  data_sesudah Json?
+  perubahan    Json?    // ✅ NEW: diff perubahan field yang berubah, sudah di-compute saat insert
+  ip_address   String?
+  created_at   DateTime @default(now())
+
+  pengguna pengguna? @relation(fields: [pengguna_id], references: [id], onDelete: SetNull, map: "LogAktivitas_pengguna_id_fkey")
+
+  @@index([pengguna_id], map: "LogAktivitas_pengguna_id_idx")
+  @@index([modul], map: "LogAktivitas_modul_idx")
+  @@index([aksi], map: "LogAktivitas_aksi_idx")
+  @@index([created_at], map: "LogAktivitas_created_at_idx")
+  @@index([modul, aksi], map: "LogAktivitas_modul_aksi_idx")
+}
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 enum peran_pengguna {
   admin
+  super_admin
   pelamar
   divisi
 }
@@ -422,7 +522,6 @@ enum jenis_lowongan {
   Freelance
   Contract
 }
-
 
 enum pendidikan_lowongan {
   SMA

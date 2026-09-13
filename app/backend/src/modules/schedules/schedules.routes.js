@@ -1,26 +1,38 @@
 const router = require("express").Router();
 const controller = require("./schedules.controller");
+const { protectRoute, adminRoute } = require("../../middleware/auth");
 
-router.get("/applicants", controller.applicants);
-router.get("/applicants-by-stage", controller.applicantsByStage);
-router.get("/", controller.list);
-router.get("/:id", controller.getById);
+// =========================
+// GET
+// =========================
+router.get("/applicants", protectRoute, adminRoute, controller.applicants);
+router.get("/applicants-by-stage", protectRoute, adminRoute, controller.applicantsByStage);
 
-router.post("/", controller.create);
-router.post("/bulk", controller.bulkCreate);
+router.get("/me", protectRoute, controller.mySchedules);
 
-router.patch("/:id/complete", controller.complete);
+router.get("/", protectRoute, adminRoute, controller.list);
+router.get("/:id", protectRoute, controller.getById);
 
-// Pelamar: konfirmasi hadir / tidak hadir (+ alasan)
-router.patch("/:id/confirm-applicant", controller.confirmApplicant);
+// =========================
+// POST
+// =========================
+router.post("/", protectRoute, adminRoute, controller.create);
+router.post("/bulk", protectRoute, adminRoute, controller.bulkCreate);
+router.patch("/:id/complete", protectRoute, adminRoute, controller.complete);
+
+// Tetap protectRoute saja (bukan adminRoute) — dipakai juga oleh pelamar
+// publik lewat link email berbasis token, lihat komentar di controller.
+router.patch("/:id/confirm-applicant", protectRoute, controller.confirmApplicant);
+
+// Lihat catatan di bawah soal mark-expired
 router.patch("/:id/mark-expired", controller.markExpired);
 
-// HR: override manual
-router.patch("/:id/mark-no-show", controller.markNoShow);
+router.patch("/:id/mark-no-show", protectRoute, adminRoute, controller.markNoShow);
+router.patch("/:id/reject", protectRoute, adminRoute, controller.reject);
 
-// ✅ TAMBAHKAN BARIS INI
-router.patch("/:id/reject", controller.reject);
-
-router.delete("/:id", controller.delete);
+// =========================
+// DELETE
+// =========================
+router.delete("/:id", protectRoute, adminRoute, controller.delete);
 
 module.exports = router;
