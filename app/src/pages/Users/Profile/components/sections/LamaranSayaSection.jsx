@@ -40,7 +40,7 @@ import useAuthStore from "../../../../../store/useAuthStore";
 // ✅ BASE_URL = origin backend polos (TANPA "/api"), konsisten dengan
 // konvensi yang dipakai di CertificateModal.jsx / DocumentsSayaSection.jsx.
 // Prefix "/api" ditambahkan manual di setiap URL fetch/link di bawah.
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/api\/?$/, "");
 const API_URL = `${BASE_URL}/api`;
 
 /* ============================================================
